@@ -1,0 +1,58 @@
+[project]
+name = "gemma-e2e-toolkit"
+version = "0.1.0"
+description = "Production-oriented E2E SageMaker fine-tuning toolkit for Gemma SLMs (data→synthetic→train→endpoint→agentic)"
+requires-python = ">=3.10"
+
+# 버전 floor(>=)는 PyPI 실측 최신(2026-07-19). `uv lock --upgrade` 로 언제든 상위로 갱신 가능.
+dependencies = [
+    # --- AWS / SageMaker ---
+    "sagemaker>=3.16.0",       # 3.x = sagemaker-core 재구조화
+    "boto3>=1.43.51",
+    # --- HuggingFace (로컬 데이터 준비·토크나이저·dry-run 학습) ---
+    "transformers>=5.14.1",
+    "datasets>=5.0.0",
+    "huggingface_hub>=1.24.0",
+    # --- 로컬 GPU dry-run 학습 (train.py) ---
+    "trl>=1.8.0",
+    "peft>=0.19.1",
+    "accelerate>=1.14.0",
+    "bitsandbytes>=0.49.2",    # QLoRA(4bit)용
+    # --- 평가 (04_evaluate; common/eval_utils.py) ---
+    "rouge-score>=0.1.2",      # 요약/QA ROUGE
+    "scikit-learn>=1.5.0",     # 분류 accuracy/macro_f1
+    "rapidfuzz>=3.9.0",        # 분류 라벨 퍼지 매칭(생성 라벨 정규화)
+    # --- Agentic (Strands) ---
+    "strands-agents>=1.48.0",
+    "strands-agents-tools>=0.8.4",
+    # --- 노트북 ---
+    "jupyterlab",
+    "ipywidgets",
+]
+# ⚠️ litellm 은 코어에서 제외한다: litellm(현행)은 importlib-metadata>=8 을 요구하는데
+#    sagemaker(sagemaker-core)는 <7 을 요구해 하드 충돌. litellm 게이트웨이는 add-on이므로
+#    optional 로 분리(별도 환경/설치 권장). 코어 파이프라인은 boto3 직접 호출로 동작한다.
+
+[project.optional-dependencies]
+# 🔴 로컬 vLLM 서빙 프리플라이트(02b_local_serve, serve_local_vllm.sh). gemma-4는 vLLM>=0.19 필요.
+#   vllm은 수 GB + CUDA 의존이라 코어에서 제외 — 로컬 GPU 검증 시에만: uv pip install -e '.[local-serve]'
+#   (SageMaker 학습/배포는 DLC 컨테이너가 vLLM을 담으므로 이 로컬 설치가 불필요).
+local-serve = ["vllm>=0.19"]
+# LiteLLM 게이트웨이 (common/llm_gateway.py, `from litellm import completion`만 사용 — 버전 민감 X).
+#   ⚠️ sagemaker와 importlib-metadata 충돌 가능 → 별도 venv 권장:
+#     uv pip install -e '.[litellm]' --prerelease=allow
+#   🔴 하한을 1.75.9로 둔다: litellm-provider(strands-agents[litellm])가 litellm<=1.91.1을 요구하므로,
+#     >=1.93.0으로 두면 두 extra가 동시 해결 시 모순(uv add 등에서 실패)이 된다. completion API는 이 범위에도 존재.
+litellm = ["litellm>=1.75.9"]
+# AgentCore Runtime 배포 시 (05 노트북 / agentcore/)
+agentcore = ["bedrock-agentcore>=1.18.1"]
+# LangGraph 옵션 (Strands 대안)
+langgraph = ["langchain-aws>=1.6.2", "langgraph>=1.2.9"]
+# Strands를 LiteLLM 프로바이더로 쓸 때 (litellm 충돌 주의 — 별도 환경 권장)
+litellm-provider = ["strands-agents[litellm]>=1.48.0"]
+
+[tool.uv]
+# uv 전용 설정. 재현용 잠금은 uv.lock 로 관리.
+# 업그레이드:  uv lock --upgrade                      (전체 최신으로)
+#             uv lock --upgrade-package transformers  (특정 패키지만)
+package = false   # 애플리케이션/자산 킷 — 빌드 대상 패키지가 아님 (build-system 불필요)

@@ -1,0 +1,60 @@
+[
+  {
+    "file": "receipt_01.jpg",
+    "source_split": "test",
+    "source_index": 1,
+    "size": [
+      768,
+      1024
+    ],
+    "menu_items": 3,
+    "ground_truth": {
+      "menu": [
+        {
+          "name": "J.STB PROMO",
+          "count": "",
+          "price": "17500"
+        },
+        {
+          "name": "Y.B.BAT",
+          "count": "",
+          "price": "46000"
+        },
+        {
+          "name": "Y.BASO PROM",
+          "count": "",
+          "price": "27500"
+        }
+      ]
+    }
+  },
+  {
+    "file": "receipt_02.jpg",
+    "source_split": "test",
+    "source_index": 6,
+    "size": [
+      682,
+      1024
+    ],
+    "menu_items": 3,
+    "ground_truth": {
+      "menu": [
+        {
+          "name": "EGG TART",
+          "count": "1",
+          "price": "13,000"
+        },
+        {
+          "name": "CHOCO CUS ARD PASTRY",
+          "count": "2",
+          "price": "24,000"
+        },
+        {
+          "name": "REDBEAN BREAD",
+          "count": "1",
+          "price": "9,000"
+        }
+      ]
+    }
+  }
+]
