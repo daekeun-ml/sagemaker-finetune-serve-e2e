@@ -5,7 +5,7 @@ tests/test_smoke.py — 무거운 의존성 없이 순수 로직만 빠르게 �
       순수 파이썬 로직이 정상인지 수 초 내 확인. (boto3/torch/transformers 불필요)
 
 실행:
-    cd ~/gemma-e2e-toolkit
+    cd ~/sagemaker-finetune-serve-e2e
     python -m pytest tests/test_smoke.py -v
     # 또는 pytest 없이:
     python tests/test_smoke.py

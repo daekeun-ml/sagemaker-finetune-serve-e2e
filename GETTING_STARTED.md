@@ -3,7 +3,7 @@
 이 킷이 처음이라면 **이 문서 하나만 위에서 아래로** 따라 하면 됩니다.
 "노트북은 어디?", "dry-run 어떻게?", "SageMaker는 어떻게 돌려?" 에 순서대로 답합니다.
 
-> 📍 **지금 위치**: `~/gemma-e2e-toolkit` (전체 지도는 [`docs/00_overview.md`](docs/00_overview.md))
+> 📍 **지금 위치**: `~/sagemaker-finetune-serve-e2e` (전체 지도는 [`docs/00_overview.md`](docs/00_overview.md))
 
 ---
 
@@ -27,7 +27,7 @@
 # uv 미설치 시 (이미 설치돼 있으면 건너뛰기)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-cd ~/gemma-e2e-toolkit
+cd ~/sagemaker-finetune-serve-e2e
 uv venv --python 3.12            # .venv 생성
 source .venv/bin/activate        # 활성화
 uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/trl/peft/strands...)
@@ -47,7 +47,7 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 가장 먼저 이걸로 코드가 멀쩡한지 확인하세요. **모델 다운로드도, AWS도 필요 없습니다.**
 
 ```bash
-cd ~/gemma-e2e-toolkit
+cd ~/sagemaker-finetune-serve-e2e
 python tests/test_smoke.py
 ```
 기대 출력: `7/7 passed`. (데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직 검증)
@@ -129,7 +129,7 @@ tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 트랙과 별�
 
 ### 4-2. 주피터 실행
 ```bash
-cd ~/gemma-e2e-toolkit
+cd ~/sagemaker-finetune-serve-e2e
 source .venv/bin/activate
 jupyter lab           # 브라우저에서 tracks/01_.../00_setup.ipynb 부터 순서대로
 ```

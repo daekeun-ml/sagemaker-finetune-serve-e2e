@@ -5,7 +5,6 @@
 따라할 수 있는 **production 지향 실용 에셋 킷**.
 
 > 이 킷은 인터뷰(문제·모델·데이터·학습경로·배포·agentic)로 스펙을 확정한 뒤 생성됐습니다.
-> 스펙: `~/.omc/specs/sme2e-gemma-e2e-toolkit.md`
 
 > 🚀 **처음이라면 → [`GETTING_STARTED.md`](GETTING_STARTED.md)** (설치 → 스모크 → 로컬 dry-run → 노트북).
 > 🔁 **전체를 처음부터 끝까지 돌릴 거라면 → [`docs/RUN_E2E.md`](docs/RUN_E2E.md)** (E2E 실행 런북).
@@ -51,7 +50,7 @@
 
 ## 디렉토리
 ```
-gemma-e2e-toolkit/
+sagemaker-finetune-serve-e2e/
 ├── common/                       # 얇은 공통 레이어 (중복 제거, 노트북이 import)
 │   ├── config.py                 # MODEL_ID/region/role/bucket 플레이스홀더+env, DRY_RUN
 │   ├── gemma_format.py           # 표준 messages 어댑터 (apply_chat_template에 위임)
@@ -93,7 +92,7 @@ python tools/clear_outputs.py                            # 테스트로 남은 �
 # uv 미설치 시
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-cd ~/gemma-e2e-toolkit
+cd ~/sagemaker-finetune-serve-e2e
 uv venv && source .venv/bin/activate     # (선택) 전용 가상환경
 uv pip install -r pyproject.toml         # 의존성 설치
 # 또는 잠금 기반 재현 설치:  uv sync

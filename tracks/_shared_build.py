@@ -1693,7 +1693,7 @@ def _c05(s: TrackSpec) -> list[dict]:
             "AgentCore는 설치·생성·로컬서버·배포가 모두 CLI 작업이고, 대화형 프롬프트·장시간 dev 서버·PATH 연속성 때문에 "
             "**노트북 셀이 아니라 터미널에서** 하는 게 맞습니다. (셀의 `!명령`은 매번 새 셸이라 nvm PATH가 안 이어져 "
             "`agentcore: command not found`가 납니다.)\n\n"
-            "**VS Code에서 새 터미널을 열고**(Terminal → New Terminal), 리포 루트(`gemma-e2e-toolkit/`)에서 아래를 순서대로 실행하세요:\n"
+            "**VS Code에서 새 터미널을 열고**(Terminal → New Terminal), 리포 루트(`sagemaker-finetune-serve-e2e/`)에서 아래를 순서대로 실행하세요:\n"
             "```bash\n"
             "# 1) Node ≥ 20 + @aws/agentcore 설치 (Node가 이미 20+면 자동 스킵, sudo 불필요)\n"
             "bash agentcore/setup_agentcore_cli.sh\n"

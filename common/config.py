@@ -232,6 +232,7 @@ def _autodiscover_sagemaker_role() -> str | None:
 
 # 학습 데이터/아티팩트 버킷. 비우면 노트북에서 sagemaker.Session().default_bucket() 사용.
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
+# S3 prefix는 리포 이름과 무관하게 유지한다 — 바꾸면 기존 학습 산출물 경로를 못 찾는다.
 S3_PREFIX = os.environ.get("S3_PREFIX", "gemma-e2e-toolkit")
 
 # HF DLC 버전 핀 — SageMaker 학습/추론 컨테이너 이미지 선택용 (로컬 env의 transformers와 별개!).

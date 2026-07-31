@@ -1,5 +1,5 @@
 [project]
-name = "gemma-e2e-toolkit"
+name = "sagemaker-finetune-serve-e2e"
 version = "0.1.0"
 description = "Production-oriented E2E SageMaker fine-tuning toolkit for Gemma SLMs (data→synthetic→train→endpoint→agentic)"
 requires-python = ">=3.10"
