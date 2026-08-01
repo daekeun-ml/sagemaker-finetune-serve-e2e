@@ -109,9 +109,24 @@ extra_css:
   - stylesheets/extra.css
 
 extra:
+  # 모든 페이지 하단 푸터에 아이콘으로 붙습니다(Material 기본). 첫 항목은 이 리포,
+  # 나머지는 저자 프로필 — 문서를 읽다 저자를 찾는 사람이 나가는 경로입니다.
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
+      name: 이 kit의 GitHub 리포지토리
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/daekeun-kim
+      name: 저자 LinkedIn
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/daekeun-ml
+      name: 저자 GitHub
+    - icon: simple/huggingface
+      link: https://huggingface.co/daekeun-ml
+      name: 저자 Hugging Face
+    - icon: simple/gitbook
+      link: https://housekdk.gitbook.io/
+      name: 저자 기술 블로그 (GitBook)
 
 # 링크가 끊기면 빌드를 실패시킵니다(CI에서 --strict 로 강제).
 # 2,300줄 문서에 상호참조가 많아, 문서를 옮길 때 깨진 링크를 배포 전에 잡는 것이 목적입니다.

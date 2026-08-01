@@ -1,9 +1,15 @@
 # SageMaker Fine-tuning & Serving E2E
 
+[Quick start](#quick-start) | [Courses](#courses) | [Why this kit](#why-this-kit) | [Setup](#setup) | [Docs](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/) | [Cost & cleanup](#cost--cleanup)
+
 Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
-**가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
+### 📘 [가이드북 바로가기 →](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/)
+
+**코드를 따라 치는 대신, 왜 그렇게 하는지 이해하고 넘어가려는 분을 위한 가이드북입니다.**
+SageMaker가 처음이어도 읽을 수 있게 개념부터 시작하고, 각 절이 **어디서 막히는지(pain point) → 왜 그런지(why) → 그래서 이 값·이 구조인지**로 이어집니다.
+학습 Job이 왜 머지 도중 죽었는지, 24GB GPU에서 서빙이 왜 안 떴는지 같은 것들이 원인과 함께 정리돼 있습니다.
 
 ---
 

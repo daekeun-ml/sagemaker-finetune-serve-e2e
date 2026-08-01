@@ -105,3 +105,12 @@ Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙
 
 문서의 수치와 동작은 특정 시점에 관측한 결과입니다. 실행 전에 각 절에 링크된 원문에서 다시
 확인하세요.
+
+## 저자
+
+| | |
+|---|---|
+| LinkedIn | [linkedin.com/in/daekeun-kim](https://www.linkedin.com/in/daekeun-kim) |
+| GitHub | [github.com/daekeun-ml](https://github.com/daekeun-ml) |
+| Hugging Face | [huggingface.co/daekeun-ml](https://huggingface.co/daekeun-ml) |
+| 기술 블로그 | [housekdk.gitbook.io](https://housekdk.gitbook.io/) |
