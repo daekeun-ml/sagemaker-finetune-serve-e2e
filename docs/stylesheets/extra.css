@@ -1,0 +1,20 @@
+/* 표 안의 긴 URL이 줄바꿈되지 않아 표가 오른쪽으로 삐져나가는 문제를 막습니다.
+   (근거 표의 URL이 최대 107자 — 공백이 없어 브라우저가 줄을 못 나눕니다.)
+   URL 텍스트 자체는 그대로 두고, 표시만 여러 줄로 흘립니다. */
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 표가 화면보다 넓으면 표 자체를 가로 스크롤합니다(본문은 밀리지 않게).
+   Material 기본값이지만, 위 줄바꿈으로 대부분 해결되고 이건 최후 방어입니다. */
+.md-typeset .md-typeset__table {
+  display: block;
+  overflow-x: auto;
+}
+
+/* 본문 인라인 코드(`SM_VLLM_GPU_MEMORY_UTILIZATION` 등 긴 env 이름)도 같은 이유로 처리 */
+.md-typeset code {
+  overflow-wrap: anywhere;
+}

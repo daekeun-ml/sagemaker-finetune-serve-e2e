@@ -75,6 +75,9 @@ nav:
       - Agentic loop: 04_agentic.md
       - 서빙 컨테이너: 05_serving_containers.md
 
+extra_css:
+  - stylesheets/extra.css
+
 extra:
   social:
     - icon: fontawesome/brands/github
