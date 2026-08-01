@@ -79,7 +79,7 @@ MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 
 ## --dry-run이 보장하는 것
 
-과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 잡·endpoint뿐 아니라
+과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 Job·endpoint뿐 아니라
 **Bedrock 호출도 하지 않습니다** — Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 +
 critique 약 100회가 실제로 청구됩니다. dry-run은 시드를 복제해 형식만 검증하고,
 GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.

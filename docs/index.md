@@ -1,6 +1,6 @@
 # SageMaker Fine-tuning & Serving E2E
 
-Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 가이드입니다.
+Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 가이드입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 !!! tip "어디서부터 읽을까"
@@ -34,7 +34,7 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
     되지만, 관리형이 조용히 처리해 주던 것들이 그대로 넘어옵니다. 이 kit이 실제로 부딪혀 고친 것들입니다.
 
     - **`save_pretrained`로 저장한 gemma-4 E2B/E4B는 vLLM·SGLang·LMI에서 로드가 실패합니다.** KV-sharing 레이어의 텐서가 저장 과정에서 빠지기 때문입니다 → [서빙 컨테이너](05_serving_containers.md)
-    - **학습을 다 마친 잡이 머지 도중 죽습니다.** SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 창이 머지·업로드까지 덮습니다 → [파인튜닝](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)
+    - **학습을 다 마친 Job이 머지 도중 죽습니다.** SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 창이 머지·업로드까지 덮습니다 → [파인튜닝](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)
     - **24GB GPU에서 서빙이 OOM으로 뜨지 않습니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과합니다 → [서빙 컨테이너](05_serving_containers.md)
     - **응답이 조용히 잘립니다.** 예외도 없고 HTTP 200이라, `finish_reason`을 봐야 압니다 → [SageMaker 추론](04_sagemaker_inference.md)
 

@@ -1,10 +1,10 @@
-# SDK V3 학습 — ModelTrainer로 학습 잡 제출하기
+# SDK V3 학습 — ModelTrainer로 학습 Job 제출하기
 
 !!! info "Scope"
-    V3에서 **학습 잡을 제출하는 방법**만 다룹니다. V2와의 전체 차이와 마이그레이션 함정은 [SDK V3 개요](index.md), 배포는 [SDK V3 배포](serving.md)에 있습니다.
+    V3에서 **학습 Job을 제출하는 방법**만 다룹니다. V2와의 전체 차이와 마이그레이션 함정은 [SDK V3 개요](index.md), 배포는 [SDK V3 배포](serving.md)에 있습니다.
     LoRA 설계·하이퍼파라미터 같은 학습 내용 자체는 [파인튜닝](../03_finetuning.md)이 담당합니다.
 
-## ModelTrainer로 학습 잡 제출
+## ModelTrainer로 학습 Job 제출
 
 [![V2의 PyTorch estimator 코드와 V3의 ModelTrainer 코드를 나란히 비교](../images/sdkv3_training.png)](../images/sdkv3_training.png)
 
@@ -71,7 +71,7 @@
     print(estimator.latest_training_job.name)
     ```
 
-`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다 — 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-잡)에 있습니다.
+`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다 — 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)에 있습니다.
 
 ## ModelTrainer 하나로 합쳐진 estimator들
 
@@ -123,9 +123,9 @@ AI Registry Evaluator는 실행 주체가 아니라 **저장·메타데이터 �
 
 설치본에서는 `sagemaker.ai_registry` 서브패키지가 이 영역을 담당합니다.
 
-## AWS Batch 큐에 학습 잡을 넣기
+## AWS Batch 큐에 학습 Job을 넣기
 
-잡이 많아 스케줄링이 필요할 때, `ModelTrainer`를 SageMaker에 바로 던지지 않고 **AWS Batch 큐에 제출**할 수 있습니다. 우선순위 큐잉·fair-share 스케줄링·재시도를 Batch가 맡습니다.
+Job이 많아 스케줄링이 필요할 때, `ModelTrainer`를 SageMaker에 바로 던지지 않고 **AWS Batch 큐에 제출**할 수 있습니다. 우선순위 큐잉·fair-share 스케줄링·재시도를 Batch가 맡습니다.
 
 `ModelTrainer`는 **똑같이 만들고**, `.train()`을 부르는 대신 큐에 넘깁니다.
 

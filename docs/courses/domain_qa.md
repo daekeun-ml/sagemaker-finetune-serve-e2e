@@ -133,7 +133,7 @@ output: Tope
 | `gen_max_tokens` | **512** | 요약 512 / 추출·분류 256 | 정답 median 39 / p90 218 / **max 1,781**. 256으로 두면 정답 13건(150건 중 **8.7%**)이 잘려 ROUGE와 judge 점수가 구조적으로 과소 측정됩니다 |
 | `grpo_reward_kind` | (빈 문자열) | 추출·분류만 값 있음 | 프로그램적 reward 불가 → `02a` 노트북이 생성되지 않습니다 |
 | `eval_kind` | `domain_qa` | 분류 `classification` | `04_evaluate`가 `llm_judge()` + `eval_rouge()`를 부르고, 실시간 추론 셀의 **스트리밍이 기본 on**이 됩니다 |
-| `endpoint_prefix` | `gemma-domainqa` | 분류 `gemma-classification` | 학습 잡·endpoint 이름과 `%store` 키(`ep_domain_qa`·`md_domain_qa`)의 접두어 |
+| `endpoint_prefix` | `gemma-domainqa` | 분류 `gemma-classification` | 학습 Job·endpoint 이름과 `%store` 키(`ep_domain_qa`·`md_domain_qa`)의 접두어 |
 | `multimodal` | `False` | 05만 `True` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 코스는 `01_data_and_synthetic`을 씁니다 |
 
 스트리밍이 기본 on인 이유는 답변이 긴 자유서술이라 첫 토큰을 먼저 보여 주는 편이 체감상 훨씬 낫기 때문입니다(짧은 JSON·라벨을 내는 추출·분류 코스에서는 끕니다). 단 첫 토큰 체감만 줄고 전체 생성 시간이나 처리량은 바뀌지 않습니다 — [스트리밍이 개선하지 않는 것](../05_serving_containers.md#스트리밍이-개선하지-않는-것).
@@ -154,5 +154,5 @@ output: Tope
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
     합성 데이터 생성과 `04_evaluate`의 LLM-judge, `05_agentic_strands`는 Bedrock 호출로 별도 과금됩니다(상주 리소스는 없습니다). `06`으로 AgentCore를 배포했다면 `bash agentcore/cleanup_agent.sh --aws`도 필요합니다.

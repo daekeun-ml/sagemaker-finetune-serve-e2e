@@ -98,7 +98,7 @@ accuracy만 보면 안 되는 이유가 이 코스에서 특히 분명합니다 
 |---|---|
 | `00_setup` | 리전·role·bucket 확인 후 `%store` 저장, 의존성 설치 |
 | `01_data_and_synthetic` | 셔플된 시드 300건 + Bedrock grounded 합성을 합친 `data/train.jsonl` |
-| `02_train_sft_sagemaker` | SFT LoRA 학습 잡 → 머지된 모델 아티팩트(S3), `%store md_classification` |
+| `02_train_sft_sagemaker` | SFT LoRA 학습 Job → 머지된 모델 아티팩트(S3), `%store md_classification` |
 | `02a_train_grpo_sagemaker` | **(선택)** SFT 산출물을 base로 GRPO 정련 → 새 아티팩트 |
 | `02b_local_serve` | **(선택)** 로컬 GPU `vllm serve`로 배포 전 검증 + `vllm bench` 측정값 |
 | `03_deploy_endpoint` | `gemma-classification-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
@@ -124,7 +124,7 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 | `gen_max_tokens` | **256**(기본값 그대로) | 512 | 정답 라벨이 max 16토큰이라 절단 위험이 없습니다. 요약 코스는 256이면 held-out 40%가 잘려 512로 올렸습니다 |
 | `grpo_reward_kind` | **`classification`** | (없음) | 라벨 정확 일치로 채점 가능 → `02a` 노트북이 생성됩니다 |
 | `eval_kind` | `classification` | `summarization` | `04_evaluate`가 `eval_classification`(macro-F1)을 부르고, 실시간 추론 셀의 **스트리밍이 기본 off**가 됩니다 |
-| `endpoint_prefix` | `gemma-classification` | `gemma-summarization` | 학습 잡·endpoint 이름과 `%store` 키(`ep_classification`·`md_classification`)의 접두어 |
+| `endpoint_prefix` | `gemma-classification` | `gemma-summarization` | 학습 Job·endpoint 이름과 `%store` 키(`ep_classification`·`md_classification`)의 접두어 |
 | `multimodal` | `False` | `False` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 코스는 `01_data_and_synthetic`을 씁니다 |
 
 스트리밍이 기본 off인 이유는 이 코스의 응답이 **라벨 한 줄**이라 완성돼야 파싱·라우팅에 쓸 수 있기 때문입니다. 스트리밍은 첫 토큰 체감만 줄이고 전체 생성 시간이나 처리량은 바꾸지 않습니다 — [스트리밍이 개선하지 않는 것](../05_serving_containers.md#스트리밍이-개선하지-않는-것).
@@ -148,5 +148,5 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
     `02a`의 GRPO는 prompt당 rollout을 여러 개 생성하므로 SFT보다 오래 걸립니다(노트북 기본 `MAX_RUNTIME_HOURS=6`). 합성 데이터 생성과 `05_agentic_strands`는 Bedrock 호출로 별도 과금됩니다.

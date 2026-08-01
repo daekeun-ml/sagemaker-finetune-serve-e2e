@@ -1,7 +1,7 @@
 # SDK V3 배포 — ModelBuilder와 endpoint
 
 !!! info "Scope"
-    V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다. V2와의 전체 차이는 [SDK V3 개요](index.md), 학습 잡 제출은 [SDK V3 학습](training.md)에 있습니다.
+    V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다. V2와의 전체 차이는 [SDK V3 개요](index.md), 학습 Job 제출은 [SDK V3 학습](training.md)에 있습니다.
     서빙 엔진(vLLM/SGLang/LMI) 선택은 [서빙 컨테이너](../05_serving_containers.md)가 담당합니다.
 
 ## ModelBuilder로 배포
@@ -185,7 +185,7 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
     ```
 
 !!! tip "메서드가 어느 쪽에 붙어 있는지"
-    `TrainingJob`은 클래스 메서드로 `create`/`get`/`get_all`, 인스턴스 메서드로 `wait`/`refresh`/`stop`/`update`/`delete`를 가집니다. `wait_for_status`는 **`TrainingJob`에는 없고 `Endpoint`에만** 있습니다(학습 잡은 `wait(logs=...)`로 기다립니다).
+    `TrainingJob`은 클래스 메서드로 `create`/`get`/`get_all`, 인스턴스 메서드로 `wait`/`refresh`/`stop`/`update`/`delete`를 가집니다. `wait_for_status`는 **`TrainingJob`에는 없고 `Endpoint`에만** 있습니다(학습 Job은 `wait(logs=...)`로 기다립니다).
     다만 endpoint를 완전히 정리하려면 endpoint → endpoint-config → model 순서가 필요하고, `ModelBuilder`가 붙인 model 이름은 prefix로 찾기 어렵습니다. 이 kit의 `99_cleanup`이 boto3로 그 순서를 처리합니다([cleanup이 실제로 지우는 것](../04_sagemaker_inference.md#cleanup이-실제로-지우는-것)).
 
 ---
@@ -193,5 +193,5 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
 ## 이어서 볼 문서
 
 - [SDK V3 개요](index.md) — V2→V3 매핑표와 마이그레이션 함정
-- [SDK V3 학습](training.md) — `ModelTrainer`로 학습 잡 제출
+- [SDK V3 학습](training.md) — `ModelTrainer`로 학습 Job 제출
 - [SageMaker 추론](../04_sagemaker_inference.md) — endpoint 구조와 추론 옵션

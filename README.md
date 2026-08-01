@@ -1,6 +1,6 @@
 # SageMaker Fine-tuning & Serving E2E
 
-Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
+Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 - **가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)

@@ -161,7 +161,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     `05_agentic_strands`에서 실행 오케스트레이션은 Bedrock Claude가 맡고, SLM endpoint는 `extract_structured_json` tool로서 구조화 JSON만 반환합니다. SLM = 빠른 구조화 추출기, Claude = 추론기라는 역할 대비가 가장 선명한 코스라 플래그십으로 삼았습니다([Agentic loop](../06_agentic.md)).
 
 ??? question "오개념 — “툴 호출이 목적이 아니면 이 코스는 안 맞나요?”"
-    출력 스키마가 정해진 추출 문제 전반에 그대로 옮겨집니다. 계약서에서 당사자·금액·기간을 뽑거나, 문의 메일에서 주문번호·요청유형을 뽑는 작업은 형태가 같습니다 — `{"name": ..., "arguments": {...}}` 대신 원하는 스키마를 `SYSTEM_PROMPT`에 넣고, `track_data.py`의 파서를 자기 데이터에 맞게 바꾸면 됩니다(다른 코스들도 이 파일만 교체해 만들었습니다).
+    출력 스키마가 정해진 추출 문제 전반에 그대로 옮겨집니다. 규약서에서 당사자·금액·기간을 뽑거나, 문의 메일에서 주문번호·요청유형을 뽑는 작업은 형태가 같습니다 — `{"name": ..., "arguments": {...}}` 대신 원하는 스키마를 `SYSTEM_PROMPT`에 넣고, `track_data.py`의 파서를 자기 데이터에 맞게 바꾸면 됩니다(다른 코스들도 이 파일만 교체해 만들었습니다).
     다만 `eval_extraction()`은 `name`/`arguments` 구조를 가정하므로, 스키마를 바꾸면 채점 함수도 같이 손봐야 합니다.
 
 ---
@@ -176,5 +176,5 @@ You are a helpful assistant with access to the following functions. Use them if 
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
     `02a`의 GRPO는 prompt당 rollout을 여러 개 생성하므로 SFT보다 오래 걸립니다(노트북 기본 `MAX_RUNTIME_HOURS=6`). 합성 데이터 생성과 `05_agentic_strands`는 Bedrock 호출로 별도 과금되고, `06`으로 AgentCore를 배포했다면 `bash agentcore/cleanup_agent.sh --aws`도 필요합니다.

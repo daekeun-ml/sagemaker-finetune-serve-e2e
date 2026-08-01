@@ -20,7 +20,7 @@
 
 !!! abstract "쉽게 말하면"
     "이 긴 문서 요약해 줘"를 **전담하는 작은 모델**을 만듭니다. 입력은 문서 본문 하나, 출력은 요약 문장들뿐입니다. 라벨도 카테고리도 JSON 스키마도 없습니다.
-    학습 데이터가 미국 연방 법안이므로 결과 모델의 어투는 "법안 요지 브리핑"에 가깝습니다. 사내 규정·계약서·보고서처럼 **형식이 정해진 긴 문서**를 다루는 작업에 가장 잘 맞고, 대화 로그 요약이나 회의록 같은 대화체에는 그대로 맞지 않습니다(아래 시드 절 참고).
+    학습 데이터가 미국 연방 법안이므로 결과 모델의 어투는 "법안 요지 브리핑"에 가깝습니다. 사내 규정·규약서·보고서처럼 **형식이 정해진 긴 문서**를 다루는 작업에 가장 잘 맞고, 대화 로그 요약이나 회의록 같은 대화체에는 그대로 맞지 않습니다(아래 시드 절 참고).
 
 `track_data.py`의 어댑터는 한 row를 두 필드로만 줄입니다 — 원본 `text` → `input`, 원본 `summary` → `output`. 실제 `data/train.jsonl` 첫 예시입니다(발췌).
 
@@ -126,7 +126,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 | `gen_max_tokens` | **512** | QA 512 / 추출·분류 256 | 정답 요약 median 209 / p90 475 / max 964 토큰. 256이면 held-out **40%(20/50건)** 가 잘려 ROUGE-L이 구조적으로 과소 측정 |
 | `grpo_reward_kind` | (빈 문자열) | 추출·분류만 값 있음 | 프로그램적 reward 불가 → `02a` 노트북이 생성되지 않습니다 |
 | `eval_kind` | `summarization` | 분류 `classification` | `04_evaluate`가 `eval_rouge()` + `llm_judge()`를 부르고, 실시간 추론 셀의 **스트리밍이 기본 on**이 됩니다 |
-| `endpoint_prefix` | `gemma-summarization` | 분류 `gemma-classification` | 학습 잡·endpoint 이름과 `%store` 키(`ep_summarization`·`md_summarization`)의 접두어 |
+| `endpoint_prefix` | `gemma-summarization` | 분류 `gemma-classification` | 학습 Job·endpoint 이름과 `%store` 키(`ep_summarization`·`md_summarization`)의 접두어 |
 | `multimodal` | `False` | 05만 `True` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 코스는 `01_data_and_synthetic`을 씁니다 |
 
 `gen_max_tokens=512`의 근거는 endpoint 실측입니다(입력 5,996자) — `max_tokens=256`은 `finish_reason='length'`로 902자에서 문장 중간에 끊겼고, 512는 `stop`으로 397토큰·1,446자, 1024는 `stop`으로 571토큰이었습니다. 즉 512부터 모델이 스스로 종료합니다. 정답 전량(max 964토큰)까지 덮으려면 1024로 올리면 됩니다. 절단은 예외도 경고도 없이 200 응답으로 오므로 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)의 `finish_reason` 확인 습관을 권합니다.
@@ -134,7 +134,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 이 코스는 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 실측에서 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다 — 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](../04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)).
 
 !!! warning "이 코스에서 먼저 터진 두 가지"
-    (1) **학습 잡이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, 아티팩트에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)).
+    (1) **학습 Job이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, 아티팩트에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)).
     (2) **엉뚱한 endpoint를 불렀습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 에러가 났습니다 — 요약 endpoint는 4096이라 정상인데도입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 오염](../05_serving_containers.md#store-전역-오염--엉뚱한-endpoint-호출)).
 
 ---
@@ -149,5 +149,5 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
     합성 데이터 생성과 `04_evaluate`의 LLM-judge, `05_agentic_strands`는 Bedrock 호출로 별도 과금됩니다(상주 리소스는 없습니다). 삭제 순서와 잔여 리소스 확인은 [비용과 cleanup](../04_sagemaker_inference.md#비용과-cleanup)에 있습니다.

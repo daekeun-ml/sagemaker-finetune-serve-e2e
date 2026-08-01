@@ -19,7 +19,7 @@ V3는 V2의 확장이 아니라 **호환되지 않는 재설계**입니다. AWS�
 
 | 하는 일 | V2 | V3 | 비고 |
 |---|---|---|---|
-| 학습 잡 제출 | `sagemaker.huggingface.HuggingFace(...)`·`Estimator(...)` + `.fit()` | `sagemaker.train.model_trainer.ModelTrainer(...)` + `.train()` | 프레임워크별 estimator 전부가 한 클래스로. `fit` → `train` 개명 |
+| 학습 Job 제출 | `sagemaker.huggingface.HuggingFace(...)`·`Estimator(...)` + `.fit()` | `sagemaker.train.model_trainer.ModelTrainer(...)` + `.train()` | 프레임워크별 estimator 전부가 한 클래스로. `fit` → `train` 개명 |
 | 학습 코드 지정 | `entry_point=`·`source_dir=` 평면 인자 | `SourceCode(entry_script=, source_dir=, requirements=)` | `sagemaker.core.training.configs` |
 | 학습 설정(인스턴스/볼륨/시간) | `instance_type=`·`volume_size=`·`max_run=` | `Compute(instance_type=, instance_count=, volume_size_in_gb=)` · `StoppingCondition(max_runtime_in_seconds=)` | 평면 kwargs가 config 객체로 재편 |
 | 입력 채널 | `sagemaker.inputs.TrainingInput` | `InputData(channel_name=, data_source=)` | `train(input_data_config=[...])`에 리스트로 |
@@ -72,7 +72,7 @@ core는 공용 기반도 함께 갖습니다 — 세션 관리, IAM role 자동 
 **언제 어느 쪽을 잡는가.**
 
 - 새로 만들 때(학습 제출·모델 배포) → 편의 레이어. 기본값·코드 업로드·이미지 검증을 대신해 줍니다.
-- 이미 있는 것을 볼 때(상태 조회·로그 대기·재접속·삭제) → `sagemaker.core.resources`. `TrainingJob.get(name)` 한 줄로 다른 세션에서 만든 잡에도 붙습니다.
+- 이미 있는 것을 볼 때(상태 조회·로그 대기·재접속·삭제) → `sagemaker.core.resources`. `TrainingJob.get(name)` 한 줄로 다른 세션에서 만든 Job에도 붙습니다.
 - 편의 래퍼가 없는 리소스 → core만 있습니다. Processing은 `resources.ProcessingJob`, 하이퍼파라미터 튜닝은 `resources.HyperParameterTuningJob`, batch transform은 `resources.TransformJob`이 각각 V2의 `Processor`·`HyperparameterTuner`·`Transformer` 자리를 대신합니다.
 
 !!! warning "sagemaker.train.configs vs sagemaker.core.training.configs"
@@ -120,9 +120,9 @@ MXNet·Chainer·`RLEstimator`·Training Compiler는 **대체 없이 삭제**됐�
 
 ### stopping_condition을 생략하면 1시간이 들어갑니다
 
-가장 비싸게 물리는 함정입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 조용히 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. 잡 로그에 `StoppingCondition not provided. Using default` 한 줄이 남는 것이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다 — 어느 쪽이든 3600은 LLM 파인튜닝에 짧습니다).
+가장 비싸게 물리는 함정입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 조용히 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. Job 로그에 `StoppingCondition not provided. Using default` 한 줄이 남는 것이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다 — 어느 쪽이든 3600은 LLM 파인튜닝에 짧습니다).
 
-이 kit이 실제로 여기 걸렸습니다 — 학습은 100% 끝났는데 어댑터 머지 중에 잡이 잘려 배포 불가능한 아티팩트가 남았습니다. 증상·타임라인·대응은 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)이 전부 갖고 있으니 그쪽을 보세요.
+이 kit이 실제로 여기 걸렸습니다 — 학습은 100% 끝났는데 어댑터 머지 중에 Job이 잘려 배포 불가능한 아티팩트가 남았습니다. 증상·타임라인·대응은 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)이 전부 갖고 있으니 그쪽을 보세요.
 
 같은 파일에 조용한 기본값이 더 있습니다. `DEFAULT_INSTANCE_TYPE = "ml.m5.xlarge"` — **CPU 인스턴스**입니다. `compute=`를 빼먹은 GPU 학습은 에러 없이 CPU에서 돌기 시작합니다(`DEFAULT_INSTANCE_COUNT=1`, `DEFAULT_VOLUME_SIZE=30`도 같은 방식). 결론은 하나입니다 — `compute`와 `stopping_condition`은 항상 명시하세요.
 
@@ -163,7 +163,7 @@ except ModuleNotFoundError:
 | 세션·role | `core.helper.session_helper.Session`·`get_execution_role` | `00_setup`·`02_train_sft_sagemaker`, `common/config.py` |
 | 이미지 URI | `core.image_uris.retrieve` | `common/dlc.py`(env 우선, retrieve는 폴백) |
 | 학습 제출 | `train.model_trainer.ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` | `02_train_sft_sagemaker`·`02a_train_grpo_sagemaker` |
-| 잡 재접속·아티팩트 | `core.resources.TrainingJob` | `02_train_sft_sagemaker` |
+| Job 재접속·아티팩트 | `core.resources.TrainingJob` | `02_train_sft_sagemaker` |
 | 배포 | `serve.ModelBuilder` + `serve.mode.function_pointers.Mode` | `03_deploy_endpoint` |
 | endpoint 상태 대기 | `core.resources.Endpoint` | `03_deploy_endpoint` |
 | endpoint 호출 | (SDK 아님) boto3 `sagemaker-runtime` | `common/aws_utils.py` |
@@ -195,7 +195,7 @@ except ModuleNotFoundError:
 
 ## 이어서 볼 문서
 
-- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--잡이-끝나면-사라지는-계산) — `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 계약
+- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--끝나면-컴퓨팅-리소스까지-사라집니다) — `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
 - [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정) — `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
 - [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출) — endpoint 3층 구조, 호출 스키마, cleanup 순서
 - [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증) — `ModelBuilder`의 `Mode` 3단계와 로컬 검증

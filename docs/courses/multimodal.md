@@ -168,5 +168,5 @@ held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지�
 - [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
     이 코스는 이미지 forward가 비싸 1 epoch 비용이 텍스트 코스보다 크므로 `MAX_TRAIN_SAMPLES`를 낮춰 시작하세요. 합성·agentic 단계가 없어 Bedrock 과금은 발생하지 않습니다.

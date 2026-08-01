@@ -107,7 +107,7 @@ python tracks/01_extraction_to_json/scripts/train.py \
 tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
 ├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
 ├── 01_data_and_synthetic.ipynb   ② 데이터 준비 + grounded 합성
-├── 02_train_sft_sagemaker.ipynb      ③ SageMaker 학습 잡 (+ 로컬 dry-run 셀 포함)
+├── 02_train_sft_sagemaker.ipynb      ③ SageMaker 학습 Job (+ 로컬 dry-run 셀 포함)
 ├── 02a_train_grpo_sagemaker.ipynb    (선택) SFT→GRPO 정련 (RLHF) — 추출·분류 코스만
 ├── 02b_local_serve.ipynb             (선택) 배포 전 로컬 vLLM 검증
 ├── 03_deploy_endpoint.ipynb      ④ real-time endpoint 배포 (vLLM 기본)
@@ -183,7 +183,7 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 문서는 파일명 번호가 곧 읽는 순서입니다. 처음이라면 00부터 차례로, 특정 단계만 필요하면 해당 항목으로 가세요.
 
 - [전체 지도](00_overview.md) — 전체 지도. 노트북과 문서 매핑
-- [SageMaker 기초](01_sagemaker_basics.md) — 개념. Training Job vs Endpoint, 경로 계약, 수명과 과금 (방식 C 전에 읽기 권장)
+- [SageMaker 기초](01_sagemaker_basics.md) — 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
 - [합성 데이터](02_synthetic_data.md) — 데이터 준비. grounded 합성과 critique/refine
 - [파인튜닝](03_finetuning.md) — 학습. PyTorch DLC + TRL LoRA/QLoRA
 - [SageMaker 추론](04_sagemaker_inference.md) — 배포. 추론 4옵션과 endpoint 선택 기준
