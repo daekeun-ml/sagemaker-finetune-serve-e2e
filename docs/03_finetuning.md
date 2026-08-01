@@ -5,7 +5,7 @@
     선행 조건은 각 트랙의 `01_data_and_synthetic.ipynb`까지 실행해 `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태입니다. Training Job이 무엇이고 `/opt/ml/*` 경로 계약이 왜 있는지가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
     다루는 것은 학습 경로 선택·Gemma 관용구·LoRA/QLoRA·머지/재-export·`MaxRuntimeExceeded` 함정·SFT→GRPO 데이터 규율이고, endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md)이, 합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)가 다룹니다.
 
-이 문서와 관련된 킷 파일:
+이 문서와 관련된 리포지토리 파일:
 
 - `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 트랙 정의(`TRACKS`), HF 토큰 조회
 - `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)

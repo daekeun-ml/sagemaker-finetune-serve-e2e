@@ -267,7 +267,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 ---
 
-## 킷 내 참조 파일
+## 관련 리포지토리 파일
 
 설정과 공통 유틸:
 

@@ -5,7 +5,7 @@
     선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 트랙의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
     다루는 것은 grounded 생성·critique 게이트·held-out 규율·라이브러리 대안이고, 학습 자체는 [파인튜닝](03_finetuning.md)이 다룹니다.
 
-이 문서와 관련된 킷 파일:
+이 문서와 관련된 리포지토리 파일:
 
 - `common/synth/bedrock_synth.py` — grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
 - `common/synth/README.md` — 기본 경로와 오픈 라이브러리 대안의 선택 근거

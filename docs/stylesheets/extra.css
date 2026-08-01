@@ -14,7 +14,17 @@
   overflow-x: auto;
 }
 
-/* 본문 인라인 코드(`SM_VLLM_GPU_MEMORY_UTILIZATION` 등 긴 env 이름)도 같은 이유로 처리 */
+/* 인라인 코드(`option.tensor_parallel_degree` 같은 긴 식별자)도 같은 이유로 처리.
+   Material 기본값은 word-break:break-word 인데, 이건 '단어 경계'만 끊습니다. 공백도
+   하이픈도 없는 식별자는 한 단어로 취급돼 끊기지 않고 표를 밀어냅니다.
+   그래서 anywhere 를 !important 로 덮어씁니다(표 안 code 는 특히 자주 넘칩니다). */
 .md-typeset code {
-  overflow-wrap: anywhere;
+  overflow-wrap: anywhere !important;
+  word-break: break-word;
+}
+
+/* 표 안의 code 는 셀 폭이 좁아 더 공격적으로 끊어야 합니다. */
+.md-typeset table:not([class]) td code,
+.md-typeset table:not([class]) th code {
+  word-break: break-all;
 }

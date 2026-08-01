@@ -7,7 +7,7 @@
 
 이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다.
 
-이 문서와 관련된 킷 파일:
+이 문서와 관련된 리포지토리 파일:
 
 - `agentcore/app.py` — AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 트랙 tool 포함
 - `agentcore/templates/main.py` — CLI 스캐폴딩의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
