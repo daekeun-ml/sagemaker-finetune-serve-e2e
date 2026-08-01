@@ -5,7 +5,7 @@
 > ⚠️ **주의**: 아래 🔴 표시된 값(모델 ID·DLC 이미지 태그·SDK 버전·리전·GA 상태)은 **빠르게 바뀝니다**. 문서의 서술은 조건부이므로, **실행 직전 각 소스 페이지에서 재확인**하시기 바랍니다.
 > **라이브 검증 2026-07** (근거 표는 문서 하단).
 
-> 🚀 **바로 시작**: [`../GETTING_STARTED.md`](../GETTING_STARTED.md) (설치→스모크→dry-run→노트북)
+> 🚀 **바로 시작**: [`../GETTING_STARTED.md`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/GETTING_STARTED.md) (설치→스모크→dry-run→노트북)
 > 🔁 **E2E 완주 런북**: [`RUN_E2E.md`](RUN_E2E.md) (단계별 핸드오프·비용·체크리스트)
 
 ---

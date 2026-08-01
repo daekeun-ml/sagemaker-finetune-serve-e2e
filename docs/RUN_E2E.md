@@ -3,7 +3,7 @@
 파이프라인을 **처음부터 끝까지 한 번에** 돌리는 사람을 위한 런북.
 "어떤 순서로, 무엇을 준비하고, 각 단계가 무엇을 다음으로 넘기고, 얼마 드는지, 무엇을 확인하고 넘어가는지"를 한 곳에.
 
-> 설치·개별 방식(스모크/dry-run)은 [`../GETTING_STARTED.md`](../GETTING_STARTED.md) 참고. 이 문서는 **클라우드 E2E 전체 흐름** 전용.
+> 설치·개별 방식(스모크/dry-run)은 [`../GETTING_STARTED.md`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/GETTING_STARTED.md) 참고. 이 문서는 **클라우드 E2E 전체 흐름** 전용.
 > 개념 배경은 [`00_overview.md`](00_overview.md) 및 각 주제 가이드.
 
 ---
@@ -36,11 +36,11 @@
 
 ## 1. 사전 준비 체크리스트 (한 번)
 
-- [ ] **설치 완료** — `uv venv && uv pip install -r pyproject.toml` (자세한 절차는 [GETTING_STARTED 1번](../GETTING_STARTED.md)을 참고하세요). 코어 의존성은 sagemaker 3.x·transformers 5.x 등 실측 최신 floor로 고정되어 있습니다.
+- [ ] **설치 완료** — `uv venv && uv pip install -r pyproject.toml` (자세한 절차는 [GETTING_STARTED 1번](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/GETTING_STARTED.md)을 참고하세요). 코어 의존성은 sagemaker 3.x·transformers 5.x 등 실측 최신 floor로 고정되어 있습니다.
 - [ ] **AWS 자격증명** — `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
 - [ ] **SageMaker 실행 역할** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다. Studio에서는 `get_execution_role()`로 자동 획득됩니다.
 - [ ] **Bedrock 모델 액세스** — 콘솔에서 사용할 Claude 모델의 액세스를 활성화하고, 정확한 inference-profile ID를 확보해 `BEDROCK_CLAUDE_MODEL_ID`에 설정합니다.
-- [ ] **(gated 모델인 경우) HF 토큰** — gemma-3 계열은 HF 약관 수락 후 `HF_TOKEN`이 필요하고, gemma-4(ungated)는 필요하지 않습니다. 매번 붙여넣기 싫다면 `~/.bashrc`에 `export HF_TOKEN=hf_xxx`를 한 번만 넣어 두세요(자세한 내용은 [GETTING_STARTED](../GETTING_STARTED.md) 4-3).
+- [ ] **(gated 모델인 경우) HF 토큰** — gemma-3 계열은 HF 약관 수락 후 `HF_TOKEN`이 필요하고, gemma-4(ungated)는 필요하지 않습니다. 매번 붙여넣기 싫다면 `~/.bashrc`에 `export HF_TOKEN=hf_xxx`를 한 번만 넣어 두세요(자세한 내용은 [GETTING_STARTED](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/GETTING_STARTED.md) 4-3).
 - [ ] **리전 정합성** — SageMaker·Bedrock·S3가 같은 리전(`AWS_REGION`)을 쓰는지 확인합니다.
 - [ ] **비용 인지** — real-time endpoint는 삭제 전까지 시간당 과금되므로, 실습이 끝나면 `99_cleanup`을 반드시 실행합니다.
 

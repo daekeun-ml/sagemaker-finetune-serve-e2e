@@ -3,6 +3,7 @@
 Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 자산입니다.
 5개 트랙이 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
+- **가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
 - **처음이라면** → [`GETTING_STARTED.md`](GETTING_STARTED.md) (설치 → 스모크 → 로컬 dry-run → 노트북)
 - **전체를 한 번에 돌린다면** → [`docs/RUN_E2E.md`](docs/RUN_E2E.md) (E2E 실행 런북)
 

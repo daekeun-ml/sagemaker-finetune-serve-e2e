@@ -1,0 +1,56 @@
+name: docs
+
+# docs/ 나 mkdocs.yml 이 바뀔 때만 빌드합니다(노트북 수정으로 매번 돌지 않게).
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 하나만 진행하고, 중복 실행은 취소합니다.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # mkdocs.yml 의 strict: true 가 깨진 링크를 빌드 실패로 만듭니다.
+      # 문서를 옮기거나 이름을 바꿨을 때 배포 전에 잡는 것이 목적입니다.
+      - name: Build site
+        run: uv run --group docs mkdocs build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  # PR 에서는 빌드(링크 검증)만 하고 배포하지 않습니다.
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

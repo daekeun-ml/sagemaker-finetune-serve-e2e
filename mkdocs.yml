@@ -1,0 +1,85 @@
+site_name: SageMaker Fine-tuning & Serving E2E
+site_description: Gemma 4를 Amazon SageMaker에서 파인튜닝 → 서빙 → 평가 → agentic loop까지 잇는 한국어 핸즈온
+site_url: https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/
+repo_url: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
+repo_name: daekeun-ml/sagemaker-finetune-serve-e2e
+edit_uri: edit/master/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  language: ko
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 다크 모드로
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 라이트 모드로
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy      # 코드블록 복사 버튼 (실습에서 자주 씀)
+    - content.action.edit
+    - search.highlight
+    - search.suggest
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: ko
+      # 한국어는 lunr.ko.js(stopword + 한글 trimmer)를 씁니다. 형태소 분석은 아니므로
+      # '학습'으로 '학습되므로'가 걸리지 않습니다. 영문 기술 용어(vLLM, LoRA) 검색은 정확합니다.
+
+markdown_extensions:
+  - admonition                 # !!! note / warning 박스
+  - attr_list
+  - def_list
+  - md_in_html                 # <details> 안의 마크다운 렌더 (문서에서 사용 중)
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - 시작하기: index.md
+  - 실행 런북: RUN_E2E.md
+  - 가이드:
+      - 전체 지도: 00_overview.md
+      - SageMaker 추론: 01_sagemaker_inference.md
+      - 파인튜닝: 02_finetuning.md
+      - 합성 데이터: 03_synthetic_data.md
+      - Agentic loop: 04_agentic.md
+      - 서빙 컨테이너: 05_serving_containers.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
+
+# 링크가 끊기면 빌드를 실패시킵니다(CI에서 --strict 로 강제).
+# 2,300줄 문서에 상호참조가 많아, 문서를 옮길 때 깨진 링크를 배포 전에 잡는 것이 목적입니다.
+strict: true

@@ -54,6 +54,9 @@ hf-cache/
 agentcore/gemma*/
 agentcore/.agentcore*/
 
+# --- MkDocs 빌드 산출물 (CI가 생성) ---
+site/
+
 # --- 로그·OS ---
 *.log
 .DS_Store

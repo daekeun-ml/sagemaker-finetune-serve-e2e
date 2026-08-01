@@ -366,6 +366,6 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 ---
 
 ### 네비게이션
-- ◀ 이전: [`01_data_and_synthetic`](../tracks/01_extraction_to_json/01_data_and_synthetic.ipynb) — 시드 + grounded 합성 데이터(conversational `messages` 포맷 생성)
-- ▶ 다음: [`02_train_sft_sagemaker`](../tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb) — 이 문서의 `train.py`를 dry-run → `.fit()`으로 실행
+- ◀ 이전: [`01_data_and_synthetic`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/tracks/01_extraction_to_json/01_data_and_synthetic.ipynb) — 시드 + grounded 합성 데이터(conversational `messages` 포맷 생성)
+- ▶ 다음: [`02_train_sft_sagemaker`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb) — 이 문서의 `train.py`를 dry-run → `.fit()`으로 실행
 - 참조 코드: `tracks/*/scripts/train.py`, `common/config.py`, `common/dlc.py`
