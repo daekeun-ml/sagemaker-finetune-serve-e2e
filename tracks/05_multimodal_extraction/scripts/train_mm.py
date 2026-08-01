@@ -5,7 +5,7 @@ train_mm.py — Gemma-4 멀티모달 SFT (이미지→JSON) + LoRA. self-contain
 🔴 텍스트 트랙(train.py)과의 차이:
   - 입력에 '이미지'가 포함 → `AutoProcessor`(Gemma4Processor)로 pixel_values 생성.
   - 모델은 `AutoModelForImageTextToText`(멀티모달 전체). LoRA는 language_model 한정(regex).
-  - 🔴 서빙도 멀티모달로 하므로 **텍스트 재-export를 하지 않는다**(vision tower 유지).
+  - 🔴 서빙도 멀티모달로 하므로 **텍스트 re-export를 하지 않는다**(vision tower 유지).
     → 배포 시 vLLM이 이미지 입력을 받도록 그대로 서빙.
   - TRL SFTTrainer가 processing_class=processor를 받으면 내장 VLM collator로 이미지를 자동 처리.
   - 데이터: {"messages":[{role:user, content:[{type:image},{type:text}]}, {role:assistant,...}]}
@@ -105,7 +105,7 @@ def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int
        KV 재사용) base 값 복원은 정확도에 무해하다. 12B/26B/31B는 shared=0이라 무관.
 
     train.py의 동일 함수와 다른 점: 멀티모달 arch를 그대로 저장하므로 키가
-    'model.language_model.layers.N...' 형태다(텍스트 재-export의 'model.layers.N...'이 아님).
+    'model.language_model.layers.N...' 형태다(텍스트 re-export의 'model.layers.N...'이 아님).
     """
     tc = getattr(cfg, "text_config", None) or cfg
     n_shared = int(getattr(tc, "num_kv_shared_layers", 0) or 0)
@@ -249,7 +249,7 @@ def main() -> None:
     logger.info("Starting multimodal SFT...")
     trainer.train()
 
-    # ---- 저장 (🔴 멀티모달 서빙 유지 — 텍스트 재-export 하지 않음) ----
+    # ---- 저장 (🔴 멀티모달 서빙 유지 — 텍스트 re-export 하지 않음) ----
     if args.merge_adapter and not args.dry_run:
         adapter_dir = os.path.join(args.output_dir, "adapter")
         trainer.save_model(adapter_dir)

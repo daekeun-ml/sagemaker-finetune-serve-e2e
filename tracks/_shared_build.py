@@ -833,7 +833,7 @@ def _c02b(s: TrackSpec) -> list[dict]:
         code(
             "# 위 셀의 MODEL_DIR을 그대로 쓰는 명령을 출력합니다(복사해서 터미널에 붙여넣기).\n"
             "if ENGINE != 'vllm':\n"
-            "    print('🔴 KV-shared 텐서가 누락된 체크포인트입니다 — 최신 train.py로 재-export 후 다시 시도하세요.')\n"
+            "    print('🔴 KV-shared 텐서가 누락된 체크포인트입니다 — 최신 train.py로 re-export 후 다시 시도하세요.')\n"
             "else:\n"
             "    flag = '' if is_text_only else 'TEXT_ONLY=1 '\n"
             "    print(f\"{flag}bash scripts/serve_local_vllm.sh {MODEL_DIR}\")"
@@ -856,7 +856,7 @@ def _c02b(s: TrackSpec) -> list[dict]:
         md("### 3-A. `requests` (기본)"),
         code(
             "assert ENGINE == 'vllm', ('KV-shared 텐서가 누락된 체크포인트라 vLLM으로 뜨지 않습니다. '\n"
-            "                          '최신 train.py로 재-export 후 다시 시도하세요(자동 복원).')\n"
+            "                          '최신 train.py로 re-export 후 다시 시도하세요(자동 복원).')\n"
             "import requests, json\n"
             "import importlib, track_data as td; importlib.reload(td)   # 학습에 쓴 SYSTEM_PROMPT 재사용\n"
             "BASE = 'http://localhost:8000/v1'\n"
@@ -1011,7 +1011,7 @@ def _c02b(s: TrackSpec) -> list[dict]:
         md("✅ 응답이 확인됐다면 서빙 준비가 끝났습니다 — **03_deploy_endpoint.ipynb**로 배포하세요"
            "(1-A: vLLM/SGLang DLC, 1-B: DJL LMI).\n"
            "\n🔴 **로컬 vLLM 서버를 Ctrl-C로 종료하세요** — GPU를 계속 점유합니다.\n"
-           "\n> §1 판정에서 KV-shared 텐서 누락이 나왔다면, 최신 `train.py`로 다시 학습/재-export하면 자동 복원됩니다"
+           "\n> §1 판정에서 KV-shared 텐서 누락이 나왔다면, 최신 `train.py`로 다시 학습/re-export하면 자동 복원됩니다"
            "(`_revive_kv_shared_from_base`가 base에서 그 54개 텐서를 되살려 저장)."),
     ]
 
@@ -1190,7 +1190,7 @@ def _c02_grpo(s: TrackSpec) -> list[dict]:
         md(
             "## 4. 완료 대기 → 모델 아티팩트\n"
             "완료되면 SFT와 동일하게 `model_data`(S3)가 나오고, 멀티모달 base면 `train_grpo.py`가 텍스트 전용으로 "
-            "재-export해 저장합니다. 이후 **03_deploy_endpoint**로 배포합니다(SFT와 동일)."
+            "re-export해 저장합니다. 이후 **03_deploy_endpoint**로 배포합니다(SFT와 동일)."
         ),
         code(
             "import time\n"
@@ -1323,7 +1323,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "배경은 [`docs/05_serving_containers.md`](../../docs/05_serving_containers.md)를 참고하세요.\n"
             "🔴 **endpoint는 삭제 전까지 시간당 과금됩니다** → 실습 후 `99_cleanup` 필수. **1-A/1-B 중 하나만 실행**하세요.\n\n"
             "> **텍스트 vs 멀티모달 서빙**: gemma-4/gemma-3-4b+ 는 멀티모달 base입니다. 학습에서 "
-            "**텍스트 전용으로 재-export**(config `model_type=*_text`)했다면 그냥 텍스트로 서빙됩니다. 재-export 안 한 "
+            "**텍스트 전용으로 re-export**(config `model_type=*_text`)했다면 그냥 텍스트로 서빙됩니다. re-export 안 한 "
             "멀티모달 아티팩트를 **텍스트로만** 쓰려면 `--limit-mm-per-prompt`로 이미지/오디오를 0으로 두세요. "
             "이미지→텍스트 등 멀티모달 태스크는 그대로 멀티모달 서빙합니다."
         ),
@@ -1336,7 +1336,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "`schema_builder`가 필요 없습니다. 모델 가중치는 `SM_VLLM_MODEL=/opt/ml/model`(아티팩트 마운트 경로,\n"
             "머지 모델이 루트에 있음)로 가리킵니다.\n"
             "🔴 gemma-4 서빙엔 vLLM ≥ 0.19 필요 → vLLM DLC(실측 0.25.1)가 충족. 태그는 실행 전 available_images에서 재확인.\n"
-            "> **텍스트 전용 재-export 모델**(config `model_type=*_text`)은 그대로 텍스트 서빙됩니다. 재-export 안 한\n"
+            "> **텍스트 전용 re-export 모델**(config `model_type=*_text`)은 그대로 텍스트 서빙됩니다. re-export 안 한\n"
             ">  멀티모달 아티팩트를 텍스트로만 쓰려면 아래 `SM_VLLM_LIMIT_MM_PER_PROMPT` 주석을 해제하세요.\n\n"
             "🔴 **`MAX_NUM_SEQS`/`GPU_MEM_UTIL`을 낮춰 둔 이유** — 24GB GPU(L4)에서 vLLM 기본값은 여유가 거의 없습니다. "
             "실측(이 kit endpoint, vLLM 0.26.0, E4B bf16 14.23 GiB): KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. "
@@ -1372,7 +1372,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "    max_num_seqs=32,\n"
             "    gpu_memory_utilization='0.90',\n"
             "    hf_token=config.get_serving_hf_token(),\n"
-            "    # 멀티모달 base를 '텍스트로만' 서빙할 때(재-export 안 한 경우) 이미지/오디오 차단:\n"
+            "    # 멀티모달 base를 '텍스트로만' 서빙할 때(re-export 안 한 경우) 이미지/오디오 차단:\n"
             "    # mm_limit=json.dumps({'image': 0, 'audio': 0}),\n"
             ")\n"
             "print('serve_env:', serve_env)\n"

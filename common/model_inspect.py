@@ -115,7 +115,7 @@ def print_servability(info: dict, model_dir: str = "") -> None:
     if info["missing"]:
         print(f"🔴 KV-shared 텐서 {len(info['missing'])}개 누락 → 이 체크포인트는 vLLM이 거부합니다(#44788).")
         print(f"   예: {info['missing'][:2]}")
-        print("   해결: 최신 train.py로 다시 학습/재-export → 저장 시 자동 복원됩니다.")
+        print("   해결: 최신 train.py로 다시 학습/re-export → 저장 시 자동 복원됩니다.")
         print("         (train.py의 _revive_kv_shared_from_base가 base에서 그 텐서를 되살립니다)")
         print("   🔴 이미 재학습했는데 이 메시지가 보이면, 로컬 캐시가 옛 아티팩트일 수 있습니다")
         print("      → prepare_local_model(force=True) 로 다시 내려받으세요.")

@@ -9,7 +9,7 @@ train_grpo.py — Gemma GRPO(+LoRA/QLoRA) 학습 스크립트 (self-contained)
   - GRPO는 prompt당 num_generations개 생성(rollout)이라 SFT보다 연산량이 크다(시간·GPU↑).
 
 멀티모달 base(gemma-4 전부·gemma-3 4b+) 처리는 train.py와 동일:
-  - AutoModelForImageTextToText로 로드, LoRA는 language_model 한정(regex), 머지 후 텍스트 재-export.
+  - AutoModelForImageTextToText로 로드, LoRA는 language_model 한정(regex), 머지 후 텍스트 re-export.
 
 로컬 dry-run:
     python train_grpo.py --dry_run --reward_kind extraction \
@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
     #   2) --model_id (HF base — SFT 없이 base에서 바로 GRPO할 때)
     p.add_argument("--model_id", type=str, default=os.environ.get("MODEL_ID", "google/gemma-4-E4B-it"))
     p.add_argument("--base_model_dir", type=str, default=os.environ.get("SM_CHANNEL_MODEL"),
-                   help="SFT 산출물(재-export된 텍스트 모델) 디렉토리. 있으면 이걸 base로 사용(SFT→GRPO).")
+                   help="SFT 산출물(re-export된 텍스트 모델) 디렉토리. 있으면 이걸 base로 사용(SFT→GRPO).")
     p.add_argument("--train_file", type=str, default=None)
     p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "./out"))
     # 🔴 reward 종류 — 이 트랙의 성공 기준을 프로그램적으로 채점. extraction | classification.
@@ -224,7 +224,7 @@ def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -
 
 def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
                         model_id=None, hf_token=None):
-    """멀티모달 머지 모델 → language 서브모듈만 텍스트 arch로 재-export (train.py와 동일 로직).
+    """멀티모달 머지 모델 → language 서브모듈만 텍스트 arch로 re-export (train.py와 동일 로직).
 
     model_id/hf_token: E2B/E4B의 KV-shared dead weight를 base에서 복원하는 데 필요.
     """
@@ -290,7 +290,7 @@ def main() -> None:
         logger.info("GRPO from HF base: %s (SFT 없이 base에서 GRPO)", base_src)
 
     # ---- 멀티모달 감지 (train.py와 동일) ----
-    #   SFT 산출물은 텍스트 재-export(gemma4_text)라 is_multimodal=False로 감지됨 → CausalLM 로드·재-export 불필요.
+    #   SFT 산출물은 텍스트 re-export(gemma4_text)라 is_multimodal=False로 감지됨 → CausalLM 로드·re-export 불필요.
     _cfg = AutoConfig.from_pretrained(base_src, token=hf_token)
     is_multimodal = getattr(_cfg, "text_config", None) is not None or hasattr(_cfg, "vision_config")
     logger.info("model_type=%s multimodal=%s reward_kind=%s", _cfg.model_type, is_multimodal, args.reward_kind)
@@ -372,7 +372,7 @@ def main() -> None:
     logger.info("Starting GRPO training (num_generations=%d)...", args.num_generations)
     trainer.train()
 
-    # ---- 저장 (train.py와 동일: 멀티모달이면 텍스트 재-export) ----
+    # ---- 저장 (train.py와 동일: 멀티모달이면 텍스트 re-export) ----
     if args.merge_adapter and not args.dry_run:
         adapter_dir = os.path.join(args.output_dir, "adapter")
         trainer.save_model(adapter_dir)

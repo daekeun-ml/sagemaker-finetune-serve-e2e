@@ -12,7 +12,7 @@
 - `tracks/02_classification/scripts/train.py` · `train_grpo.py` — SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
 - `tracks/02_classification/*.ipynb` — 이 트랙의 노트북 10개
 - `common/config.py` — `TRACKS['classification']` 레지스트리(시드 데이터셋, `max_seq_length=512`)
-- `common/eval_utils.py` — `normalize_label` + `eval_classification`(accuracy·macro-F1·weighted-F1)
+- `common/eval_utils.py` — `normalize_label()` + `eval_classification()`(accuracy·macro-F1·weighted-F1)
 - `tracks/build_all_tracks.py` — 이 트랙의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
@@ -27,17 +27,17 @@
 
 ```text
 # 원본 row (mteb/banking77)
-text: I am still waiting on my card?
-label: 11
+text:       I am still waiting on my card?
+label:      11
 label_text: card_arrival
 ```
 
-`load_seed_examples`가 `text` → `input`, `label_text` → `output`으로 옮기고, `to_messages`가 `SYSTEM_PROMPT`를 첫 user 턴 앞에 붙여 학습 JSONL 한 줄을 만듭니다.
+`load_seed_examples()`가 `text` → `input`, `label_text` → `output`으로 옮기고, `to_messages()`가 `SYSTEM_PROMPT`를 첫 user 턴 앞에 붙여 학습 JSONL 한 줄을 만듭니다.
 
 ```json
 {"messages": [
- {"role": "user", "content": "You are an intent classifier for banking customer messages. Output ONLY the single most appropriate intent label (snake_case), nothing else.\n\nI am still waiting on my card?"},
- {"role": "assistant", "content": "card_arrival"}
+  {"role": "user", "content": "You are an intent classifier for banking customer messages. Output ONLY the single most appropriate intent label (snake_case), nothing else.\n\nI am still waiting on my card?"},
+  {"role": "assistant", "content": "card_arrival"}
 ]}
 ```
 
@@ -53,7 +53,7 @@ label_text: card_arrival
 
 `mteb/banking77`(mit, ungated, parquet)을 씁니다. BANKING77의 parquet 미러로, train 9,993건 / test 3,076건이며 test 스플릿에 77개 라벨이 모두 등장합니다. 컬럼은 `text`(고객 메시지) + `label`(정수) + `label_text`(intent 이름)입니다.
 
-`track_data._CANDIDATES`는 `mteb/banking77` → `gtfintechlab/banking77`(cc-by-4.0) 순으로 시도하므로, 첫 미러가 사라져도 다음으로 넘어갑니다. 두 스키마가 달라(`label_text` vs `ClassLabel`) `_label_str`이 양쪽을 모두 처리합니다.
+`track_data._CANDIDATES`는 `mteb/banking77` → `gtfintechlab/banking77`(cc-by-4.0) 순으로 시도하므로, 첫 미러가 사라져도 다음으로 넘어갑니다. 두 스키마가 달라(`label_text` vs `ClassLabel`) `_label_str()`이 양쪽을 모두 처리합니다.
 
 !!! warning "원본 PolyAI/banking77은 로드되지 않습니다"
     원본 리포는 **스크립트 기반**(`banking77.py`)이라 이 kit이 핀한 `datasets>=5.0.0`에서 `RuntimeError: Dataset scripts are no longer supported`로 로드 자체가 실패합니다. parquet 자동변환본(`refs/convert/parquet`)도 없어 되살릴 방법이 없습니다.
@@ -61,10 +61,10 @@ label_text: card_arrival
     그래서 `04_evaluate`도 `load_dataset('PolyAI/banking77').features['label'].names`를 직접 부르지 않고 `track_data.load_label_names()`를 씁니다 — 미러가 또 바뀌어도 고칠 곳이 한 군데입니다.
 
 !!! danger "셔플 없이 앞에서부터 뽑으면 평가가 무너집니다"
- banking77의 train 스플릿은 **라벨 정렬 순서**입니다. 셔플을 빼고 앞에서부터 300건을 그냥 뽑으면 학습 구간에 클래스가 3개뿐이고(실측: `card_arrival` 153 / `card_linking` 139 / `exchange_rate` 8), `04_evaluate`가 쓰는 held-out 구간인 행 300~349는 **50건 전부 `exchange_rate` 단일 라벨**이 됩니다. 77클래스 macro-F1이 아무 의미도 갖지 못하는 상태입니다.
- 그래서 `load_seed_examples`는 `ds.shuffle(seed=42)`를 먼저 적용합니다. 셔플 후 실측: 앞 300건에 **73개 클래스**, held-out으로 쓰는 300~349번 50건에 **35개 클래스**가 들어옵니다. 시드를 42로 고정하므로 학습과 평가가 같은 인덱스를 부르면 항상 같은 결과가 나옵니다(재현성).
+    banking77의 train 스플릿은 **라벨 정렬 순서**입니다. 셔플을 빼고 앞에서부터 300건을 그냥 뽑으면 학습 구간에 클래스가 3개뿐이고(실측: `card_arrival` 153 / `card_linking` 139 / `exchange_rate` 8), `04_evaluate`가 쓰는 held-out 구간인 행 300~349는 **50건 전부 `exchange_rate` 단일 라벨**이 됩니다. 77클래스 macro-F1이 아무 의미도 갖지 못하는 상태입니다.
+    그래서 `load_seed_examples()`는 `ds.shuffle(seed=42)`를 먼저 적용합니다. 셔플 후 실측: 앞 300건에 **73개 클래스**, held-out으로 쓰는 300~349번 50건에 **35개 클래스**가 들어옵니다. 시드를 42로 고정하므로 학습과 평가가 같은 인덱스를 부르면 항상 같은 결과가 나옵니다(재현성).
 
-합성 데이터 단계에서는 `seed_texts_for_synth`가 시드를 `MESSAGE: ...\nINTENT: ...` 형태로 직렬화해 Bedrock에 grounding으로 넘깁니다. 평가용 held-out에는 합성이 한 건도 섞이지 않습니다 — [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지).
+합성 데이터 단계에서는 `seed_texts_for_synth()`가 시드를 `MESSAGE: ...\nINTENT: ...` 형태로 직렬화해 Bedrock에 grounding으로 넘깁니다. 평가용 held-out에는 합성이 한 건도 섞이지 않습니다 — [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지).
 
 ---
 
@@ -86,7 +86,7 @@ accuracy만 보면 안 되는 이유가 이 트랙에서 특히 분명합니다 
 
     그래서 `accuracy`·`weighted_f1`의 숫자는 문자 그대로 읽어도 되지만, `macro_f1`은 **같은 held-out에서의 다른 실행값과 비교하는 상대 지표**로만 쓰세요. 절대값 0.3을 보고 "형편없다"고 판단하면 오진입니다 — 0.45가 그 판의 만점입니다. 절대값을 그대로 읽고 싶다면 `labels`를 held-out에 등장한 클래스로 좁히면 되고(같은 완전 일치 조건에서 `1.0`), 그때는 실행 간 라벨 집합이 달라져 비교 가능성이 떨어진다는 대가를 치릅니다. `N_EVAL`을 키워 등장 클래스 수를 늘리는 것도 같은 방향의 완화책입니다.
 
-모델은 자유 텍스트로 답하므로 채점 전에 `normalize_label`이 예측을 닫힌 라벨셋에 매핑합니다: 소문자·공백→`_` 정규화 후 **정확 일치 → substring 포함 → rapidfuzz 유사도** 순이고, 전부 실패하면 `label_set[0]`으로 폴백합니다(즉 오답으로 계산됩니다). `04_evaluate`는 `temperature=0.0`으로 호출해 재현성을 확보하고, held-out은 `NUM_SEED_SAMPLES`(300)건을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 씁니다.
+모델은 자유 텍스트로 답하므로 채점 전에 `normalize_label()`이 예측을 닫힌 라벨셋에 매핑합니다: 소문자·공백→`_` 정규화 후 **정확 일치 → substring 포함 → rapidfuzz 유사도** 순이고, 전부 실패하면 `label_set[0]`으로 폴백합니다(즉 오답으로 계산됩니다). `04_evaluate`는 `temperature=0.0`으로 호출해 재현성을 확보하고, held-out은 `NUM_SEED_SAMPLES`(300)건을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 씁니다.
 
 ---
 
@@ -109,7 +109,7 @@ accuracy만 보면 안 되는 이유가 이 트랙에서 특히 분명합니다 
 
 `02a`가 있는 이유는 **reward를 프로그램으로 채점할 수 있기 때문**입니다. `scripts/train_grpo.py`의 `reward_classification`은 예측 라벨이 정답과 정확 일치하면 `1.0`, 라벨이 텍스트 안에 포함되기만 하면 `0.3`(형식 어긋남), 그 외는 `0.0`을 줍니다. 요약·도메인 QA에는 이런 채점 함수가 없어 GRPO 노트북이 아예 생성되지 않습니다 — [왜 추출·분류 트랙에만 GRPO가 있나](03_finetuning.md#왜-추출분류-트랙에만-grpo가-있나).
 
-GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르면 `common/grpo_data.py`가 `pred.lower != gold.lower`로 실패를 판정해 그 prompt만 모읍니다. 기본값 `synth`를 쓸 때는 이 트랙 전용 난이도 제약이 생성 프롬프트에만 붙습니다("두 유사 intent의 경계에 놓인 메시지, 간접·감정적 표현, 희소 intent 위주"). 배경은 [SFT에서 GRPO로](03_finetuning.md#sft에서-grpo로--데이터를-갈아야-하는-이유)에 있습니다.
+GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르면 `common/grpo_data.py`가 `pred.lower() != gold.lower()`로 실패를 판정해 그 prompt만 모읍니다. 기본값 `synth`를 쓸 때는 이 트랙 전용 난이도 제약이 생성 프롬프트에만 붙습니다("두 유사 intent의 경계에 놓인 메시지, 간접·감정적 표현, 희소 intent 위주"). 배경은 [SFT에서 GRPO로](03_finetuning.md#sft에서-grpo로--데이터를-갈아야-하는-이유)에 있습니다.
 
 ---
 
@@ -130,7 +130,7 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 스트리밍이 기본 off인 이유는 이 트랙의 응답이 **라벨 한 줄**이라 완성돼야 파싱·라우팅에 쓸 수 있기 때문입니다. 스트리밍은 첫 토큰 체감만 줄이고 전체 생성 시간이나 처리량은 바꾸지 않습니다 — [스트리밍이 개선하지 않는 것](05_serving_containers.md#스트리밍이-개선하지-않는-것).
 
 !!! tip "짧은 시퀀스가 이 트랙을 가장 저렴하게 만듭니다"
- `02_train_sft_sagemaker`는 step 시간을 시퀀스 길이로 추정하는데, ml.g6.2xlarge 실측이 **seq 512에서 약 7초/step, seq 2048에서 약 17초/step**입니다. 핸즈온 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2` → 약 50 step)이면 학습이 10분 안쪽입니다.
+    `02_train_sft_sagemaker`는 step 시간을 시퀀스 길이로 추정하는데, ml.g6.2xlarge 실측이 **seq 512에서 약 7초/step, seq 2048에서 약 17초/step**입니다. 핸즈온 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2` → 약 50 step)이면 학습이 10분 안쪽입니다.
     다섯 트랙 중 하나만 완주해 볼 생각이라면 이 트랙이 가장 빠르고, GRPO까지 곁들여 볼 수 있는 트랙이기도 합니다.
 
 !!! warning "서빙 파라미터는 GPU를 바꾸면 함께 조정하세요"

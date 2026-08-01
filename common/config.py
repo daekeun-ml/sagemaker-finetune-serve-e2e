@@ -30,7 +30,7 @@ if not os.environ.get("HF_HOME"):
 # ---------------------------------------------------------------------------
 # ⚠️ 사실 검증 2026-07-21 (HF raw config.json + AWS available_images 실측):
 #   - Gemma 4 전 사이즈 = apache-2.0 + UNGATED (토큰 불필요). 전부 멀티모달(vision; E2B/E4B/12B는 audio도).
-#     → 텍스트 전용 gemma-4 공식 체크포인트는 없음. 텍스트 서빙은 재-export(gemma4_text) 또는
+#     → 텍스트 전용 gemma-4 공식 체크포인트는 없음. 텍스트 서빙은 re-export(gemma4_text) 또는
 #       vLLM --language-model-only / OPTION_LIMIT_MM_PER_PROMPT 로 처리(deploy 노트북 참고).
 #   - "E" = effective params(PLE, MoE 아님). "A4B" = active 4B(MoE, 128 experts).
 #   - gemma-4 서빙엔 vLLM >= 0.19 필요. AWS 독립 vLLM DLC(vllm:0.25.1-...-sagemaker) 또는
@@ -42,7 +42,7 @@ if not os.environ.get("HF_HOME"):
 # ⚠️ 파라미터 수를 HF API로 읽을 때: `safetensors.total` 은 tie_word_embeddings=True인 모델에서
 #    embedding을 이중 계산합니다(31B 실측: total 32,682,372,656 vs 실제 31,273,088,876 — 1.4B 과대).
 #    `parameters.BF16` 또는 model.safetensors.index.json 의 metadata.total_parameters 를 쓰세요.
-# 🔴 인스턴스 선택 시 GPU뿐 아니라 '호스트 RAM'도 본다: QLoRA 학습은 GPU에 들어가지만, 학습 후 merge/재-export가
+# 🔴 인스턴스 선택 시 GPU뿐 아니라 '호스트 RAM'도 본다: QLoRA 학습은 GPU에 들어가지만, 학습 후 merge/re-export가
 #    base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목이다(초기 버전은 여기서 OOM으로 죽었음). train.py는 merge 전
 #    학습 모델을 해제하고 base를 CPU low_cpu_mem_usage로 로드해 사본을 최소화 → E4B 실측 peak RAM ≈ 17.5GB(2026-07).
 #    g6.2xlarge = L4 24GB GPU + 32GB RAM. 12B/26B는 merge 시 RAM이 더 커 g6.12xlarge(RAM 큼)로 둔다.

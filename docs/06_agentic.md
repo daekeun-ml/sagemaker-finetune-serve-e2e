@@ -70,7 +70,7 @@
 | 축 | Bedrock Claude (reasoning) | 파인튜닝 Gemma SLM (tool) |
 |---|---|---|
 | 역할 | 계획·판단·도구 선택·결과 검증 | 도메인 특화 단일 작업 실행 |
-| 호출 서비스 | `bedrock-runtime` → `converse` | `sagemaker-runtime` → `invoke_endpoint` |
+| 호출 서비스 | `bedrock-runtime` → `converse()` | `sagemaker-runtime` → `invoke_endpoint()` |
 | 과금 모델 | 토큰당(사용량) | endpoint 시간당(상시 인스턴스) |
 | 강점 | 범용 추론·멀티스텝·자연어 오케스트레이션 | 전용 태스크의 속도·비용·포맷 안정성 |
 | 모델 관리 | AWS 관리형(모델 ID만 지정) | 우리가 학습·배포·운영 |
@@ -93,8 +93,8 @@
 이 kit에서 가장 흔하게 사고가 나는 지점이므로 **절대 섞지 마세요**. `common/aws_utils.py` 상단에도 못 박아 둔 규칙은 다음과 같습니다.
 
 ```
-SageMaker endpoint 호출 = boto3 "sagemaker-runtime" 클라이언트, invoke_endpoint
-Bedrock Claude 호출 = boto3 "bedrock-runtime" 클라이언트, converse
+SageMaker endpoint 호출  = boto3 "sagemaker-runtime" 클라이언트, invoke_endpoint()
+Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse()
 → 별개 서비스 · 별개 클라이언트. "endpoint를 Bedrock API로 호출"은 잘못.
 ```
 
@@ -102,27 +102,27 @@ Bedrock Claude 호출 = boto3 "bedrock-runtime" 클라이언트, converse
 
 ```
 사용자 입력
- │
- ▼
+   │
+   ▼
 ┌──────────────────────────────────┐
-│ Bedrock Claude (reasoning) │ bedrock-runtime.converse
-│ "이건 추출 작업 → 도구 호출" │
+│  Bedrock Claude (reasoning)      │  bedrock-runtime.converse()
+│  "이건 추출 작업 → 도구 호출"    │
 └────────────────┬─────────────────┘
                  │ tool-use 요청 (name=extract_structured_json, args=...)
                  ▼
 ┌──────────────────────────────────┐
-│ @tool extract_structured_json │ sagemaker-runtime.invoke_endpoint
-│ 파인튜닝 Gemma SLM endpoint │
+│  @tool extract_structured_json   │  sagemaker-runtime.invoke_endpoint()
+│  파인튜닝 Gemma SLM endpoint     │
 └────────────────┬─────────────────┘
                  │ 결과(JSON 등)
                  ▼
- Claude가 결과 검증·설명 → 최종 응답
+   Claude가 결과 검증·설명 → 최종 응답
 ```
 
 - 배포된 모델을 코드에서 호출하는 경로는 [SageMaker 모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에 정리되어 있습니다. 이 kit의 tool은 그중 boto3 `sagemaker-runtime` 직접 호출을 씁니다.
-- endpoint 호출 스키마는 서빙 컨테이너를 따릅니다. 이 kit의 기본 엔진은 vLLM(대안 SGLang·DJL LMI)이고 셋 다 **OpenAI 호환**이므로, tool은 `{"messages": [...]}` 스키마를 씁니다 — `common/aws_utils.py`의 `invoke_sagemaker_chat`입니다. `{"inputs", "parameters"}` generation 스키마(LMI rolling-batch·HF TGI 관용)가 필요하면 같은 파일의 `invoke_sagemaker_endpoint`를 쓰세요.
-- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat`을 사용하세요. **요약 트랙 endpoint 실측(vLLM 0.26.0, 입력 5,996자)에서 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
-- Bedrock은 `converse`(또는 스트리밍 `converse_stream`)를 쓰며, [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정한 메시지·`inferenceConfig` 스키마를 따릅니다. 구현은 `common/aws_utils.py`의 `bedrock_converse`이고, 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
+- endpoint 호출 스키마는 서빙 컨테이너를 따릅니다. 이 kit의 기본 엔진은 vLLM(대안 SGLang·DJL LMI)이고 셋 다 **OpenAI 호환**이므로, tool은 `{"messages": [...]}` 스키마를 씁니다 — `common/aws_utils.py`의 `invoke_sagemaker_chat()`입니다. `{"inputs", "parameters"}` generation 스키마(LMI rolling-batch·HF TGI 관용)가 필요하면 같은 파일의 `invoke_sagemaker_endpoint()`를 쓰세요.
+- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. **요약 트랙 endpoint 실측(vLLM 0.26.0, 입력 5,996자)에서 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
+- Bedrock은 `converse()`(또는 스트리밍 `converse_stream()`)를 쓰며, [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정한 메시지·`inferenceConfig` 스키마를 따릅니다. 구현은 `common/aws_utils.py`의 `bedrock_converse()`이고, 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
 
 ??? question "오개념 — “LiteLLM 쓰면 둘이 같은 거 아닌가요?”"
     그렇지 않습니다. `common/llm_gateway.py`의 [LiteLLM](https://github.com/BerriAI/litellm)은 **호출 인터페이스만** OpenAI 호환 `completion()`으로 통일해 줄 뿐, 내부적으로는 여전히 `bedrock/converse/<model>`와 `sagemaker_chat/<endpoint>`로 **다른 백엔드에 라우팅**합니다.
@@ -187,11 +187,11 @@ def extract_structured_json(text: str) -> str:
                               ContentType="application/json", Body=json.dumps(payload))
     ...
 
-model = BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=AWS_REGION) # reasoning=Claude
+model = BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=AWS_REGION)  # reasoning=Claude
 agent = Agent(model=model, tools=[extract_structured_json], system_prompt="You orchestrate...")
 ```
 
-노트북에서는 같은 tool을 `common/aws_utils.invoke_sagemaker_chat`으로 구현해, 응답 파싱까지 공통 코드에 맡깁니다(`temperature=0.1`). SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합니다(트랙별 `track_data.SYSTEM_PROMPT`).
+노트북에서는 같은 tool을 `common/aws_utils.invoke_sagemaker_chat()`으로 구현해, 응답 파싱까지 공통 코드에 맡깁니다(`temperature=0.1`). SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합니다(트랙별 `track_data.SYSTEM_PROMPT`).
 
 !!! warning "`max_tokens`는 트랙마다 다릅니다 — 256을 그대로 복사하지 마세요"
     위 스니펫의 `256`은 **추출·분류 트랙 값**입니다(`agentcore/app.py`가 정보추출 전용 스캐폴드이므로). 요약·도메인 QA 노트북은 **512**를 씁니다.
@@ -242,12 +242,12 @@ Strands를 우선(권장하며 이 kit의 기본)으로 하되, 이미 LangGraph
 
 - **ARM64** 컨테이너를 사용합니다(`FROM --platform=linux/arm64`).
 - HTTP는 **`POST /invocations`**(호출)과 **`GET /ping`**(헬스체크)을 **port 8080**에서 제공합니다.
-- SDK는 [`bedrock-agentcore`](https://github.com/aws/bedrock-agentcore-sdk-python)를 쓰며, `BedrockAgentCoreApp` + `@app.entrypoint` + `app.run` 조합으로 구성합니다.
-- CLI는 권장 배포 흐름인 **`@aws/agentcore` (npm CLI)** 를 사용합니다 — `agentcore create/dev/deploy/invoke`. 구 [`bedrock-agentcore-starter-toolkit`](https://github.com/aws/bedrock-agentcore-starter-toolkit)(`agentcore configure/launch`)는 더 이상 권장되지 않으며 참고용입니다(검증 2026-07).
+- SDK는 [`bedrock-agentcore`](https://github.com/aws/bedrock-agentcore-sdk-python)를 쓰며, `BedrockAgentCoreApp()` + `@app.entrypoint` + `app.run()` 조합으로 구성합니다.
+- CLI는 권장 배포 흐름인 **`@aws/agentcore` (npm CLI)** 를 사용합니다 — `agentcore create/dev/deploy/invoke`. 구 [`bedrock-agentcore-starter-toolkit`](https://github.com/aws/bedrock-agentcore-starter-toolkit)(`agentcore configure/launch`)는 더 이상 권장되지 않으며 참고용입니다.
 
 ```python
 from bedrock_agentcore import BedrockAgentCoreApp
-app = BedrockAgentCoreApp
+app = BedrockAgentCoreApp()
 
 @app.entrypoint
 def invoke(payload: dict) -> dict:
@@ -261,7 +261,7 @@ if __name__ == "__main__":
 CLI가 생성하는 스캐폴딩은 import 경로가 `from bedrock_agentcore.runtime import BedrockAgentCoreApp`이고 진입점이 `async def invoke(payload, context)`로 스트리밍(`agent.stream_async`)입니다. kit의 `agentcore/templates/main.py`가 그 형태입니다.
 
 !!! warning "배포 전 재확인 목록"
-    AgentCore의 **GA 상태·지원 리전**, `bedrock-agentcore` SDK의 **import 경로/데코레이터 시그니처**, `@aws/agentcore` CLI **버전**(v0.24.2), base 이미지 태그는 빠르게 바뀝니다.
+    AgentCore의 **GA 상태·지원 리전**, `bedrock-agentcore` SDK의 **import 경로/데코레이터 시그니처**, `@aws/agentcore` CLI **버전**(실측 v0.24.2), base 이미지 태그는 빠르게 바뀝니다.
     `agentcore/app.py`와 `agentcore/Dockerfile`에 `# TODO verify` 주석으로 표시된 지점을 배포 전에 반드시 확인하세요.
 
 ### CLI 배포 절차
@@ -269,16 +269,16 @@ CLI가 생성하는 스캐폴딩은 import 경로가 `from bedrock_agentcore.run
 노트북 셀이 아니라 **터미널**에서 진행합니다(대화형 프롬프트·장시간 dev 서버·PATH 연속성 때문입니다. 셀의 `!명령`은 매번 새 셸이라 nvm PATH가 안 이어져 `agentcore: command not found`가 납니다).
 
 ```bash
-bash agentcore/setup_agentcore_cli.sh # Node >= 20 + @aws/agentcore (nvm, sudo 불필요)
+bash agentcore/setup_agentcore_cli.sh          # Node >= 20 + @aws/agentcore (nvm, sudo 불필요)
 source $HOME/.nvm/nvm.sh && nvm use 20
-bash agentcore/create_agent.sh # non-interactive 생성 + SLM tool 자동 이식 + uv sync
-bash agentcore/verify_local.sh <SLM_ENDPOINT_NAME> [AWS_REGION] # 로컬 dev 서버로 실제 추론 검증
-cd agentcore/gemmaextraction && agentcore deploy # ARM64 → ECR → Runtime (CDK)
-agentcore invoke --prompt '...' # 배포된 Runtime 호출
+bash agentcore/create_agent.sh                 # non-interactive 생성 + SLM tool 자동 이식 + uv sync
+bash agentcore/verify_local.sh <SLM_ENDPOINT_NAME> [AWS_REGION]   # 로컬 dev 서버로 실제 추론 검증
+cd agentcore/gemmaextraction && agentcore deploy                  # ARM64 → ECR → Runtime (CDK)
+agentcore invoke --prompt '...'                                   # 배포된 Runtime 호출
 ```
 
 - `@aws/agentcore`는 **Node.js 20 이상**이 필요합니다. 18 이하면 `EBADENGINE` 경고와 런타임 오류가 나고, `/usr/local` 전역 설치는 `EACCES` 권한 오류가 납니다. `setup_agentcore_cli.sh`가 nvm으로 홈에 Node 20을 깔아 두 문제를 모두 피합니다.
-- `create_agent.sh`는 agent-path flag(`--framework`)와 harness-only flag(`--model-id`)를 **섞을 수 없다는 CLI 제약**을 반영해, 모델 ID는 생성된 `model/load.py`에서 env로 받게 이식합니다. 프로젝트 이름은 영숫자만 허용하고 **23자 이하**여야 합니다(같은 CLI 제약, 실측).
+- `create_agent.sh`는 agent-path flag(`--framework`)와 harness-only flag(`--model-id`)를 **섞을 수 없다는 CLI 제약**을 반영해, 모델 ID는 생성된 `model/load.py`에서 env로 받게 이식합니다. 프로젝트 이름은 영숫자만 허용하고 **23자 이하**여야 합니다(같은 CLI 제약).
 - `verify_local.sh`는 dev 서버를 `setsid`로 띄우면서 stdin을 `/dev/null`로 분리하고(터미널 점유·stdin 문제 회피), 종료는 `kill <pid>`로 정밀하게 합니다. `pkill -f 'agentcore dev'`는 실행 중인 셸까지 죽입니다.
 - CLI를 쓰지 않는 경로는 ARM64 이미지를 ECR에 푸시한 뒤 `bedrock-agentcore-control`의 `create_agent_runtime`을 직접 호출하는 것입니다. 호출은 `bedrock-agentcore`의 `invoke_agent_runtime(agentRuntimeArn=..., runtimeSessionId=<33자 이상>, payload=..., qualifier="DEFAULT")`입니다. 파라미터 스키마가 바뀔 수 있으니 최신 boto3 레퍼런스에서 확인하세요.
 
@@ -320,10 +320,10 @@ agentic loop는 과금 소스가 **둘 이상**입니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker real-time endpoint | 삭제 전까지 시간당(GPU 인스턴스) | `99_cleanup` 또는 `predictor.delete_endpoint` |
+| SageMaker real-time endpoint | 삭제 전까지 시간당(GPU 인스턴스) | `99_cleanup` 또는 `predictor.delete_endpoint()` |
 | Bedrock Claude | 토큰당(호출량) | 상시 리소스 없음. 대량 호출 시 비용 |
 | AgentCore Runtime + ECR 이미지 | Runtime 리소스 + 이미지 스토리지 | `bash agentcore/cleanup_agent.sh --aws` (`agentcore destroy`) |
 
 - 로컬만 정리하려면 `bash agentcore/cleanup_agent.sh`(dev 서버 프로세스 + 프로젝트 폴더)를 쓰고, AWS 배포 리소스까지 지우려면 `--aws`를 붙이세요. `agentcore destroy`가 실패하면 생성된 프로젝트 안의 `agentcore/cdk`(예: `agentcore/gemmaextraction/agentcore/cdk`)에서 `npx cdk destroy`로, 그것도 안 되면 콘솔에서 Runtime·ECR·CloudFormation 스택을 직접 삭제합니다.
 - 프로젝트 폴더를 남겨 두려면 `KEEP_PROJECT=1`을 붙이세요. dev 서버 종료도 `kill <pid>` 방식이라 실행 중인 셸을 죽이지 않습니다.
-- 상태와 비용은 `common/aws_utils.py`의 `print_cost_warning`과 `cw_links`로 확인할 수 있습니다.
+- 상태와 비용은 `common/aws_utils.py`의 `print_cost_warning()`과 `cw_links()`로 확인할 수 있습니다.

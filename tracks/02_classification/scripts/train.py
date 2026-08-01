@@ -26,7 +26,7 @@ SageMaker (HuggingFace estimator entry_point):
 
 🔴 멀티모달 base(gemma-4 전부 · gemma-3 4b+) 텍스트 SFT (실측 검증 2026-07-21):
   - 로드: AutoModelForImageTextToText(멀티모달 전체). LoRA는 language_model 한정 target_modules.
-  - 저장: 머지 후 language 서브모듈만 텍스트 arch(*ForCausalLM, model_type=*_text)로 재-export
+  - 저장: 머지 후 language 서브모듈만 텍스트 arch(*ForCausalLM, model_type=*_text)로 re-export
     → vLLM이 순수 텍스트 경로로 로드(image/audio processor 불필요). 안 그러면 서빙 시
     "Can't load image processor" 로 죽는다. (_reexport_text_only 참고)
 """
@@ -189,7 +189,7 @@ def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -
 
 def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
                         model_id=None, hf_token=None, revive_kv_shared=True) -> None:
-    """멀티모달 머지 모델에서 language 서브모듈만 텍스트 arch(*ForCausalLM)로 재-export.
+    """멀티모달 머지 모델에서 language 서브모듈만 텍스트 arch(*ForCausalLM)로 re-export.
 
     🔴 왜: 멀티모달 config(*ForConditionalGeneration)로 저장하면 vLLM이 image/audio processor를
        찾다가 죽는다. text_config(model_type=*_text) + language_model 가중치만 저장하면 vLLM이
@@ -341,7 +341,7 @@ def main() -> None:
     #    (ValueError: Target module ... is not supported). 따라서 target_modules에 이름 리스트나
     #    'all-linear'를 주면 vision/audio proj까지 매칭돼 크래시하거나 불필요 파라미터가 붙는다.
     #    → **정규식으로 language_model 경로 한정**: language의 258개 nn.Linear만 매칭(ClippableLinear 0).
-    #    실측: get_peft_model OK, lora_A 516개 부착. 텍스트 서빙은 이후 language 서브모듈만 재-export.
+    #    실측: get_peft_model OK, lora_A 516개 부착. 텍스트 서빙은 이후 language 서브모듈만 re-export.
     if is_multimodal:
         lora_targets = r".*language_model\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
         # 멀티모달에서 embed/lm_head를 modules_to_save로 두면 vision 임베딩까지 얽힐 수 있어 생략(순수 텍스트 LoRA).
@@ -410,7 +410,7 @@ def main() -> None:
     #    vLLM/LMI는 HF_MODEL_ID=/opt/ml/model 루트의 config.json으로 엔진을 감지한다.
     #    ⚠️ 멀티모달 base를 텍스트로 서빙할 때: config가 멀티모달(*ForConditionalGeneration)로 남으면
     #       vLLM이 image/audio processor를 찾다가 "Can't load image processor"로 죽는다(실측). 그래서
-    #       머지 후 **language 서브모듈만 텍스트 arch(*ForCausalLM)로 재-export**한다(gemma4→gemma4_text).
+    #       머지 후 **language 서브모듈만 텍스트 arch(*ForCausalLM)로 re-export**한다(gemma4→gemma4_text).
     #       실측 검증(E4B/12B/26B): model.language_model.* → model.* 재키잉 + lm_head, 키 100% 매칭.
     if args.merge_adapter and not args.dry_run:
         adapter_dir = os.path.join(args.output_dir, "adapter")
@@ -420,7 +420,7 @@ def main() -> None:
 
         logger.info("Merging LoRA adapter into base model...")
         from peft import PeftModel
-        # 🔴 OOM 방지: merge는 학습 모델 + base(bf16 full) + merged + (재-export시) text_model 사본이
+        # 🔴 OOM 방지: merge는 학습 모델 + base(bf16 full) + merged + (re-export시) text_model 사본이
         #    호스트 RAM에 겹쳐 쌓인다(8B면 각 ~16GB). 학습이 끝난 trainer/model을 먼저 해제해 RAM을 회수한다.
         import gc
         del trainer, model
@@ -437,7 +437,7 @@ def main() -> None:
         gc.collect()
 
         if is_multimodal:
-            # 멀티모달 머지 모델 → 텍스트 전용으로 재-export (vLLM 텍스트 서빙용).
+            # 멀티모달 머지 모델 → 텍스트 전용으로 re-export (vLLM 텍스트 서빙용).
             # model_id/hf_token: KV-shared dead weight를 base에서 복원하는 데 필요(E2B/E4B).
             _reexport_text_only(merged, _cfg, tokenizer, args.output_dir, logger,
                                 model_id=args.model_id, hf_token=hf_token)

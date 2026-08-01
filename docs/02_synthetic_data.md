@@ -19,7 +19,7 @@
 
 !!! warning "빠르게 바뀌는 값"
     Bedrock 모델 ID·inference-profile prefix·sampling 파라미터 지원 여부·토큰 단가·boto3/SDK 버전·리전, 그리고 대안 라이브러리의 버전·라이선스·유지보수 상태는 **실행 직전에 다시 확인**하세요.
- 특히 Claude 세대가 바뀌면 `temperature` 같은 파라미터가 조용히 deprecated 됩니다(아래 실측 참고).
+    특히 Claude 세대가 바뀌면 `temperature` 같은 파라미터가 조용히 deprecated 됩니다(아래 실측 참고).
     시크릿·계정 ID·절대경로는 문서와 코드 어디에도 하드코딩하지 마세요.
 
 ---
@@ -29,7 +29,7 @@
 **합성은 "자유 생성"이 아니라 seed에 grounded하고 critique/refine로 걸러낸 데이터만 채택하는 방식이며, 기본 경로는 외부 SDG 라이브러리가 0개인 `bedrock_synth.py`(boto3 Bedrock Converse)입니다.**
 
 1. **근거 없는 자유 생성은 hallucination과 distribution drift를 학습셋에 주입합니다.** 그래서 생성을 seed 도메인·라벨공간에 묶고, LLM critique(groundedness·relevance)로 임계값 미달 예시를 폐기합니다 — [왜 자유 생성이 아니라 grounded인가](#왜-자유-생성이-아니라-grounded인가).
-2. **기본 경로는 무의존성입니다.** `generate_grounded`는 생성 → PII/중복 필터 → critique → `messages` JSONL 순으로 동작하며 boto3만 씁니다 — [기본 경로 — 무의존성 bedrock_synth](#기본-경로--무의존성-bedrock_synth).
+2. **기본 경로는 무의존성입니다.** `generate_grounded()`는 생성 → PII/중복 필터 → critique → `messages` JSONL 순으로 동작하며 boto3만 씁니다 — [기본 경로 — 무의존성 bedrock_synth](#기본-경로--무의존성-bedrock_synth).
 3. **몇 개 생성할지는 USER가 결정합니다.** 기본값은 `config.NUM_SYNTHETIC`(200)이고 이 kit의 `.env`는 100으로 낮춰 둔 상태입니다 — [생성 건수 결정 — NUM_SYNTHETIC 기본값](#생성-건수-결정--num_synthetic-기본값).
 4. **합성 데이터로는 평가하지 마세요.** 증강 이전 seed에서 held-out을 먼저 분리한 뒤 나머지만 증강합니다 — [held-out 규율 — 합성으로 평가 금지](#held-out-규율--합성으로-평가-금지).
 5. **라이브러리는 활발히 유지보수되는 것만 권장합니다.** Kiln(native Bedrock)과 Bespoke Curator(LiteLLM 경유)이고, distilabel은 배제합니다 — [라이브러리 대안](#라이브러리-대안).
@@ -89,7 +89,7 @@
 seed 샘플(증강 이전)
       │  seed 회전 (seeds_per_batch=4)
       ▼
-[생성] Bedrock Converse ── GEN_SYSTEM, JSON array, batch_size=5
+[생성] Bedrock Converse  ── GEN_SYSTEM, JSON array, batch_size=5
       │  _extract_json (코드펜스/부분블록 방어 파싱)
       │  _as_text (output이 dict/list로 와도 문자열 정규화)
       ▼
@@ -99,12 +99,12 @@ seed 샘플(증강 이전)
 [critique] Bedrock Converse ── CRITIQUE_SYSTEM
       │  groundedness / relevance (0~1)
       ▼
- g ≥ min_groundedness AND r ≥ min_relevance ?
+  g ≥ min_groundedness AND r ≥ min_relevance ?
       │ yes
       ▼
-to_messages → 표준 messages (트랙별 어댑터, gemma_format.build_messages)
+to_messages() → 표준 messages (트랙별 어댑터, gemma_format.build_messages)
       ▼
-save_jsonl → {"messages":[...]} JSONL → SFTTrainer conversational 입력
+save_jsonl → {"messages":[...]} JSONL  →  SFTTrainer conversational 입력
 ```
 
 PII/중복 필터가 critique **앞**에 있는 순서가 중요합니다. 탈락이 확정된 후보에 critique 호출(= 토큰 비용)을 쓰지 않기 위한 배치입니다. 생성 배치와 critique는 모두 `ThreadPoolExecutor`로 병렬 처리됩니다 — Bedrock 호출이 I/O 바운드이기 때문입니다.
@@ -126,7 +126,7 @@ synth = bs.generate_grounded(
 )
 ```
 
-- 저수준 호출은 `common/aws_utils.bedrock_converse`가 담당합니다(boto3 `bedrock-runtime` 클라이언트의 [`converse`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)). 이는 SageMaker endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다 — [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
+- 저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다(boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)). 이는 SageMaker endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다 — [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
 - 출력은 `{"messages":[...]}` JSONL입니다. `gemma_format.build_messages`로 만든 표준 messages이므로 [TRL `SFTTrainer`](https://huggingface.co/docs/trl/en/sft_trainer)의 conversational 포맷에 바로 들어갑니다(학습 경로는 `tracks/*/scripts/train.py`).
 - 병렬 호출이 많으면 Bedrock throttling(429)이 납니다. boto3 클라이언트는 `mode="adaptive"` 재시도로 구성되어 있고 시도 횟수는 `BEDROCK_MAX_ATTEMPTS`(기본 8)로 조정합니다. 그래도 429가 계속되면 `SYNTH_MAX_WORKERS`를 낮추세요.
 
@@ -139,7 +139,7 @@ synth = bs.generate_grounded(
 
 ### 생성 지시와 채점 기준의 분리
 
-생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 8건 생성 → 8건 기각).
+생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 실측: 8건 생성 → 8건 기각).
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
@@ -171,8 +171,8 @@ synth = bs.generate_grounded(
 
 ```
 seed 전체
- ├─ [먼저 분리] held-out ──────────────► 04_evaluate 전용 (합성 유입 0)
- └─ 나머지 seed ──► grounded 합성 증강 ──► train.jsonl (SFTTrainer)
+   ├─ [먼저 분리] held-out  ──────────────►  04_evaluate 전용 (합성 유입 0)
+   └─ 나머지 seed  ──►  grounded 합성 증강  ──►  train.jsonl (SFTTrainer)
 ```
 
 평가는 `04_evaluate.ipynb`에서 **held-out으로만** 수행합니다. 트랙별 메트릭은 추출이 `arg_f1`(primary) + `valid_json_rate` + `name_accuracy`, 분류가 macro-F1 + accuracy, 요약이 ROUGE-L + LLM-judge(groundedness/coverage), 도메인 QA가 LLM-judge(correctness/helpfulness/groundedness 1~5) + ROUGE-L proxy입니다(`common/eval_utils.py`).
@@ -193,7 +193,7 @@ seed 전체
 
 기본 경로(`bedrock_synth.py`)만으로도 충분하지만, 오케스트레이션이나 대량 실행이 필요하다면 아래 대안을 붙일 수 있습니다. **버전·라이선스·유지보수 상태는 실행 전 재확인** 대상입니다.
 
-| 도구 | Bedrock 연동 | 상태 (GitHub/PyPI 실측) | 라이선스 | 쓸 때 |
+| 도구 | Bedrock 연동 | 상태 (GitHub 커밋·PyPI 릴리스 실측) | 라이선스 | 쓸 때 |
 |---|---|---|---|---|
 | **`bedrock_synth.py` (이 kit)** | boto3 native | kit 코드 | kit 코드 | 기본값. 의존성 0, AWS 거버넌스 |
 | **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원 — native (`ModelProviderName.amazon_bedrock`) | 가장 활발 (v1.0.4 @ 2026-07-16) | 확인 필요 — core lib MIT / repo 루트 커스텀 | GUI+오케스트레이션 원할 때 |
@@ -206,7 +206,7 @@ seed 전체
 - 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 kit의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
 
 ??? question "오개념 — “유명한 distilabel을 왜 안 쓰나요?”"
- 유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01, 실측)이라 프로덕션 의존성으로는 부적합합니다.
+    유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01)이라 프로덕션 의존성으로는 부적합합니다.
     이 kit은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
 
 ---
@@ -252,6 +252,6 @@ seed 전체
 
 합성 생성 자체는 상시 리소스를 남기지 않습니다. 다만 같은 노트북 흐름의 endpoint와 학습 잡은 별개이므로 `99_cleanup.ipynb`로 정리하세요.
 
-**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. kit 기본값은 `global.anthropic.claude-sonnet-5`(이 계정 `list_inference_profiles` 실측)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
+**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. kit 기본값은 `global.anthropic.claude-sonnet-5`(이 계정 `list_inference_profiles` 확인값)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
 
 AWS 마케팅 수치("최대 N% 절감" 등)는 **AWS 주장**으로 표기하고 출처를 붙이세요(이 문서에서는 인용하지 않습니다).

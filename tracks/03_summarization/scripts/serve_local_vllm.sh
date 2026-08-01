@@ -6,12 +6,12 @@
 #     저장했을 때 image-processor 에러가 로컬에서 즉시 재현/차단됨).
 #
 # 요구: vLLM >= 0.19 (gemma-4 지원). `pip install "vllm>=0.19"` 또는 vLLM DLC와 동일 버전.
-#       gemma-4 텍스트 재-export 모델(config model_type=gemma4_text)은 순수 텍스트로 로드된다.
+#       gemma-4 텍스트 re-export 모델(config model_type=gemma4_text)은 순수 텍스트로 로드된다.
 #
 # 사용:
-#   # 텍스트 모델(재-export된 gemma4_text 또는 텍스트 전용): 그냥
+#   # 텍스트 모델(re-export된 gemma4_text 또는 텍스트 전용): 그냥
 #   bash serve_local_vllm.sh /path/to/model
-#   # 멀티모달 base를 '텍스트로만' 서빙(재-export 안 한 경우): 이미지/오디오 입력 차단
+#   # 멀티모달 base를 '텍스트로만' 서빙(re-export 안 한 경우): 이미지/오디오 입력 차단
 #   TEXT_ONLY=1 bash serve_local_vllm.sh /path/to/multimodal_model
 #   # 멀티모달로 서빙(이미지 입력 허용):
 #   MULTIMODAL=1 bash serve_local_vllm.sh /path/to/multimodal_model
@@ -43,7 +43,7 @@ ARGS=(serve "$MODEL_DIR"
       --trust-remote-code)
 
 # 🔴 멀티모달 base를 '텍스트로만' 서빙: 모든 mm 모달리티 입력을 0으로. gemma-4 E계열/12B는 audio도 있으니 함께 0.
-#    (재-export된 gemma4_text 모델은 이미 텍스트 arch라 이 플래그가 불필요하지만, 줘도 무해.)
+#    (re-export된 gemma4_text 모델은 이미 텍스트 arch라 이 플래그가 불필요하지만, 줘도 무해.)
 if [[ "${TEXT_ONLY:-0}" == "1" ]]; then
   echo "[serve] TEXT_ONLY: disabling image+audio inputs (--limit-mm-per-prompt image=0,audio=0)"
   ARGS+=(--limit-mm-per-prompt '{"image":0,"audio":0}')

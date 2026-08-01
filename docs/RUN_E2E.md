@@ -10,7 +10,7 @@
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK v3 API 이름·인스턴스 타입 가용성·리전 GPU 용량·AgentCore GA 상태는 분기마다 바뀝니다.
- 이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 실측 스냅샷이고 빠르게 바뀌는 값에는 관측일을 적어 두었으므로, 원문 쪽이 항상 최신입니다.
+    이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 실측 스냅샷이므로, 원문 쪽이 항상 최신입니다.
     실제 값은 `.env`와 셸 env로 주입합니다 — 계정 ID·role ARN·HF 토큰은 문서에도 노트북에도 하드코딩하지 않습니다.
 
 ---
@@ -62,7 +62,7 @@
 
 ### DRY_RUN이 바꾸는 것 3가지
 
-1. **합성·시드 건수** — `01_data_and_synthetic`이 시드 8건, 합성 6건으로 줄입니다(`config.is_dry_run`). 평상시 값은 `NUM_SEED_SAMPLES=300`, `NUM_SYNTHETIC`(config 기본 200, 이 리포의 `.env`는 100)입니다.
+1. **합성·시드 건수** — `01_data_and_synthetic`이 시드 8건, 합성 6건으로 줄입니다(`config.is_dry_run()`). 평상시 값은 `NUM_SEED_SAMPLES=300`, `NUM_SYNTHETIC`(config 기본 200, 이 리포의 `.env`는 100)입니다.
 2. **평가 건수** — `04_evaluate`가 `N_EVAL=20`으로 축소합니다.
 3. **로컬 학습 규모** — `train.py --dry_run`이 epoch 1, `max_seq_length ≤ 512`, 최대 32행으로 자릅니다.
 
@@ -86,8 +86,8 @@
 
 ```
 00_setup ──▶ 01_data_and_synthetic ──▶ 02_train_sft_sagemaker ──▶ 03_deploy_endpoint
- (role, (data/train.jsonl) (model_data) (endpoint_name)
- bucket) │ │
+  (role,        (data/train.jsonl)         (model_data)              (endpoint_name)
+   bucket)                                       │                         │
                                         (선택) 02a_train_grpo              ▼
                                         (선택) 02b_local_serve
                         04_evaluate ──▶ 05_agentic_strands ──▶ 06_agentcore_deploy
@@ -99,7 +99,7 @@
 
 - **(선택) `02a_train_grpo_sagemaker`**(SFT→GRPO 정련)는 리워드를 프로그램으로 채점할 수 있는 **추출·분류 트랙에만** 있습니다.
 - **(선택) `02b_local_serve`**(배포 전 로컬 vLLM 프리플라이트)는 4개 텍스트 트랙 모두에 있습니다.
-- 평가는 `04_evaluate`(로컬 메트릭·빠름·저렴) 한 경로입니다. SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용이어서, gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다(`DescribeHubContent ... does not exist`).
+- 평가는 `04_evaluate`(로컬 메트릭·빠름·저렴) 한 경로입니다. SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용이어서, gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다(실측: `DescribeHubContent ... does not exist`).
 
 ### 멀티모달 트랙 (05) 파이프라인
 
@@ -110,7 +110,7 @@
             (cord-v2 이미지+JSON)  (vision 동결+language LoRA)  (멀티모달 endpoint)
 ```
 
-시드는 `naver-clova-ix/cord-v2`(cc-by-4.0, ungated)이고, 합성 데이터 단계가 없습니다(이미지+JSON 시드를 그대로 사용). 학습은 `scripts/train_mm.py`(`AutoModelForImageTextToText` + `AutoProcessor`, vision/audio 파라미터 동결 + language [LoRA](https://huggingface.co/docs/peft/index))이며, 서빙은 이미지 입력을 받는 멀티모달 endpoint입니다(텍스트 전용 재-export를 하지 않습니다).
+시드는 `naver-clova-ix/cord-v2`(cc-by-4.0, ungated)이고, 합성 데이터 단계가 없습니다(이미지+JSON 시드를 그대로 사용). 학습은 `scripts/train_mm.py`(`AutoModelForImageTextToText` + `AutoProcessor`, vision/audio 파라미터 동결 + language [LoRA](https://huggingface.co/docs/peft/index))이며, 서빙은 이미지 입력을 받는 멀티모달 endpoint입니다(텍스트 전용 re-export를 하지 않습니다).
 
 ---
 
@@ -118,9 +118,9 @@
 
 한 번만 하면 되는 준비입니다.
 
-- [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)). 코어 의존성은 `>=` floor로만 고정되어 있습니다(현행 floor 값은 `pyproject.toml`). SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
+- [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)). 코어 의존성은 `>=` floor로만 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1` — 현행 값은 `pyproject.toml`이 원본입니다). SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
 - [ ] **AWS 자격증명** — `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
-- [ ] **SageMaker 실행 role** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다. Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role`이 `get_execution_role`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다. **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다르므로**, 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요 — 권한 부족은 제출 시점이 아니라 잡이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr)).
+- [ ] **SageMaker 실행 role** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다. Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role()`이 `get_execution_role()`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다. **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다르므로**, 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요 — 권한 부족은 제출 시점이 아니라 잡이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr)).
 - [ ] **Bedrock 모델 액세스** — 콘솔에서 사용할 Claude 모델의 액세스를 활성화하고, AWS가 [cross-region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 문서화하는 **inference-profile ID**(`us.`/`eu.`/`apac.`/`global.` 접두사 필수)를 확보해 `BEDROCK_CLAUDE_MODEL_ID`에 설정합니다. 기본값은 `global.anthropic.claude-sonnet-5`입니다.
 - [ ] **모델 선택** — 기본은 `google/gemma-4-E4B-it`(apache-2.0·ungated, `MODEL_SIZE=E4B`)입니다. `MODEL_SIZE`로 `E2B`/`12B`/`26B-A4B`/`31B`를, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
 - [ ] **(gated 모델을 쓸 때만) HF 토큰** — gemma-4 전 사이즈는 ungated라 토큰이 필요 없습니다. gemma-3 계열 등을 쓸 때만 HF 약관을 수락하고 `MODEL_IS_GATED=1` + 토큰을 설정하세요. 토큰은 `hf auth login`으로 저장해 두면 config가 파일에서 읽습니다(커스텀 캐시를 쓰면 `HF_HOME`도 같이 맞춰야 합니다).
@@ -128,11 +128,11 @@
 - [ ] **비용 인지** — real-time endpoint는 삭제 전까지 시간당 과금되므로, 실습이 끝나면 `99_cleanup`을 반드시 실행합니다.
 
 ```bash
-export AWS_REGION=us-west-2 # .env의 DLC URI 리전과 일치해야 합니다
+export AWS_REGION=us-west-2                                  # .env의 DLC URI 리전과 일치해야 합니다
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
-export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5 # 콘솔에서 현행 ID 재확인
-# export MODEL_IS_GATED=1 && export HF_TOKEN=hf_... # gated 모델을 쓸 때만
-export DRY_RUN=1 # 첫 완주는 1로 (저비용 파이프라인 검증)
+export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 콘솔에서 현행 ID 재확인
+# export MODEL_IS_GATED=1 && export HF_TOKEN=hf_...          # gated 모델을 쓸 때만
+export DRY_RUN=1             # 첫 완주는 1로 (저비용 파이프라인 검증)
 ```
 
 VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 env로 자동 주입됩니다(인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 설정값). 시크릿은 `.env`에 넣지 말고 셸 export나 `hf auth login`을 쓰세요.
@@ -165,7 +165,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 ### 단계별 주의
 
 - **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 트랙 지연 때문에 100으로 낮춰 두었습니다(요약 시드 1건 중앙 1,651자 vs 추출 475자 → 배치 프롬프트 약 10,900자. 출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없고 순수 지연입니다). 합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
-- **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
+- **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
 - **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다. 셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다. **한 번에 하나만** 배포하세요(둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다). endpoint 기동에는 5~15분이 걸립니다. 세 엔진의 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine)에, 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측)에, 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)에 있습니다.
 - **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다. `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
 - **⑥/⑦ agentic** — endpoint(`sagemaker-runtime`)와 Bedrock(`bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), SageMaker와 **별개 서비스**)이 **이중으로 과금**됩니다. AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포--agentcore-runtime)).
@@ -190,11 +190,11 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 트랙은 **독립**입니다. 한 트랙을 완주하고 정리한 뒤, 다른 트랙 폴더에서 같은 순서를 반복하면 됩니다.
 
 ```
-tracks/01_extraction_to_json/ (텍스트→JSON 추출) ← 플래그십, 여기부터
-tracks/02_classification/ (intent 분류)
-tracks/03_summarization/ (문서 요약)
-tracks/04_domain_qa/ (도메인 QA)
-tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vision) ← 별도 구조
+tracks/01_extraction_to_json/    (텍스트→JSON 추출)   ← 플래그십, 여기부터
+tracks/02_classification/        (intent 분류)
+tracks/03_summarization/         (문서 요약)
+tracks/04_domain_qa/             (도메인 QA)
+tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vision)  ← 별도 구조
 ```
 
 - 텍스트 트랙(01~04)은 위 [텍스트 트랙 파이프라인](#텍스트-트랙-0104-파이프라인)의 `00 → 99` 순서를 따릅니다.
@@ -214,16 +214,16 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 | 증상 | 원인과 해결 |
 |---|---|
 | `02`에서 `train_path`/`data/train.jsonl` 없음 | `01`을 실행하지 않았습니다. 트랙 내 노트북은 **순서대로** 실행하세요 |
-| 다른 트랙 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 트랙 전용 키(`ep_<트랙>`, `md_<트랙>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region`이 옛 리전 아티팩트를 걸러 줍니다 |
+| 다른 트랙 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 트랙 전용 키(`ep_<트랙>`, `md_<트랙>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 아티팩트를 걸러 줍니다 |
 | 학습 잡이 시작 직후 실패 | IAM role 권한(S3/ECR) 또는 DLC 태그 문제 → CloudWatch 로그 확인, `.env`의 `DLC_IMAGE_URI` 리전·태그 재확인(`aws ecr describe-images`). 권한이 제출 시점에 안 걸리고 여기서 터지는 구조는 [실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr) |
-| 학습이 끝났는데 잡이 `Stopped`, 아티팩트에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
+| 학습이 끝났는데 잡이 `Stopped`, 아티팩트에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). 실측에서는 Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료됐고, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
 | `InsufficientInstanceCapacity`로 잡이 안 뜸 | 리전별 GPU 용량 문제 → `AWS_REGION`을 바꿔 재시도(`.env`의 DLC URI 리전도 함께 변경) |
-| endpoint가 `Failed`, 이유는 `did not pass the ping health check`뿐 | 대개 CUDA OOM입니다. 24GB GPU(L4)에서 vLLM 기본 `max_num_seqs=256`이 샘플러 logits 버퍼를 `256 × 262,144 × 4B = 256 MiB`로 잡아 터집니다 → `serving_env` 기본값(`max_num_seqs=32`, `gpu_memory_utilization=0.90`)을 유지하고 CloudWatch endpoint 로그를 확인하세요([24GB GPU CUDA OOM](04_sagemaker_inference.md#24gb-gpu-cuda-oom--max_num_seqs-기본값)) |
+| endpoint가 `Failed`, 이유는 `did not pass the ping health check`뿐 | 대개 CUDA OOM입니다. 24GB GPU(L4)에서 vLLM 기본 `max_num_seqs=256`이 샘플러 logits 버퍼를 `256 × 262,144 × 4B = 256 MiB`로 잡아 터집니다 → `serving_env()` 기본값(`max_num_seqs=32`, `gpu_memory_utilization=0.90`)을 유지하고 CloudWatch endpoint 로그를 확인하세요([24GB GPU CUDA OOM](04_sagemaker_inference.md#24gb-gpu-cuda-oom--max_num_seqs-기본값)) |
 | gated 모델 다운로드 401 | HF 약관 미수락 또는 토큰 없음 → `MODEL_IS_GATED=1` + `HF_TOKEN`(또는 `hf auth login`), 아니면 ungated `google/gemma-4-E4B-it`을 쓰세요 |
 | Bedrock `converse` 400 | 모델 ID가 base(접두사 없음)이거나 액세스 미승인 → inference-profile ID(`us.`/`global.` 등) 사용 + 콘솔에서 액세스 활성화 |
 | endpoint invoke 응답이 반복되거나 저품질 | raw 텍스트를 보내 chat template이 빠졌습니다 → `messages` 스키마로 보내 **서버가 template을 적용**하게 하세요(`aws_utils.invoke_sagemaker_chat`) |
 | 응답이 중간에 끊김 | `max_tokens` 부족 → `finish_reason`을 확인하세요([max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)) |
-| speculative decoding이 켜지지 않음 | 이 kit 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고**(2026-07 기준) 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([Speculative decoding (EAGLE3 / P-EAGLE)](05_serving_containers.md#speculative-decoding-eagle3--p-eagle)) |
+| speculative decoding이 켜지지 않음 | 이 kit 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고** 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([Speculative decoding (EAGLE3 / P-EAGLE)](05_serving_containers.md#speculative-decoding-eagle3--p-eagle)) |
 | `litellm` import 오류 | 코어에 미포함(sagemaker와 `importlib-metadata` 충돌) → 별도 환경에 설치 |
 | 비용이 계속 나감 | endpoint 또는 AgentCore Runtime 미삭제 → `99_cleanup` 실행 + 콘솔에서 확인 |
 
@@ -259,7 +259,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 | AgentCore Runtime | 배포한 경우 Runtime 리소스 과금 | `bash agentcore/cleanup_agent.sh --aws`(Runtime + ECR) |
 | 로컬 `local_model/`·vLLM 프로세스 | 과금 없음(디스크 약 15GB·GPU 점유) | `bash scripts/cleanup_local.sh --yes` |
 
-각 노트북은 학습·배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links`). 잡 로그, endpoint 기동, OOM, Bedrock 호출량을 여기서 실시간으로 볼 수 있습니다.
+각 노트북은 학습·배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links()`). 잡 로그, endpoint 기동, OOM, Bedrock 호출량을 여기서 실시간으로 볼 수 있습니다.
 
 ??? question "오개념 — “endpoint를 호출하지 않으면 요금도 안 나오죠?”"
     **아닙니다.** real-time endpoint는 호출 여부와 무관하게 **provisioned 인스턴스가 시간당** 과금됩니다. 오토스케일도 통상 최소 1대는 유지합니다.
@@ -271,16 +271,16 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 설정과 공통 유틸:
 
-- `common/config.py` — 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run`, `TRACKS` 레지스트리
+- `common/config.py` — 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run()`, `TRACKS` 레지스트리
 - `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 폴백)과 서빙 env 생성(`serving_env`)
 - `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 리전 정합성 검사(`ensure_model_data_in_region`), 비용 경고(`COST_WARNING`)
 - `.env` — 인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 비시크릿 설정값
 
 학습 스크립트(트랙 폴더에 자족적으로 들어 있음):
 
-- `tracks/*/scripts/train.py` — SFT + LoRA/QLoRA 학습, 머지 후 텍스트 재-export
+- `tracks/*/scripts/train.py` — SFT + LoRA/QLoRA 학습, 머지 후 텍스트 re-export
 - `tracks/*/scripts/train_grpo.py` — SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 트랙만)
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 재-export 없음)
+- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 re-export 없음)
 
 평가와 정리:
 

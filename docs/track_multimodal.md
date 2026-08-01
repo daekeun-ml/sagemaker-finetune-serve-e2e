@@ -25,30 +25,30 @@
 원본 row는 이미지와 문자열 JSON 두 개입니다(cord-v2 `train` 스플릿).
 
 ```text
-image: <영수증 이미지, 예 864x1296 PIL>
+image:        <영수증 이미지, 예 864x1296 PIL>
 ground_truth: {"gt_parse": {"menu": [{"nm":"Nasi Campur Bali","cnt":"1 x","price":"75,000"}, ...],
                             "sub_total": {...}, "total": {...}}}
 ```
 
-`track_data.to_example`을 통과한 뒤의 학습 예시는 이렇습니다.
+`track_data.to_example()`을 통과한 뒤의 학습 예시는 이렇습니다.
 
 ```text
-images: [<PIL.Image>] # ← messages가 아니라 별도 컬럼
-messages[0] role=user : You are a receipt-parsing engine. Extract the receipt into strict JSON
+images:   [<PIL.Image>]        # ← messages가 아니라 별도 컬럼
+messages[0] role=user       : You are a receipt-parsing engine. Extract the receipt into strict JSON
                               with a 'menu' array of {name, count, price} items. Output ONLY valid
                               JSON, no prose.
-messages[1] role=assistant : {"menu": [{"name": "Nasi Campur Bali", "count": "1 x",
+messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1 x",
                                          "price": "75,000"}, ...]}      ← 문자열 하나(학습 타깃)
 ```
 
 읽어 둘 만한 변환 규칙이 셋 있습니다.
 
-- **`gt_parse.menu`만 남깁니다.** `_simplify_gt`가 `nm`/`cnt`/`price` → `name`/`count`/`price`로 이름을 바꾸고 `sub_total`·`total`은 버립니다("핵심 필드만, 학습 안정").
+- **`gt_parse.menu`만 남깁니다.** `_simplify_gt()`가 `nm`/`cnt`/`price` → `name`/`count`/`price`로 이름을 바꾸고 `sub_total`·`total`은 버립니다("핵심 필드만, 학습 안정").
 - **값은 전부 문자열이고 빈 문자열이 흔합니다.** 리포에 커밋된 정답을 보면 `{"name": "J.STB PROMO", "count": "", "price": "17500"}`처럼 `cnt`가 없는 항목이 그대로 `count: ""`가 됩니다. 가격도 `"17500"`과 `"13,000"`이 섞여 있어(콤마 유무) 정규화는 하지 않습니다 — 원본 표기를 그대로 재현하도록 학습합니다.
 - **지시문은 system role이 아니라 첫 user 턴 텍스트입니다.** Gemma chat template이 system role을 거부하므로 `INSTRUCTION`을 user 텍스트에 접어 넣습니다([chat template과 system fold](03_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오개념 — “이미지는 messages content 안에 넣는 거 아닌가요?”"
- 추론에서는 그렇습니다(`{"type":"image_url", ...}` + `{"type":"text", ...}`). 하지만 **학습에서는 아닙니다.** TRL의 VLM collator는 이미지를 별도 `images` 컬럼으로 받고 `messages`에는 텍스트만 두며, 이미지 자리표시자를 collator가 직접 주입합니다. `messages` content에 `{"type":"image"}`를 직접 넣으면 이미지 개수와 자리표시자 개수가 어긋나 에러가 납니다(실측 확인). `to_example`이 이 규약을 지키는 형태를 만들어 줍니다.
+    추론에서는 그렇습니다(`{"type":"image_url", ...}` + `{"type":"text", ...}`). 하지만 **학습에서는 아닙니다.** TRL의 VLM collator는 이미지를 별도 `images` 컬럼으로 받고 `messages`에는 텍스트만 두며, 이미지 자리표시자를 collator가 직접 주입합니다. `messages` content에 `{"type":"image"}`를 직접 넣으면 이미지 개수와 자리표시자 개수가 어긋나 에러가 납니다(실측 확인). `to_example()`이 이 규약을 지키는 형태를 만들어 줍니다.
 
 ---
 
@@ -69,17 +69,17 @@ messages[1] role=assistant : {"menu": [{"name": "Nasi Campur Bali", "count": "1 
 
     그래서 `load_seed_examples()`는 `streaming=True`를 쓰지 않고 `split="train[offset:offset+n]"` 슬라이스로 받습니다. 노트북은 같은 셀을 여러 번 돌리므로, 첫 회를 감수하고 이후 캐시 히트를 얻는 쪽이 낫다는 판단입니다.
 
-배포 검증용으로는 데이터셋을 아예 건드리지 않습니다. `samples/`에 영수증 **2장**(`receipt_01.jpg` 768×1024, `receipt_02.jpg` 682×1024, 각 메뉴 3항목)과 `ground_truth.json`이 커밋돼 있고 `load_sample_receipts`가 즉시 로드합니다. 선정 기준이 세 개 다 근거가 있습니다.
+배포 검증용으로는 데이터셋을 아예 건드리지 않습니다. `samples/`에 영수증 **2장**(`receipt_01.jpg` 768×1024, `receipt_02.jpg` 682×1024, 각 메뉴 3항목)과 `ground_truth.json`이 커밋돼 있고 `load_sample_receipts()`가 즉시 로드합니다. 선정 기준이 세 개 다 근거가 있습니다.
 
 - **`test` 스플릿에서 골랐습니다** (`test[1]`, `test[6]`). `train_mm.py`는 `split="train"`만 쓰므로 이 두 장은 모델이 본 적 없습니다. 학습 이미지로 데모하면 정답이 그대로 나와 "잘 된다"고 착각하게 됩니다.
-- **항목 수가 적은 것을 골랐습니다.** 생성 토큰 수가 곧 추론 시간입니다(L4 약 40ms/토큰). `train` 첫 영수증은 메뉴 22개·592토큰이라 추론에 ~24초가 걸립니다.
+- **항목 수가 적은 것을 골랐습니다.** 생성 토큰 수가 곧 추론 시간입니다(L4 실측 약 40ms/토큰). `train` 첫 영수증은 메뉴 22개·592토큰이라 추론에 ~24초가 걸립니다.
 - **긴 변 1024로 축소 + JPEG q88입니다.** payload 크기와 추론 시간은 무관하다는 실측이 있어, 품질을 잃지 않고 리포 용량만 줄였습니다.
 
 ---
 
 ## 성공 기준
 
-이 트랙의 목표 지표는 **valid JSON 비율 + 필드 정확도**입니다. 파싱 결과를 사람이 읽는 것이 아니라 다음 시스템이 먹기 때문에, "그럴듯한 문장"은 0점이고 `json.loads`가 통과하는지가 먼저입니다. 그다음이 `name`/`count`/`price` 필드가 정답과 일치하는지입니다.
+이 트랙의 목표 지표는 **valid JSON 비율 + 필드 정확도**입니다. 파싱 결과를 사람이 읽는 것이 아니라 다음 시스템이 먹기 때문에, "그럴듯한 문장"은 0점이고 `json.loads()`가 통과하는지가 먼저입니다. 그다음이 `name`/`count`/`price` 필드가 정답과 일치하는지입니다.
 
 !!! warning "이 트랙에는 `04_evaluate` 노트북이 없습니다 — 검증은 눈으로 대조하는 단계까지입니다"
     `03_deploy_mm_endpoint`가 `samples/`의 영수증을 endpoint에 보내고, `show_image_inference()`로 이미지와 예측 JSON을 나란히 렌더한 뒤 `ground_truth`를 함께 출력해 **육안 대조**하도록 합니다. 정량 지표를 내는 자동 노트북은 이 트랙에 포함돼 있지 않습니다.
@@ -140,20 +140,20 @@ held-out 원칙은 텍스트 트랙과 같습니다 — 학습에 쓴 이미지�
 
 ### 서빙 — 멀티모달 그대로
 
-**이 트랙은 텍스트 재-export를 하지 않습니다.** 텍스트 트랙은 머지 후 `language_model` 서브모듈만 `*ForCausalLM`으로 다시 저장하지만(안 하면 서빙 컨테이너가 image processor를 찾다가 죽습니다 — [텍스트 전용 재-export](03_finetuning.md#텍스트-전용-재-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 트랙과 똑같이 필요하며, 키 접두사만 `model.language_model.*`로 다릅니다.
+**이 트랙은 텍스트 re-export를 하지 않습니다.** 텍스트 트랙은 머지 후 `language_model` 서브모듈만 `*ForCausalLM`으로 다시 저장하지만(안 하면 서빙 컨테이너가 image processor를 찾다가 죽습니다 — [텍스트 전용 re-export](03_finetuning.md#텍스트-전용-re-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 트랙과 똑같이 필요하며, 키 접두사만 `model.language_model.*`로 다릅니다.
 
 배포 셀의 값과 근거입니다.
 
 | 값 | 설정 | 근거 |
 |---|---|---|
-| `mm_limit={"image": 1}` | 이미지 입력 허용 | 텍스트 트랙의 배포 셀은 이 인자를 주지 않습니다(재-export로 이미 텍스트 전용이라 불필요 — 재-export하지 않은 멀티모달 아티팩트를 텍스트로만 쓸 때 `{"image": 0, "audio": 0}`으로 막는 주석이 남아 있습니다). 여기서 `image=0`을 쓰면 이미지가 거부됩니다 |
+| `mm_limit={"image": 1}` | 이미지 입력 허용 | 텍스트 트랙의 배포 셀은 이 인자를 주지 않습니다(re-export로 이미 텍스트 전용이라 불필요 — re-export하지 않은 멀티모달 아티팩트를 텍스트로만 쓸 때 `{"image": 0, "audio": 0}`으로 막는 주석이 남아 있습니다). 여기서 `image=0`을 쓰면 이미지가 거부됩니다 |
 | `max_model_len=2048` | 서빙 컨텍스트 | 이 트랙은 학습 길이와 같은 값을 씁니다(공용 빌더의 `serve_max_model_len` 경로를 타지 않고 노트북이 직접 지정). 입력이 짧은 지시문 + 이미지라 요약·QA 트랙처럼 프롬프트가 컨텍스트를 잡아먹지 않습니다([학습 길이와 서빙 길이](00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
 | `max_tokens=768` | 생성 상한 | 공용 기본값 256이 아닙니다. 정답 JSON 최대 **592토큰**(실측 100건)이라 512로는 잘립니다. L4에서 768 생성에 **21.3초** 실측 — `/invocations` 60초 한도의 3분의 1입니다 |
 | `max_num_seqs=32`, `gpu_memory_utilization=0.90` | 24GB GPU OOM 회피 | 아래 참고 |
 
 !!! danger "기본값으로 배포하면 24GB GPU에서 endpoint가 Failed합니다"
     멀티모달 아티팩트는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 트랙 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV를 4.69 GiB로 과대 배정하면 여유가 0.34 GiB뿐이고, 실제로 더 필요한 양이 1.12 GiB라 **0.78 GiB 부족**으로 CUDA OOM이 납니다. 증상은 `did not pass the ping health check` 한 줄뿐이고 진짜 원인은 CloudWatch 로그 안에 있습니다.
- 범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다 — 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
+    범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다 — 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
 
 호출 스키마는 텍스트 트랙과 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일) — real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](04_sagemaker_inference.md)).
 

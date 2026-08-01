@@ -4,7 +4,7 @@ _build_notebooks.py — 멀티모달 추출(이미지→JSON) 트랙 노트북 �
 텍스트 트랙과 다른 점:
   - 합성 데이터 단계 없음(이미지 합성은 별개) → 01은 시드 탐색만.
   - 학습은 train_mm.py(AutoModelForImageTextToText + processor, vision freeze + language LoRA).
-  - 서빙은 멀티모달 그대로(텍스트 재-export 안 함) — vLLM이 이미지 입력을 받음.
+  - 서빙은 멀티모달 그대로(텍스트 re-export 안 함) — vLLM이 이미지 입력을 받음.
 셀 헬퍼(header/md/code/_notebook)는 _shared_build에서 재사용.
 """
 from __future__ import annotations
@@ -223,7 +223,7 @@ def build_03():
             "03 · 멀티모달 Endpoint 배포 & 이미지 추론 — 멀티모달 추출",
             "학습한 멀티모달 모델을 vLLM DLC로 배포하고, 실제 영수증 이미지를 보내 JSON 추출을 확인합니다.",
             "gemma-4 멀티모달은 vLLM(≥0.19)이 이미지 입력(OpenAI 호환 image_url)을 지원합니다. 텍스트 트랙과 달리 "
-            "🔴 이미지/오디오 입력을 막지 않고 그대로 서빙합니다(재-export 안 함).",
+            "🔴 이미지/오디오 입력을 막지 않고 그대로 서빙합니다(re-export 안 함).",
             "텍스트 트랙에서 쓰던 `--limit-mm-per-prompt image=0` 을 여기서 쓰면 이미지가 막힙니다 — 멀티모달 트랙에선 "
             "그 플래그를 쓰지 않습니다.",
         ),

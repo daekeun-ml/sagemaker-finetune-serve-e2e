@@ -31,8 +31,8 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 cd ~/sagemaker-finetune-serve-e2e
-uv venv --python 3.12 # .venv 생성
-source .venv/bin/activate # 활성화
+uv venv --python 3.12            # .venv 생성
+source .venv/bin/activate        # 활성화
 uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/trl/peft/strands...)
 ```
 > pip만 쓰려면: `pip install -r requirements.txt`
@@ -66,7 +66,7 @@ python tests/test_smoke.py
 ### HF 캐시 위치 지정 (선택)
 모델 가중치(~24GB)를 홈 기본 캐시 말고 별도 폴더에:
 ```bash
-export HF_HOME=~/hf-cache # EBS 루트 여유 공간
+export HF_HOME=~/hf-cache        # EBS 루트 여유 공간
 ```
 
 ### dry-run용 소량 데이터 만들기
@@ -102,17 +102,17 @@ python tracks/01_extraction_to_json/scripts/train.py \
 
 ### 어느 노트북부터
 ```
-tracks/01_extraction_to_json/ ← 플래그십 (여기부터 시작 추천)
-├── 00_setup.ipynb ① 환경·자격증명·설치 확인
-├── 01_data_and_synthetic.ipynb ② 데이터 준비 + grounded 합성
-├── 02_train_sft_sagemaker.ipynb ③ SageMaker 학습 잡 (+ 로컬 dry-run 셀 포함)
-├── 02a_train_grpo_sagemaker.ipynb (선택) SFT→GRPO 정련 (RLHF) — 추출·분류 트랙만
-├── 02b_local_serve.ipynb (선택) 배포 전 로컬 vLLM 검증
-├── 03_deploy_endpoint.ipynb ④ real-time endpoint 배포 (vLLM 기본)
-├── 04_evaluate.ipynb ⑤ held-out 평가 (성공기준 수치화)
-├── 05_agentic_strands.ipynb ⑥ SLM + Bedrock Claude agentic 루프
-├── 06_agentcore_deploy.ipynb ⑦ AgentCore 프로덕션 배포
-└── 99_cleanup.ipynb 리소스 삭제 (과금 중단 — 반드시 실행)
+tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
+├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
+├── 01_data_and_synthetic.ipynb   ② 데이터 준비 + grounded 합성
+├── 02_train_sft_sagemaker.ipynb      ③ SageMaker 학습 잡 (+ 로컬 dry-run 셀 포함)
+├── 02a_train_grpo_sagemaker.ipynb    (선택) SFT→GRPO 정련 (RLHF) — 추출·분류 트랙만
+├── 02b_local_serve.ipynb             (선택) 배포 전 로컬 vLLM 검증
+├── 03_deploy_endpoint.ipynb      ④ real-time endpoint 배포 (vLLM 기본)
+├── 04_evaluate.ipynb             ⑤ held-out 평가 (성공기준 수치화)
+├── 05_agentic_strands.ipynb      ⑥ SLM + Bedrock Claude agentic 루프
+├── 06_agentcore_deploy.ipynb     ⑦ AgentCore 프로덕션 배포
+└── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
 ```
 다른 텍스트 task는 `02_classification/`, `03_summarization/`, `04_domain_qa/` — **구조·순서 동일**.
 - `02a_train_grpo_sagemaker`(SFT→GRPO 정련)는 **추출·분류 트랙에만** 있습니다(리워드가 프로그램적으로 계산됨). 요약·domain_qa에는 없습니다.
@@ -121,32 +121,32 @@ tracks/01_extraction_to_json/ ← 플래그십 (여기부터 시작 추천)
 **멀티모달 트랙은 구조가 다릅니다** — `tracks/05_multimodal_extraction/` (이미지 → 구조화 JSON 추출, 영수증, gemma-4 vision)은
 합성 데이터 단계가 없고 이미지 입력이라 노트북 세트가 짧습니다:
 ```
-tracks/05_multimodal_extraction/ ← 이미지 입력 (텍스트 트랙과 별개 구조)
-├── 00_setup.ipynb ① 환경·자격증명·설치 확인
-├── 01_data_explore.ipynb ② cord-v2 영수증 이미지 + 구조화 JSON 탐색 (합성 단계 없음)
-├── 02_train_mm_sagemaker.ipynb ③ SageMaker 학습 (vision tower 동결 + language LoRA)
-├── 03_deploy_mm_endpoint.ipynb ④ 멀티모달 endpoint 배포 (이미지 입력 허용, 텍스트 전용 재-export 아님)
-└── 99_cleanup.ipynb 리소스 삭제 (과금 중단 — 반드시 실행)
+tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 트랙과 별개 구조)
+├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
+├── 01_data_explore.ipynb         ② cord-v2 영수증 이미지 + 구조화 JSON 탐색 (합성 단계 없음)
+├── 02_train_mm_sagemaker.ipynb   ③ SageMaker 학습 (vision tower 동결 + language LoRA)
+├── 03_deploy_mm_endpoint.ipynb   ④ 멀티모달 endpoint 배포 (이미지 입력 허용, 텍스트 전용 re-export 아님)
+└── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
 ```
 멀티모달 트랙이 쓰는 시드와 스크립트:
 
 - `naver-clova-ix/cord-v2` — 시드 데이터셋(cc-by-4.0, ungated). 영수증 이미지 + 구조화 JSON 라벨
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT. `AutoModelForImageTextToText` + `AutoProcessor`로 이미지를 처리하고, vision tower를 유지해 텍스트 재-export를 하지 않습니다
+- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT. `AutoModelForImageTextToText` + `AutoProcessor`로 이미지를 처리하고, vision tower를 유지해 텍스트 re-export를 하지 않습니다
 
 ### 주피터 실행
 ```bash
 cd ~/sagemaker-finetune-serve-e2e
 source .venv/bin/activate
-jupyter lab # 브라우저에서 tracks/01_.../00_setup.ipynb 부터 순서대로
+jupyter lab           # 브라우저에서 tracks/01_.../00_setup.ipynb 부터 순서대로
 ```
 
 ### 노트북 실행 전 필요한 것
 ```bash
-export AWS_REGION=us-west-2 # config 기본값. .env의 DLC 이미지 URI 리전과 일치해야 합니다
+export AWS_REGION=us-west-2         # config 기본값. .env의 DLC 이미지 URI 리전과 일치해야 합니다
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
-export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5 # 정확한 ID는 콘솔에서 확인
-# export HF_TOKEN=hf_... # gemma-3 등 gated 모델 쓸 때만
-export DRY_RUN=1 # 먼저 파이프라인 검증, 실제 클라우드 학습 시 0
+export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID는 콘솔에서 확인
+# export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만
+export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라우드 학습 시 0
 ```
 `DRY_RUN=1`이면 노트북이 소량·저비용으로 파이프라인만 확인합니다. 확인 후 `0`으로 바꿔 실제 실행하세요.
 
