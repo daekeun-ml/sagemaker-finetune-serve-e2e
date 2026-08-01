@@ -109,16 +109,15 @@ extra_css:
   - stylesheets/extra.css
 
 extra:
-  # 모든 페이지 하단 푸터에 아이콘으로 붙습니다(Material 기본). 첫 항목은 이 리포,
-  # 나머지는 저자 프로필 — 문서를 읽다 저자를 찾는 사람이 나가는 경로입니다.
+  # 모든 페이지 하단 푸터에 아이콘으로 붙습니다(Material 기본).
+  # 🔴 이 리포 링크는 넣지 않습니다 — repo_url 로 이미 우측 상단 헤더에 있고,
+  #    푸터에 또 두면 GitHub 아이콘이 두 개가 되어 어느 쪽이 저자 계정인지 구분되지 않습니다.
+  #    여기는 저자 프로필만 둡니다.
   social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
-      name: 이 kit의 GitHub 리포지토리
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/in/daekeun-kim
       name: 저자 LinkedIn
-    - icon: fontawesome/brands/github-alt
+    - icon: fontawesome/brands/github
       link: https://github.com/daekeun-ml
       name: 저자 GitHub
     - icon: simple/huggingface
