@@ -158,7 +158,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 이 표에서 실무상 가장 자주 물리는 값은 두 개입니다.
 
 - **기동 유예(기본 8분) · `/ping` 2초** — `did not pass the ping health check`로 끝나는 실패의 정체가 이것입니다. 원인은 두 갈래이고 처방이 다릅니다. 엔진이 **OOM으로 죽었다면** 유예를 늘려도 200은 안 나오므로 엔진 설정(`max_num_seqs` 등)을 고쳐야 하고([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)), 단순히 **가중치 로드가 8분보다 오래 걸리는 것**이라면 `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`를 올리는 것이 정답입니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 함께 — [배포 3단계](01_sagemaker_basics.md#컨테이너-계약--모델-아티팩트와-ping-health-check)). 위 LMI 표의 `option.model_loading_timeout` 기본값 1,800초(30분)도 이 8분 안에는 애초에 들어가지 않는 값이라, LMI로 큰 모델을 올릴 때는 두 값을 함께 올려야 합니다. 어느 쪽인지는 CloudWatch 로그에서만 구분됩니다(위 그림의 stdout/stderr 경로).
-- **`/invocations` 60초** — 생성 길이의 상한을 사실상 여기서 받습니다. 이 kit의 L4 실측(약 40ms/토큰)에서 멀티모달 추출은 `max_tokens=768`에 **21.3초**, 요약은 512에 **16.2초**였으니 한도의 3분의 1 수준입니다([max_tokens 절단](#max_tokens-절단과-finish_reason)). 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
+- **`/invocations` 60초** — 생성 길이의 상한을 사실상 여기서 받습니다. 이 kit의 L4 실측 2026-07-31(약 40ms/토큰)에서 멀티모달 추출은 `max_tokens=768`에 **21.3초**, 요약은 512에 **16.2초**였으니 한도의 3분의 1 수준입니다([max_tokens 절단](#max_tokens-절단과-finish_reason)). 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
 
 그림의 「컨테이너 예약 경로」 패널에 적힌 `/opt/ml` → `|---/model`은 도해용 장식이 아니라 이 kit이 실제로 넘기는 값입니다 — `dlc.serving_env(..., model_path='/opt/ml/model')`이 엔진별 키(`SM_VLLM_MODEL` / `SM_SGLANG_MODEL_PATH` / `HF_MODEL_ID`)로 넣어 주고, 학습 스크립트가 머지 모델을 `SM_MODEL_DIR=/opt/ml/model` 루트에 저장하기 때문에 엔진이 그 루트의 `config.json`으로 모델을 감지합니다. SGLang DLC는 `--model-path`를 생략하면 기본값이 `/opt/ml/model`, 포트 8080, 호스트 `0.0.0.0`입니다.
 
@@ -240,7 +240,7 @@ LMI_IMAGE_URI=763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.36.0-
 ECR 실조회(763104351884, us-west-2, 2026-07-30) 당시의 최신 태그는 다음과 같았습니다. SGLang DLC만 우분투 버전이 다르므로(24.04) 태그를 손으로 조립할 때 주의하세요. LMI 태그는 **버전 축이 둘**이라는 점도 기억하세요 — 앞의 `0.36.0`은 djl-serving 버전이고, gemma-4 지원 여부를 가르는 것은 번들 vLLM을 결정하는 **`lmi27.0.0`** 쪽입니다.
 
 !!! danger "LMI는 완전 URI를 지워선 안 됩니다 — 폴백이 lmi26으로 떨어집니다"
-    `LMI_IMAGE_URI`를 주석 처리하면 `dlc.resolve_lmi_image()`가 `LMI_VERSION`(기본 `0.36.0`)으로 SDK의 `image_uris.retrieve(framework="djl-lmi", ...)`에 위임하고, **태그 조립은 SDK의 버전 표가** 합니다. 이 kit에 설치된 SDK의 `djl-lmi.json`은 `0.36.0 → 0.36.0-lmi26.0.0-cu130`으로 매핑하므로, 폴백으로 얻는 이미지는 **lmi26 = gemma-4를 로드하지 못하는 이미지**입니다. `0.36.0`이라는 djl-serving 키는 lmi 축을 고정해 주지 않습니다.
+    `LMI_IMAGE_URI`를 주석 처리하면 `dlc.resolve_lmi_image()`가 `LMI_VERSION`(기본 `0.36.0`)으로 SDK의 `image_uris.retrieve(framework="djl-lmi", ...)`에 위임하고, **태그 조립은 SDK의 버전 표가** 합니다. 이 kit에 설치된 SDK의 `djl-lmi.json`은 `0.36.0 → 0.36.0-lmi26.0.0-cu130`으로 매핑하므로(실측 2026-08-01), 폴백으로 얻는 이미지는 **lmi26 = gemma-4를 로드하지 못하는 이미지**입니다. `0.36.0`이라는 djl-serving 키는 lmi 축을 고정해 주지 않습니다.
     리전을 옮길 때 vLLM/SGLang 줄은 주석 처리해도 되지만(리전만 갈아 조립됩니다), **LMI는 `LMI_IMAGE_URI`를 그 리전의 `...-lmi27.0.0-...` 완전 URI로 다시 써 주세요.**
 
 ```
@@ -344,12 +344,12 @@ SDK v3 `ModelBuilder`는 **같은 코드**를 3단계 대상에 배포할 수 �
 import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(SDK 3.16.0 실측 2026-07 — `sagemaker.serve`에 직접 `Mode`가 없습니다).
 
 ??? question "오개념 — “IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?”"
-    **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(SDK 3.16.0 소스 확인: `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
+    **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(SDK 3.16.0 소스 실측 2026-07: `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
     gemma-4는 멀티모달(오디오 포함)이라 pipeline이 `AnyToAnyPipeline`으로 잡혀 `librosa` 등을 요구하고, 임베딩 모델도 아니라 `SentenceTransformer` 폴백도 실패합니다(`UnboundLocalError`).
     LLM을 IN_PROCESS로 띄우려면 `InferenceSpec`(load/invoke)을 직접 구현해야 하는데, 이는 vLLM 엔진을 손으로 재구현하는 셈이라 실익이 없습니다.
     부가: IN_PROCESS도 `ModelBuilder.__post_init__`이 `role_arn`을 해석하므로(IAM user면 `RoleValidationError`) 로컬 실행이라도 `role_arn=`을 넘겨야 합니다.
 
-`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측)**. 근거는 다음과 같습니다.
+`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측 2026-07)**. 근거는 다음과 같습니다.
 
 - **vLLM DLC + LOCAL_CONTAINER** — `image_uri`만 주면 passthrough라 `model_server=None`이 되고, LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs()`로 크래시합니다.
 - **DJL LMI + LOCAL_CONTAINER** — 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다). 다만 당시 실측에서는 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다. **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다** — 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다. 지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
@@ -389,7 +389,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 없으므로 **명시 `state_dict` 전달이 유일한 방법**입니다. `num_kv_shared_layers=0`인 12B/26B-A4B는 자동으로
 건너뜁니다(복원 0개).
 
-실측 검증(L40S 46GB, vLLM 0.25.1, E4B bf16) 결과는 다음과 같습니다.
+실측 검증(L40S 48GB, vLLM 0.25.1, E4B bf16) 결과는 다음과 같습니다.
 
 | 체크포인트 | 저장 키 | vLLM 로드 |
 |---|---|---|
@@ -405,7 +405,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 
 ## 24GB GPU CUDA OOM — max_num_seqs 기본값
 
-**모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다(아래 수치는 vLLM 0.26.0 · `ml.g6.2xlarge` 실측 — 엔진 버전이 바뀌면 배정값도 달라집니다). 이 kit은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
+**모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다(아래 수치는 vLLM 0.26.0 · `ml.g6.2xlarge` 실측 2026-07-31 — 엔진 버전이 바뀌면 배정값도 달라집니다). 이 kit은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
 
 ### 증상 — endpoint가 Failed
 
@@ -437,7 +437,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 
 ### 메모리 예산 — L4 22.9GB 실측
 
-`ml.g6.2xlarge`(L4 22.9GB) 기준 한도 = `21.96 × 0.92 = 20.21 GiB`입니다(아래 표는 vLLM 0.26.0 실측 — 엔진 버전이 바뀌면 KV 배정값이 달라집니다).
+`ml.g6.2xlarge`(L4 22.9GB) 기준 한도 = `21.96 × 0.92 = 20.21 GiB`입니다(아래 표는 vLLM 0.26.0 실측 2026-07-31 — 엔진 버전이 바뀌면 KV 배정값이 달라집니다).
 
 | 항목 | 멀티모달(05) | 텍스트(02) |
 |---|---|---|
@@ -485,7 +485,7 @@ serve_env = dlc.serving_env(
 세 엔진 중 무엇을 골라도 같은 호출로 알맞은 키가 나옵니다(LMI는 `OPTION_ROLLING_BATCH=vllm`과 `OPTION_TENSOR_PARALLEL_DEGREE='max'` 관용구까지 자동). 로컬 검증(`scripts/serve_local_vllm.sh`)도 같은 값을 기본으로 쓰며 `MAX_NUM_SEQS`/`GPU_MEM_UTIL` env로 덮어쓸 수 있습니다.
 
 !!! warning "버전에 기대지 마세요"
-    같은 절대 예산에서 vLLM 0.25.1은 KV를 3.36 GiB로, 0.26.0은 4.69 GiB로 잡았습니다.
+    같은 절대 예산에서 vLLM 0.25.1은 KV를 3.36 GiB로, 0.26.0은 4.69 GiB로 잡았습니다(실측 2026-07-31).
     컨테이너 태그를 올리면 여유가 사라질 수 있으므로 `max_num_seqs`·`gpu_memory_utilization`을 명시적으로 낮춰 둡니다.
 
 ---
@@ -583,7 +583,7 @@ assert ch['finish_reason'] != 'length', '응답이 잘렸습니다 — max_token
 html.escape("``and''")   # → "``and''"   (그대로!)
 ```
 
-대응은 사용자 데이터를 노트북 마크다운에 넣을 때 **`<pre>`로 감싸는 것**입니다(그 안은 마크다운이 비활성). `common/display_utils.py`가 입력 미리보기·전문·평문 예측 모두 이 방식으로 렌더합니다. 같은 이유로 **평문 예측을 `> 인용문`으로 감싸는 것도 위험합니다** — 요약이 원문의 `` ``인용'' ``을 그대로 옮기거나 `>`를 포함하면 깨집니다. JSON 예측만 코드펜스를 쓰고(그건 `json.dumps` 출력이라 안전), 평문은 `<pre>`로 둡니다.
+대응은 사용자 데이터를 노트북 마크다운에 넣을 때 **`<pre>`로 감싸는 것**입니다(그 안은 마크다운이 비활성). `common/display_utils.py`가 입력 미리보기·전문·평문 예측 모두 이 방식으로 렌더합니다. 같은 이유로 **평문 예측을 `> 인용문`으로 감싸는 것도 위험합니다** — 요약이 원문의 \`\`인용'' 같은 구식 인용부호를 그대로 옮기거나 `>`를 포함하면 깨집니다. JSON 예측만 코드펜스를 쓰고(그건 `json.dumps` 출력이라 안전), 평문은 `<pre>`로 둡니다.
 
 일반화하면 **모델 입출력은 신뢰할 수 없는 텍스트**입니다. 마크다운으로 렌더할 땐 항상 `<pre>`나 코드펜스 안에 두세요. 조용히 사라지는 버그라 발견이 늦습니다.
 

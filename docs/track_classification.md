@@ -56,7 +56,7 @@ label_text: card_arrival
 `track_data._CANDIDATES`는 `mteb/banking77` → `gtfintechlab/banking77`(cc-by-4.0) 순으로 시도하므로, 첫 미러가 사라져도 다음으로 넘어갑니다. 두 스키마가 달라(`label_text` vs `ClassLabel`) `_label_str()`이 양쪽을 모두 처리합니다.
 
 !!! warning "원본 PolyAI/banking77은 로드되지 않습니다"
-    원본 리포는 **스크립트 기반**(`banking77.py`)이라 이 kit이 핀한 `datasets>=5.0.0`에서 `RuntimeError: Dataset scripts are no longer supported`로 로드 자체가 실패합니다. parquet 자동변환본(`refs/convert/parquet`)도 없어 되살릴 방법이 없습니다.
+    원본 리포는 **스크립트 기반**(`banking77.py`)이라 이 kit이 핀한 `datasets>=5.0.0`에서 `RuntimeError: Dataset scripts are no longer supported`로 로드 자체가 실패합니다(실측 2026-07-30). parquet 자동변환본(`refs/convert/parquet`)도 없어 되살릴 방법이 없습니다.
     `legacy-datasets/banking77`은 카드에 "deprecated and will be deleted"가 명시돼 있어 쓰지 않고, `gtfintechlab/banking77`은 동작하지만 다운로드 수가 적어 폴백으로만 둡니다.
     그래서 `04_evaluate`도 `load_dataset('PolyAI/banking77').features['label'].names`를 직접 부르지 않고 `track_data.load_label_names()`를 씁니다 — 미러가 또 바뀌어도 고칠 곳이 한 군데입니다.
 

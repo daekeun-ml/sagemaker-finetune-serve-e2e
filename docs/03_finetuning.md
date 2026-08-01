@@ -69,7 +69,7 @@
 | 진입 난이도 | 낮음 | 중간(대신 투명·이식성) |
 | 언제 고르나 | 표준 레시피로 충분·빠른 baseline | 커스텀 로직 또는 최신 모델이 필요할 때 |
 
-SDK 버전도 함께 확인하세요. [SageMaker Python SDK V3 개요](https://sagemaker.readthedocs.io/en/stable/#migration-from-v2)는 v3가 "Estimator·Model·Predictor 같은 legacy 인터페이스를 `ModelTrainer`/`ModelBuilder`로 대체한다"고 명시합니다. `HuggingFace` estimator는 그 `Estimator` 계열의 프레임워크 서브클래스였으므로 **함께 제거**되어, 학습은 `ModelTrainer`(+`SourceCode`/`Compute`/`InputData`/`StoppingCondition`)로 정의합니다. 이 kit은 SDK 3.16.0에서 확인했습니다(`HuggingFace` import 부재는 설치본에서 직접 확인). `pyproject.toml`이 고정하는 것은 `sagemaker>=3.16.0` floor이므로, 설치본은 그보다 높은 버전일 수 있습니다.
+SDK 버전도 함께 확인하세요. [SageMaker Python SDK V3 개요](https://sagemaker.readthedocs.io/en/stable/#migration-from-v2)는 v3가 "Estimator·Model·Predictor 같은 legacy 인터페이스를 `ModelTrainer`/`ModelBuilder`로 대체한다"고 명시합니다. `HuggingFace` estimator는 그 `Estimator` 계열의 프레임워크 서브클래스였으므로 **함께 제거**되어, 학습은 `ModelTrainer`(+`SourceCode`/`Compute`/`InputData`/`StoppingCondition`)로 정의합니다. 이 kit은 SDK 3.16.0에서 확인했습니다(실측 2026-07-31, `HuggingFace` import 부재는 설치본에서 직접 확인). `pyproject.toml`이 고정하는 것은 `sagemaker>=3.16.0` floor이므로, 설치본은 그보다 높은 버전일 수 있습니다.
 
 지금까지 나온 이름(`JumpStartEstimator`·`ModelTrainer`·`ModelBuilder`·제거된 `Estimator`)은 전부 **SageMaker Python SDK라는 한 계층 안의 클래스**입니다. 그 계층이 어디에 앉아 있는지를 보면 위 표의 선택이 실제로 얼마만큼의 범위를 가지는지도 함께 드러납니다.
 
@@ -142,7 +142,7 @@ LoraConfig(
 `r`/`lora_alpha`/`lora_dropout`은 `train.py`의 CLI 인자 기본값이고 노트북도 같은 값(`'lora_r': 16, 'lora_alpha': 16, 'lora_dropout': 0.05`)을 제출합니다. **`r=16`·`alpha=16`(스케일 `alpha/r = 1.0`)이 출발점**이며, 어댑터 용량을 늘리려면 `r`을 32/64로 올리고 보통 `alpha`도 같은 비율로 함께 올립니다. `bias="none"`과 `task_type="CAUSAL_LM"`은 고정입니다.
 
 - 텍스트 전용 base라면 [PEFT `LoraConfig` API 문서](https://huggingface.co/docs/peft/en/package_reference/lora)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
-- **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다. language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다 — `ValueError: Target module ... is not supported`. 이름 리스트나 `all-linear`를 주면 vision/audio까지 매칭돼 크래시합니다.
+- **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다. language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다 — `ValueError: Target module ... is not supported`(실측 2026-07). 이름 리스트나 `all-linear`를 주면 vision/audio까지 매칭돼 크래시합니다.
 - 그래서 멀티모달에서는 **정규식으로 `language_model` 경로만 한정**합니다. 실측에서는 language의 `nn.Linear` 258개만 매칭됐고(ClippableLinear 0개), `get_peft_model`이 성공해 `lora_A` 516개가 부착됐습니다. 멀티모달에서는 embed/lm_head를 `modules_to_save`로 두면 vision 임베딩까지 얽힐 수 있어 생략합니다(순수 텍스트 LoRA).
 
 ### bf16 필수, fp16 금지
@@ -212,7 +212,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 멀티모달 base로 텍스트 SFT를 한 뒤 **그냥 저장하면 서빙이 깨집니다.** `train.py`는 저장 단계에서 두 가지를 더 합니다.
 
-1. **텍스트 arch로 재-export** — 머지된 멀티모달 모델에서 `language_model` 서브모듈만 골라 `text_config`(model_type `gemma4_text`) + `Gemma4ForCausalLM`(arch에 `Unified`가 있으면 `Gemma4UnifiedForCausalLM`)으로 다시 저장합니다. 멀티모달 config(`*ForConditionalGeneration`)가 남으면 vLLM이 image/audio processor를 찾다가 `Can't load image processor`로 죽습니다. 재키잉은 `model.language_model.*` → `model.*` + `lm_head`이고 실측 키 100% 매칭(E4B/12B/26B)입니다. 빈 뼈대를 `init_empty_weights`로 만들고 `load_state_dict(assign=True)`로 텐서를 이식해 사본을 만들지 않습니다(호스트 RAM 절약).
+1. **텍스트 arch로 재-export** — 머지된 멀티모달 모델에서 `language_model` 서브모듈만 골라 `text_config`(model_type `gemma4_text`) + `Gemma4ForCausalLM`(arch에 `Unified`가 있으면 `Gemma4UnifiedForCausalLM`)으로 다시 저장합니다. 멀티모달 config(`*ForConditionalGeneration`)가 남으면 vLLM이 image/audio processor를 찾다가 `Can't load image processor`로 죽습니다(실측 2026-07-30). 재키잉은 `model.language_model.*` → `model.*` + `lm_head`이고 실측 키 100% 매칭(E4B/12B/26B)입니다. 빈 뼈대를 `init_empty_weights`로 만들고 `load_state_dict(assign=True)`로 텐서를 이식해 사본을 만들지 않습니다(호스트 RAM 절약).
 2. **KV-shared dead weight 복원** — gemma-4 E계열(`num_kv_shared_layers>0`)은 뒤쪽 레이어가 앞 레이어의 KV를 재사용하므로, transformers가 그 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 **아예 만들지 않습니다**. `save_pretrained`를 거치면 원본에 있던 텐서가 소실됩니다(E4B 실측: 42층 중 shared 18층 → 레이어 24~41 × 3개 = **정확히 54개**). 반면 vLLM `Gemma4Attention`은 `k_norm`을 전 레이어에 등록하므로 `weights were not initialized ... k_norm`으로 엔진 초기화가 실패합니다([vLLM issue #44788](https://github.com/vllm-project/vllm/issues/44788)에 보고된 증상과 같습니다). `_revive_kv_shared_from_base`가 base 체크포인트에서 그 텐서만 골라 읽어 되살립니다. 실측: 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 성공), 생성 결과도 transformers와 일치했습니다.
 
 이 텐서는 forward에서 사용되지 않는 dead weight이고 LoRA 타깃에도 없으므로, base 값을 되살리는 것은 정확도에 무해합니다. 12B/26B-A4B는 `num_kv_shared_layers=0`이라 이 복원이 필요 없습니다. 서빙 쪽 관점은 [서빙 컨테이너 선택](05_serving_containers.md)에 정리돼 있습니다.
@@ -250,7 +250,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 | `31B` | `google/gemma-4-31B-it` | 31.27B dense | `ml.g6e.12xlarge` | >= 5.5.0 |
 
 - 이 kit의 `.env`는 `TRAIN_INSTANCE_TYPE=ml.g6.2xlarge`로 프리셋을 덮어씁니다 — `ml.g5.2xlarge`의 용량 대기가 길어서입니다. `InsufficientInstanceCapacity`로 막히면 `AWS_REGION`이나 인스턴스 타입만 바꿔 재시도하세요.
-- **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지·재-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다). `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다 — E4B peak RAM은 약 **17.5GB**로 실측됐습니다. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
+- **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지·재-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다). `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다 — E4B peak RAM은 약 **17.5GB**로 실측됐습니다(실측 2026-07). `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
 - 정확한 GPU 메모리·인스턴스 스펙·리전 가용성은 **실행 전 SageMaker 인스턴스 문서에서 재확인**하세요.
 - 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`를 쓰되, **`StoppingCondition(max_wait_time_in_seconds=...)`와 체크포인트 설정을 반드시 함께** 넘기세요. `max_wait_time_in_seconds`는 "Spot 용량 대기 시간 + 실행 시간"의 상한이고 **`max_runtime_in_seconds`보다 크거나 같아야** 합니다(SDK 3.16.0 `MaxWaitTimeInSeconds` 계약). 빠뜨리면 `CreateTrainingJob`이 `ValidationException`으로 거부합니다 — 이 kit 코드에는 이 값이 설정돼 있지 않으므로(SDK 기본 `None`) spot을 켤 때 직접 추가해야 합니다. 절감 폭은 리전·수급에 따라 달라지므로 절대값으로 약속하지 마세요.
 
@@ -269,7 +269,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 ## MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정
 
-**`ModelTrainer`에 `stopping_condition`을 넘기지 않으면 SDK가 1시간을 자동으로 넣습니다**([sagemaker-python-sdk](https://github.com/aws/sagemaker-python-sdk) `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`, SDK 3.16.0 실측). 이 한도는 학습 코드 시간만이 아니라 **용량 대기 + 이미지 pull + 학습 + 머지/업로드 전체**를 포함하므로, "학습은 100% 끝났는데 머지 중에 죽어 배포 불가"가 됩니다.
+**`ModelTrainer`에 `stopping_condition`을 넘기지 않으면 SDK가 1시간을 자동으로 넣습니다**([sagemaker-python-sdk](https://github.com/aws/sagemaker-python-sdk) `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`, SDK 3.16.0 실측 2026-07-31). 이 한도는 학습 코드 시간만이 아니라 **용량 대기 + 이미지 pull + 학습 + 머지/업로드 전체**를 포함하므로, "학습은 100% 끝났는데 머지 중에 죽어 배포 불가"가 됩니다.
 
 ### 실측 — 1시간 한도에 걸린 학습 잡
 
@@ -304,7 +304,7 @@ trainer = ModelTrainer(
 
 - **넉넉히 잡아도 손해가 없습니다** — 잡이 정상 종료되면 그 시점에 과금이 멈춥니다. 이 값은 요금이 아니라 **폭주 방지 상한**입니다. [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)에 따르면 `MaxRuntimeInSeconds`는 API 최대 28일·API 기본 1일이고, 종료 시 `SIGTERM` 후 120초의 유예를 줍니다. 1시간은 SDK 쪽 기본값입니다.
 - 반대로 실습 비용을 확실히 막으려 낮출 때는 **머지·업로드용으로 최소 15분**을 남기세요(E4B 실측: 머지 약 2분 + 업로드 약 3분. 모델이 커지면 늘어납니다).
-- 노트북은 제출 전에 **예상 시간을 계산해 한도와 비교하고, 초과하면 `assert`로 막습니다**. 기준값은 `ml.g6.2xlarge` QLoRA에서 seq 2048 약 17s/step, seq 512 약 7s/step으로 실측됐고, step 수는 `ceil(건수/8) × epochs`입니다. GPU·라이브러리 버전이 달라지면 이 s/step이 움직여 `assert`가 실제와 어긋나므로, 잡 로그의 실제 step 시간으로 갱신하세요.
+- 노트북은 제출 전에 **예상 시간을 계산해 한도와 비교하고, 초과하면 `assert`로 막습니다**. 기준값은 `ml.g6.2xlarge` QLoRA에서 seq 2048 약 17s/step, seq 512 약 7s/step으로 실측됐고(실측 2026-07-31), step 수는 `ceil(건수/8) × epochs`입니다. GPU·라이브러리 버전이 달라지면 이 s/step이 움직여 `assert`가 실제와 어긋나므로, 잡 로그의 실제 step 시간으로 갱신하세요.
 
 ### 함께 고친 것 — 체크포인트 누적
 

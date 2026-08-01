@@ -238,7 +238,7 @@
 
 ## 모델 선택 (gemma-4 프리셋 5종)
 
-기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(HF raw `config.json` 확인). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
+기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(실측 2026-07-21, HF raw `config.json`). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
 
 | 프리셋 (`MODEL_SIZE`) | 모델 ID | 성격 | 프리셋 인스턴스 | transformers 요건 |
 |---|---|---|---|---|
@@ -248,9 +248,9 @@
 | `26B-A4B` | `google/gemma-4-26B-A4B-it` | MoE total 25.2B / active 3.8B, 128 experts. audio 미지원(vision만) | `ml.g5.12xlarge` | >= 5.5.0 |
 | `31B` | `google/gemma-4-31B-it` | 31.27B dense, 계열 최대. audio 미지원(vision만) | `ml.g6e.12xlarge` | >= 5.5.0 |
 
-- **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S 44GiB)입니다.** 4bit로도 base가 22GiB 카드를 넘길 수 있어서입니다 — quantizable linear 29.29B는 NF4로 14.6GB(+double-quant 상수 0.46GB)까지 줄지만, `embed_tokens` 1.41B와 vision tower 0.58B는 4bit로 내려가지 않아 bf16으로 남아 base만 약 19.1GB가 됩니다. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다. `params/2` 어림값이 통하지 않는 지점입니다. 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
+- **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S, nominal 48GB · 가용 44GiB)입니다.** 4bit로도 base가 24GB 카드(L4·A10G, 가용 22GiB)를 넘길 수 있어서입니다 — quantizable linear 29.29B는 NF4로 14.6GB(+double-quant 상수 0.46GB)까지 줄지만, `embed_tokens` 1.41B와 vision tower 0.58B는 4bit로 내려가지 않아 bf16으로 남아 base만 약 19.1GB가 됩니다. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다. `params/2` 어림값이 통하지 않는 지점입니다. 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
 - 이 kit의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
-- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM 실측값은 약 17.5GB입니다.
+- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM 실측값은 약 17.5GB입니다(실측 2026-07).
 - **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 재-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"

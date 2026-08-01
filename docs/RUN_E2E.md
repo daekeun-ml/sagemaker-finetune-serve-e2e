@@ -10,7 +10,7 @@
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK v3 API 이름·인스턴스 타입 가용성·리전 GPU 용량·AgentCore GA 상태는 분기마다 바뀝니다.
-    이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 특정 시점의 실측 스냅샷이므로, 원문 쪽이 항상 최신입니다.
+    이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 실측 스냅샷이고 빠르게 바뀌는 값에는 관측일을 적어 두었으므로, 원문 쪽이 항상 최신입니다.
     실제 값은 `.env`와 셸 env로 주입합니다 — 계정 ID·role ARN·HF 토큰은 문서에도 노트북에도 하드코딩하지 않습니다.
 
 ---
@@ -99,7 +99,7 @@
 
 - **(선택) `02a_train_grpo_sagemaker`**(SFT→GRPO 정련)는 리워드를 프로그램으로 채점할 수 있는 **추출·분류 트랙에만** 있습니다.
 - **(선택) `02b_local_serve`**(배포 전 로컬 vLLM 프리플라이트)는 4개 텍스트 트랙 모두에 있습니다.
-- 평가는 `04_evaluate`(로컬 메트릭·빠름·저렴) 한 경로입니다. SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용이어서, gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다(실제로 호출하면 `DescribeHubContent ... does not exist`).
+- 평가는 `04_evaluate`(로컬 메트릭·빠름·저렴) 한 경로입니다. SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용이어서, gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다(실측 2026-07-31: `DescribeHubContent ... does not exist`).
 
 ### 멀티모달 트랙 (05) 파이프라인
 
@@ -165,7 +165,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 ### 단계별 주의
 
 - **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 트랙 지연 때문에 100으로 낮춰 두었습니다(요약 시드 1건 중앙 1,651자 vs 추출 475자 → 배치 프롬프트 약 10,900자. 출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없고 순수 지연입니다). 합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
-- **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
+- **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 2026-07-31: 각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
 - **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다. 셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다. **한 번에 하나만** 배포하세요(둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다). endpoint 기동에는 5~15분이 걸립니다. 세 엔진의 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine)에, 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측)에, 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)에 있습니다.
 - **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다. `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
 - **⑥/⑦ agentic** — endpoint(`sagemaker-runtime`)와 Bedrock(`bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), SageMaker와 **별개 서비스**)이 **이중으로 과금**됩니다. AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포--agentcore-runtime)).

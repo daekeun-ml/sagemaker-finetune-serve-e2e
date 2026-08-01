@@ -159,7 +159,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 
 **아티팩트 업로드가 이 시간 창의 안인지 밖인지는 문서가 갈립니다.** 같은 API 문서가 "메트릭 발행과 **중지된 뒤의** 모델 아카이브·업로드까지 포함한 총 실행 시간 상한은 30일"이라고 적고 있어, 업로드를 `MaxRuntime` 컷오프 **밖**의 시간으로 기술합니다. AWS는 `TrainingStartTime`을 시계의 기점으로 명시하지도 않습니다. 다만 실무에 필요한 결론은 문서 해석과 무관합니다 — **학습 루프가 끝난 뒤의 후처리(머지·저장)는 확실히 이 창 안**이고, 이 kit은 바로 거기서 잘렸습니다(아래 실측). 한도는 학습 시간이 아니라 **후처리까지 포함해** 잡으세요.
 
-이 kit은 실제로 이 함정에 빠졌습니다. `stopping_condition`을 생략하면 SDK가 1시간을 자동으로 넣는데(SDK 3.16.0에서 실측), 189/189 step을 전부 마친 잡이 **LoRA 머지 도중** 강제 종료되어 아티팩트에 어댑터와 체크포인트만 남았습니다. 상태는 `Failed`가 아니라 `Stopped`이고 `FailureReason`은 비어 있어서, CloudWatch 로그만 보면 정상 종료처럼 보입니다. 실측 타임라인과 대응은 [MaxRuntimeExceeded 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)에 정리돼 있습니다.
+이 kit은 실제로 이 함정에 빠졌습니다. `stopping_condition`을 생략하면 SDK가 1시간을 자동으로 넣는데(SDK 3.16.0 실측 2026-07-31), 189/189 step을 전부 마친 잡이 **LoRA 머지 도중** 강제 종료되어 아티팩트에 어댑터와 체크포인트만 남았습니다. 상태는 `Failed`가 아니라 `Stopped`이고 `FailureReason`은 비어 있어서, CloudWatch 로그만 보면 정상 종료처럼 보입니다. 실측 타임라인과 대응은 [MaxRuntimeExceeded 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)에 정리돼 있습니다.
 
 ??? tip "한도는 넉넉히, 규모는 작게"
     한도를 크게 잡아도 **추가 요금이 없습니다.** 잡이 정상 종료되면 그 시점에 과금이 멈추기 때문입니다. 비용을 줄이고 싶다면 한도가 아니라 **데이터 건수와 epoch**를 줄이세요.

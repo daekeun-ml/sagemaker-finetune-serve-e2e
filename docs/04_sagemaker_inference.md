@@ -188,7 +188,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 토큰을 한 번에 받지 않고 흘려받고 싶다면(챗 UX에 유용합니다) 동일한 `sagemaker-runtime`의 [`invoke_endpoint_with_response_stream()`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html)을 쓰고 payload에 `"stream": true`를 넣습니다. 이 kit은 `aws_utils.stream_sagemaker_chat()`으로 감쌌습니다.
 
-요약 트랙 endpoint 실측(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다** — 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
+요약 트랙 endpoint 실측 2026-07-31(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다** — 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
 
 **SSE 청크 경계는 줄 경계와 일치하지 않습니다.** 실측에서 `PayloadPart` 하나가 JSON 중간에서 끊겨 `..."system_finger` / `print":"vllm..."`로 나뉘어 도착했습니다. 청크를 받는 즉시 파싱하면 `JSONDecodeError`가 나므로, 버퍼에 모아 `\n\n`(SSE 이벤트 구분자) 단위로만 잘라 파싱해야 합니다(`stream_sagemaker_chat()`이 그렇게 합니다). 스트리밍 payload 필드와 이벤트 파싱 방식은 컨테이너·SDK 버전에 따라 달라지므로 **실행 전 재확인**이 필요합니다.
 
@@ -231,14 +231,14 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 | 제공 주체 | AWS(엔진은 vLLM 커뮤니티) | AWS(엔진은 SGLang) | AWS |
 | 내부 백엔드 | vLLM | SGLang | vLLM / TensorRT-LLM 선택(`OPTION_ROLLING_BATCH`) |
 | 설정 방식 | `SM_VLLM_*` env → CLI 플래그 | `SM_SGLANG_*` env → CLI 플래그 | `OPTION_*` env |
-| 버전 최신성 | ✅ 최신(0.25.1 / 0.26.0) | ✅ 최신(0.5.15) | 번들 vLLM 버전에 종속 |
+| 버전 최신성 | ✅ 최신(실측 2026-07-30: 0.25.1 / 0.26.0) | ✅ 최신(실측 2026-07-30: 0.5.15) | 번들 vLLM 버전에 종속 |
 | 페이로드 스키마 | OpenAI 호환(`messages`) | OpenAI 호환(`messages`) | OpenAI 호환(`messages`) |
 | 연속 배칭·스트리밍 | ✅ 지원 | ✅ 지원 | ✅ 지원 |
 | 언제 | 최신 모델·최신 엔진 기능(기본값) | 프리픽스 캐시 재사용이 중요할 때 | 관리형 추상화·기존 LMI 자산 재사용 |
 
 세 엔진 모두 연속 배칭 + OpenAI 호환이라 **호출 코드가 동일**합니다. [HF TGI](https://github.com/huggingface/text-generation-inference)와 HF PyTorch Inference DLC는 이 kit의 서빙 선택지에서 제외했습니다 — 후자는 transformers 단건 서빙용이라 연속 배칭·스트리밍이 없습니다(`dlc.resolve_hf_inference_image()`로 남겨 두긴 했습니다).
 
-**gemma-4 서빙에는 vLLM ≥ 0.19가 필요합니다.** vLLM DLC(0.25.1 / 0.26.0)는 이 조건을 충족합니다. LMI를 쓸 때는 번들 vLLM이 이 조건을 넘는 최신 태그여야 합니다 — 최신 태그는 `0.36.0-lmi27.0.0-cu130-v1.1`(LMI 27.0.0 = vLLM 0.23.1, ECR 실조회 2026-07-30)이며, 그보다 오래된 LMI 태그는 gemma-4를 로드하지 못합니다.
+**gemma-4 서빙에는 vLLM ≥ 0.19가 필요합니다.** vLLM DLC(실측 2026-07-30: 0.25.1 / 0.26.0)는 이 조건을 충족합니다. LMI를 쓸 때는 번들 vLLM이 이 조건을 넘는 최신 태그여야 합니다 — 최신 태그는 `0.36.0-lmi27.0.0-cu130-v1.1`(LMI 27.0.0 = vLLM 0.23.1, ECR 실조회 2026-07-30)이며, 그보다 오래된 LMI 태그는 gemma-4를 로드하지 못합니다.
 
 ### model_data 로드 경로
 
@@ -248,7 +248,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 Gemma를 서빙할 때 주의할 점입니다(**실행 전 재확인** 항목). chat template은 서버(vLLM/SGLang/LMI) 또는 `apply_chat_template`에 위임합니다(이 kit의 `common/gemma_format.py`). **Gemma 템플릿에는 전용 system 슬롯이 없는 경우가 많지만**(정확한 동작은 모델별 `tokenizer_config`가 결정합니다), 이 kit의 트랙은 `build_inference_messages(..., system_content=...)`로 만든 system role을 그대로 endpoint에 보내고 서버의 chat template이 처리합니다 — 이 문서에 인용한 실측값도 그 경로에서 나왔습니다. 템플릿이 system role을 **거부하는** 모델을 만났을 때만 `fold_system_into_user()`로 첫 user 턴에 병합하세요(자동 폴백은 없습니다). 학습과 추론의 프롬프트 형식이 어긋나면 점수가 떨어지므로, **학습에 쓴 형식과 같은 쪽**을 유지하는 것이 원칙입니다. dtype는 **bf16 필수** — **fp16은 금지**이며 Gemma에서 오버플로/NaN을 유발합니다. 텍스트 LoRA는 all-linear에 `modules_to_save=["lm_head","embed_tokens"]`를 함께 지정하고, 멀티모달 트랙은 vision/audio proj가 매칭돼 크래시하므로 language_model 한정 `target_modules`에 `modules_to_save=None`을 씁니다. 상세는 `tracks/*/scripts/train.py`를 참고하세요.
 
-또 하나: gemma-4 **E2B/E4B는 KV-sharing 레이어**를 갖는데, transformers가 그 레이어의 `k_norm`/`k_proj`/`v_proj` 모듈을 아예 만들지 않아 `save_pretrained` 시 원본 텐서가 소실됩니다(E4B 실측 54개). vLLM은 전 레이어에 `k_norm`을 등록하므로 `weights not initialized` ValueError로 엔진 초기화가 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). 이 kit의 `train.py`는 저장 직전 base에서 그 텐서를 복원하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) E4B도 vLLM으로 정상 서빙됩니다 — 실측 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 OK). 상세는 [E계열 KV-shared dead weight 복원](05_serving_containers.md#e계열-kv-shared-dead-weight-복원)에 있습니다.
+또 하나: gemma-4 **E2B/E4B는 KV-sharing 레이어**를 갖는데, transformers가 그 레이어의 `k_norm`/`k_proj`/`v_proj` 모듈을 아예 만들지 않아 `save_pretrained` 시 원본 텐서가 소실됩니다(E4B 실측 2026-07-30: 54개). vLLM은 전 레이어에 `k_norm`을 등록하므로 `weights not initialized` ValueError로 엔진 초기화가 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). 이 kit의 `train.py`는 저장 직전 base에서 그 텐서를 복원하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) E4B도 vLLM으로 정상 서빙됩니다 — 실측 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 OK). 상세는 [E계열 KV-shared dead weight 복원](05_serving_containers.md#e계열-kv-shared-dead-weight-복원)에 있습니다.
 
 ### DLC 이미지 URI 패턴
 
@@ -335,7 +335,7 @@ vLLM/SGLang DLC의 entrypoint는 `SM_<ENGINE>_` 접두사를 떼고 소문자화
 
 ### 24GB GPU CUDA OOM — max_num_seqs 기본값
 
-이 kit endpoint 실측값입니다(vLLM 0.26.0, gemma-4 E4B bf16 14.23 GiB, `ml.g6.2xlarge` = L4 22.9GB 가용). KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. 멀티모달 트랙(05)은 vision tower 때문에 가중치가 **1 GiB 더 커서 같은 설정으로 CUDA OOM이 나 배포가 `Failed`**했습니다.
+이 kit endpoint 실측값입니다(실측 2026-07-31, vLLM 0.26.0, gemma-4 E4B bf16 14.23 GiB, `ml.g6.2xlarge` = L4 22.9GB 가용). KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. 멀티모달 트랙(05)은 vision tower 때문에 가중치가 **1 GiB 더 커서 같은 설정으로 CUDA OOM이 나 배포가 `Failed`**했습니다.
 
 - `max_num_seqs`(vLLM 기본 **256**)는 샘플러 logits 버퍼를 `256 × vocab 262,144 × 4B = 256 MiB`로 잡습니다. 실습은 동시 요청이 1~2건이므로 **32**로 낮춰도 손실이 없고, 버퍼는 32 MiB로 줄어듭니다. 그래서 `serving_env()`의 기본값이 `max_num_seqs=32`, `gpu_memory_utilization=0.90`입니다.
 - **증상이 원인을 가립니다.** 배포 실패가 `did not pass the ping health check`로만 보이고, 실제 `torch.OutOfMemoryError`는 **CloudWatch endpoint 로그에만** 남습니다. `Endpoint.get(name)`의 `failure_reason`부터 확인하고, 로그로 내려가세요.

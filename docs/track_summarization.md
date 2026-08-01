@@ -131,7 +131,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 `gen_max_tokens=512`의 근거는 endpoint 실측입니다(입력 5,996자, 2026-07-31) — `max_tokens=256`은 `finish_reason='length'`로 902자에서 문장 중간에 끊겼고, 512는 `stop`으로 397토큰·1,446자, 1024는 `stop`으로 571토큰이었습니다. 즉 512부터 모델이 스스로 종료합니다. 정답 전량(max 964토큰)까지 덮으려면 1024로 올리면 됩니다. 절단은 예외도 경고도 없이 200 응답으로 오므로 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)의 `finish_reason` 확인 습관을 권합니다.
 
-이 트랙은 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다 — 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)).
+이 트랙은 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 실측 2026-07-31에서 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다 — 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)).
 
 !!! warning "이 트랙에서 먼저 터진 두 가지"
     (1) **학습 잡이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, 아티팩트에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 트랙이 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)).

@@ -134,8 +134,8 @@ synth = bs.generate_grounded(
 
 두 가지 기본값은 Bedrock 호출을 실제로 돌려 보고 정해졌습니다.
 
-- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다. 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
-- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다(세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다). 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
+- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다(실측 2026-07-31). 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
+- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다(실측 2026-07-31 — 세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다). 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
 
 ### 생성 지시와 채점 기준의 분리
 

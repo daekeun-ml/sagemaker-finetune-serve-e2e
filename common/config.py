@@ -98,7 +98,9 @@ GEMMA4_PRESETS: dict[str, dict] = {
     "31B": {  # 31.27B dense, 계열 최대. audio 미지원(vision만). KV-sharing 없음.
         "model_id": "google/gemma-4-31B-it",
         "arch": "Gemma4ForConditionalGeneration", "model_type": "gemma4",
-        # 🔴 g6e = L40S 44GiB. 4bit로도 base resident가 22GiB 카드를 넘길 위험이 있어 44GiB로 올린다.
+        # 🔴 g6e = L40S(nominal 48GB). 4bit로도 base resident가 24GB 카드를 넘길 위험이 있어 올린다.
+        #    사이징은 AWS 문서의 usable 값(L40S 44GiB / L4·A10G 22GiB)으로 잡는다 — nvidia-smi 실측은
+        #    L40S 46,068MiB(=45.0GiB)로, 벤더 nominal보다 작다.
         #    실측 내역: quantizable linear 29.29B → NF4 14.6GB + double-quant 상수 0.46GB,
         #    여기에 4bit로 내려가지 '않는' embed_tokens 1.41B(bf16 2.82GB)와 vision tower 0.58B(1.15GB)를
         #    더해 base만 ≈19.1GB. activation/optimizer까지 얹으면 22GiB로는 sharding이 강제된다.

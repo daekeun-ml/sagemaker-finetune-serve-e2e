@@ -87,7 +87,7 @@ python tracks/01_extraction_to_json/scripts/train.py \
     --output_dir /tmp/dryrun_out
 ```
 기대: 가중치 다운로드 → QLoRA 학습 1 epoch → `어댑터 저장` → `DRY-RUN 완료` 로그.
-(L40S 46GB에서 실제 검증됨. 첫 실행은 가중치 다운로드로 수 분 소요, 이후 캐시 재사용.)
+(L40S 48GB에서 실제 검증됨. 첫 실행은 가중치 다운로드로 수 분 소요, 이후 캐시 재사용.)
 
 !!! tip "더 작고 빠르게"
     `--model_id google/gemma-3-1b-it`로 줄일 수 있습니다. 단 gemma-3은 gated라
