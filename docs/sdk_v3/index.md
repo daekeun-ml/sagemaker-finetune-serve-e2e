@@ -1,9 +1,9 @@
-# 07 · SageMaker Python SDK V3 — V2에서 무엇이 바뀌었나
+# SageMaker Python SDK V3 — V2에서 무엇이 바뀌었나
 
 !!! info "Scope"
     **V2에 익숙한 분**(`HuggingFace` estimator · `estimator.fit()` · `predictor.predict()`로 SageMaker를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources` 같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다. 선행 조건은 없습니다.
     다루는 것: V2 → V3 심볼 매핑, 두 레이어(`sagemaker.core` vs `sagemaker.train`/`sagemaker.serve`) 구조, 학습·배포·호출·정리 4가지 대표 용법, V2 코드를 옮길 때 걸리는 함정.
-    다루지 않는 것: 학습 하이퍼파라미터·LoRA 설계([파인튜닝](03_finetuning.md)), endpoint 구조와 서빙 엔진([SageMaker 추론](04_sagemaker_inference.md)·[서빙 컨테이너](05_serving_containers.md)), Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다).
+    다루지 않는 것: 학습 하이퍼파라미터·LoRA 설계([파인튜닝](../03_finetuning.md)), endpoint 구조와 서빙 엔진([SageMaker 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md)), Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다).
 
 이 문서의 동작은 모두 **SDK 3.16.0 설치본에서 실측**한 것이고, 이름·의도는 [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)와 [V3 문서](https://sagemaker.readthedocs.io/en/stable/)를 기준으로 적었습니다. 둘이 어긋나는 지점은 그 자리에서 따로 표시했습니다.
 
@@ -40,7 +40,13 @@ V2는 죽지 않았지만 **시한이 공개돼 있습니다**. [Version Lifecyc
 
 ---
 
-## 두 개의 레이어
+## 메타패키지와 두 개의 레이어
+
+[![sagemaker 메타패키지 아래 train·serve·mlops가 core 위에 놓인 2층 구조](../images/sdkv3_monolithic_to_modular.png)](../images/sdkv3_monolithic_to_modular.png)
+
+*`pip install sagemaker` 하나가 전부를 끌어오지만, 안에서는 서브패키지가 **각자 버전을 갖습니다**(train/serve/mlops는 v1.4.1+, core는 v2.4.1+). 위층은 고수준 추상화와 기본값, 아래층은 API 전량 커버리지와 타입 안전성을 담당합니다.*
+
+`sagemaker`는 **메타패키지**입니다. 그래서 `sagemaker` 3.16.0을 설치해도 실제로 동작하는 것은 독립적으로 버전이 붙은 서브패키지들이고, 3.x 안에서 import 경로가 옮겨 다니는 이유도 이것입니다 — 우산 버전이 아니라 서브패키지 버전이 올라가기 때문입니다.
 
 V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 둘**이기 때문입니다. 설치본의 `sagemaker/` 아래에는 정확히 여섯 개의 서브패키지만 있습니다 — `ai_registry`, `core`, `lineage`, `mlops`, `serve`, `train`. 이 중 이 kit이 쓰는 것은 `core`·`train`·`serve` 셋입니다.
 
@@ -48,6 +54,16 @@ V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 �
 |---|---|---|---|
 | `sagemaker.core` | SageMaker API에서 **생성된** 저수준 리소스 레이어 | `resources.TrainingJob`·`resources.Endpoint`·`image_uris.retrieve`·`helper.session_helper.Session` | API 필드와 1:1. 넓지만 편의 기능 없음 |
 | `sagemaker.train` / `sagemaker.serve` | 손으로 쓴 **편의 레이어** | `ModelTrainer`·`SFTTrainer`·`ModelBuilder` | 좁지만 기본값·검증·업로드까지 대신함 |
+
+[![sagemaker-core의 995+ shape 클래스, 110+ resource 클래스, 그리고 모든 리소스가 공유하는 표준 메서드 7개](../images/sdkv3_core.png)](../images/sdkv3_core.png)
+
+*오른쪽 `Base` 열이 V2와의 가장 큰 차이입니다 — 모든 리소스가 `create()`·`delete()`·`get()`·`refresh()`·`stop()`·`update()`·`wait()`를 같은 이름으로 갖습니다. 리소스마다 전부 있는 것은 아닙니다(Endpoint에는 `stop()`이 필요 없습니다).*
+
+문서상 core는 **resource 클래스 110개 이상, shape 클래스 995개 이상**을 갖습니다. 서비스 API에서 생성했기 때문에 SageMaker가 지원하는 리소스에는 대응 Python 클래스가 있고, `train`·`serve`·`mlops`에 없는 기능은 core에 있습니다(Feature Store가 그런 예입니다).
+
+core는 공용 기반도 함께 갖습니다 — 세션 관리, IAM role 자동 탐지, DLC 이미지 URI 조회, JumpStart 모델 허브, lineage 추적, serializer/deserializer, 그리고 SageMaker 설정 파일을 읽는 intelligent defaults입니다.
+
+**polling이 1급이 됐습니다.** V2에서 `describe_*`를 루프로 돌리던 자리가 `wait()`·`refresh()`입니다.
 
 `sagemaker.core`가 "생성된" 레이어라는 건 저장소에서 확인할 수 있습니다. `core/tools/`에 `codegen.py`·`resources_codegen.py`·`shapes_codegen.py`가 있고 이들이 botocore service model(`service-2.json`)을 읽어 `resources.py`와 `shapes/shapes.py`를 뽑습니다([api_coverage.json](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-core/src/sagemaker/core/tools/api_coverage.json)은 391 supported / 21 unsupported API로 집계). 실제로 `sagemaker.core.resources`에는 API 리소스 이름을 그대로 딴 pydantic 클래스가 85개, `sagemaker.core.shapes.shapes`에 요청·응답 shape 클래스가 822개 들어 있습니다. 공식 문서는 이를 "generated"라는 단어보다 "full parity with SageMaker APIs" / "map directly to AWS APIs"로 표현합니다([sagemaker.core 문서](https://sagemaker.readthedocs.io/en/stable/sagemaker_core/index.html)).
 
@@ -65,198 +81,14 @@ V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 �
 
 ---
 
-## 대표 용법
+## 대표 용법은 두 페이지로 나눠 두었습니다
 
-네 가지를 V3/V2 나란히 놓습니다. V3 스니펫은 모두 이 kit의 실행되는 코드에서 가져와 요점만 남긴 것입니다.
+용법이 길어 별도 페이지로 두었습니다. 이 페이지는 **무엇이 바뀌었나**에 집중합니다.
 
-### 학습 잡 제출
-
-`tracks/*/02_train_sft_sagemaker.ipynb`에서 추린 형태입니다. 하이퍼파라미터 dict와 `role`·`sagemaker_session`은 V2와 같은 자리에 남고, **나머지가 전부 config 객체로 이동**합니다.
-
-=== "V3"
-
-    ```python
-    import boto3
-    from sagemaker.core.helper.session_helper import Session
-    from sagemaker.core.image_uris import retrieve
-    from sagemaker.train.model_trainer import ModelTrainer
-    from sagemaker.core.training.configs import (
-        SourceCode, Compute, InputData, StoppingCondition,
-    )
-
-    sess = Session(boto3.Session(region_name="us-east-1"))
-    # 이 kit은 .env의 DLC_IMAGE_URI(완전 URI)를 그대로 씁니다. retrieve는 그 env가
-    # 없을 때의 폴백입니다 — common/dlc.resolve_training_image()의 우선순위.
-    image_uri = retrieve(framework="pytorch", region="us-east-1",
-                         version="2.8.0", py_version="py312",
-                         image_scope="training", instance_type="ml.g6.2xlarge")
-
-    trainer = ModelTrainer(
-        training_image=image_uri,
-        source_code=SourceCode(source_dir="scripts", entry_script="train.py",
-                               requirements="requirements.txt"),
-        compute=Compute(instance_type="ml.g6.2xlarge", instance_count=1),
-        hyperparameters={"model_id": "google/gemma-4-E4B-it", "epochs": 2,
-                         "use_qlora": True, "merge_adapter": True},
-        environment={"HF_TOKEN": "..."},
-        role=role, sagemaker_session=sess,
-        base_job_name="gemma-extraction-train",
-        # 생략하면 SDK가 1시간을 넣습니다 — 아래 함정 절 참고
-        stopping_condition=StoppingCondition(max_runtime_in_seconds=4 * 3600),
-    )
-    trainer.train(input_data_config=[InputData(channel_name="train",
-                                               data_source=train_s3)],
-                  wait=False, logs=False)
-    print(trainer._latest_training_job.training_job_name)
-    ```
-
-=== "V2 (참고)"
-
-    ```python
-    import sagemaker
-    from sagemaker.huggingface import HuggingFace       # V3에 없습니다
-    from sagemaker.inputs import TrainingInput
-
-    estimator = HuggingFace(
-        entry_point="train.py", source_dir="scripts",
-        instance_type="ml.g6.2xlarge", instance_count=1,
-        transformers_version="4.36",        # 이미지를 버전 인자로 골랐습니다
-        pytorch_version="2.1", py_version="py310",
-        hyperparameters={"model_id": "...", "epochs": 2},
-        environment={"HF_TOKEN": "..."},
-        role=role, sagemaker_session=sagemaker.Session(),
-        base_job_name="gemma-extraction-train",
-        max_run=4 * 3600,                   # V3의 StoppingCondition
-    )
-    estimator.fit({"train": TrainingInput(train_s3)}, wait=False, logs=False)
-    print(estimator.latest_training_job.name)
-    ```
-
-`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다 — 이 kit의 `str2bool` 처리 이유는 [파인튜닝](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-잡)에 있습니다.
-
-### 배포
-
-`tracks/*/03_deploy_endpoint.ipynb`입니다. `ModelBuilder`는 **`build()` → `deploy()` 두 단계**이고, `deploy()`가 돌려주는 것은 `Predictor`가 아니라 `Endpoint` 리소스입니다.
-
-=== "V3"
-
-    ```python
-    from sagemaker.serve import ModelBuilder
-    from sagemaker.serve.mode.function_pointers import Mode
-
-    mb = ModelBuilder(
-        image_uri=serve_image,             # vLLM / SGLang / DJL LMI DLC
-        s3_model_data_url=model_data,      # 학습 산출 S3 아티팩트
-        env_vars=serve_env,                # 엔진별 env (common/dlc.serving_env)
-        role_arn=role, sagemaker_session=sess,
-        instance_type="ml.g6.2xlarge",
-        mode=Mode.SAGEMAKER_ENDPOINT,      # LOCAL_CONTAINER로 로컬 검증 가능
-    )
-    mb.build()
-    endpoint = mb.deploy(endpoint_name=endpoint_name, initial_instance_count=1,
-                         instance_type="ml.g6.2xlarge", wait=False)
-    ```
-
-=== "V2 (참고)"
-
-    ```python
-    from sagemaker.model import Model      # V3에서 이 클래스는 없습니다
-
-    model = Model(
-        image_uri=serve_image,
-        model_data=model_data,             # V3의 s3_model_data_url
-        env=serve_env, role=role, sagemaker_session=sess,
-    )
-    predictor = model.deploy(              # Predictor를 돌려줬습니다
-        endpoint_name=endpoint_name, initial_instance_count=1,
-        instance_type="ml.g6.2xlarge", wait=False,
-    )
-    ```
-
-!!! warning "s3_model_data_url과 model_path를 섞지 마세요"
-    `ModelBuilder`에는 `model_path`도 있지만 그건 **로컬 경로**입니다. S3 URI는 `s3_model_data_url`에 넣어야 합니다([model_data 로드 경로](04_sagemaker_inference.md#model_data-로드-경로)).
-    그리고 `Mode`는 **두 개가 따로 있습니다**. `sagemaker.serve.mode.function_pointers.Mode`는 `IN_PROCESS`/`LOCAL_CONTAINER`/`SAGEMAKER_ENDPOINT`(int 값, 서빙용)이고, `sagemaker.train.model_trainer.Mode`는 `LOCAL_CONTAINER`/`SAGEMAKER_TRAINING_JOB`(str 값, 학습용)입니다. 이름이 같은 `LOCAL_CONTAINER` 멤버가 양쪽에 있는데 값이 달라 서로 대입할 수 없습니다.
-
-### 추론 호출
-
-여기가 **V2와 V3가 같은 유일한 지점**입니다. endpoint 호출은 SageMaker Python SDK가 아니라 boto3 `sagemaker-runtime` 클라이언트의 일이고, 그 API는 SDK 메이저 버전과 무관합니다. 이 kit의 `common/aws_utils.py`가 처음부터 boto3로 부르기 때문에 V3 전환에서 **호출 코드는 한 줄도 바뀌지 않았습니다**.
-
-=== "V3 · V2 공통 (이 kit의 경로)"
-
-    ```python
-    import boto3, json
-
-    client = boto3.client("sagemaker-runtime", region_name=region)
-    resp = client.invoke_endpoint(
-        EndpointName=endpoint_name,
-        ContentType="application/json",
-        Accept="application/json",
-        Body=json.dumps({"messages": messages, "max_tokens": 512,
-                         "temperature": 0.2}),
-    )
-    out = json.loads(resp["Body"].read().decode("utf-8"))
-    ```
-
-=== "V2 (참고)"
-
-    ```python
-    from sagemaker.predictor import Predictor      # V3에서 제거
-    from sagemaker.serializers import JSONSerializer
-    from sagemaker.deserializers import JSONDeserializer
-
-    p = Predictor(endpoint_name, serializer=JSONSerializer(),
-                  deserializer=JSONDeserializer())
-    out = p.predict({"messages": messages})
-    ```
-
-V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps`/`json.loads`를 직접 하라는 것이 [공식 안내](https://sagemaker.readthedocs.io/en/stable/inference/index.html)이고, boto3 경로는 원래 그렇게 하고 있었으므로 이 축의 마이그레이션 비용이 0이 됩니다. SDK 객체로 부르고 싶다면 `Endpoint.get(name).invoke(body=..., content_type=...)`(스트리밍은 `invoke_with_response_stream`)도 있지만, boto3 쪽이 의존성이 얇아 이 kit은 그대로 둡니다. 호출 스키마 자체는 [invoke_endpoint 호출 스키마](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)를 보세요.
-
-### 리소스 조회·정리
-
-노트북 세션이 끊겨 `trainer`/`mb` 객체를 잃어도, **이름만 알면 리소스 객체로 다시 붙습니다**. V2에서 `sm.describe_training_job` 응답 dict를 파싱하던 자리가 여기입니다.
-
-=== "V3"
-
-    ```python
-    from sagemaker.core.resources import TrainingJob, Endpoint
-
-    # 이름을 잊었으면 base_job_name으로 찾기 (get_all은 iterator, 최신순)
-    jobs = list(TrainingJob.get_all(name_contains="gemma-extraction-train"))
-    job = TrainingJob.get(jobs[0].get_name())
-    job.refresh()
-    print(job.training_job_status, job.secondary_status)
-    # job.wait(logs=True)   # InProgress면 로그 스트리밍하며 대기
-    model_data = job.model_artifacts.s3_model_artifacts
-
-    ep = Endpoint.get(endpoint_name)
-    ep.refresh()
-    if ep.endpoint_status != "InService":
-        ep.wait_for_status(target_status="InService")
-    ep.delete()                # 과금 중단은 endpoint 삭제부터
-    ```
-
-=== "V2 (참고)"
-
-    ```python
-    import boto3
-    from sagemaker.estimator import Estimator      # V3에서 제거
-    from sagemaker.predictor import Predictor      # V3에서 제거
-
-    sm = boto3.client("sagemaker")
-    summaries = sm.list_training_jobs(
-        NameContains="gemma-extraction-train")["TrainingJobSummaries"]
-    name = summaries[0]["TrainingJobName"]
-    est = Estimator.attach(name)                   # V3는 TrainingJob.get
-    desc = sm.describe_training_job(TrainingJobName=name)
-    model_data = desc["ModelArtifacts"]["S3ModelArtifacts"]
-    Predictor(endpoint_name).delete_endpoint()
-    ```
-
-!!! tip "메서드가 어느 쪽에 붙어 있는지"
-    `TrainingJob`은 클래스 메서드로 `create`/`get`/`get_all`, 인스턴스 메서드로 `wait`/`refresh`/`stop`/`update`/`delete`를 가집니다. `wait_for_status`는 **`TrainingJob`에는 없고 `Endpoint`에만** 있습니다(학습 잡은 `wait(logs=...)`로 기다립니다).
-    다만 endpoint를 완전히 정리하려면 endpoint → endpoint-config → model 순서가 필요하고, `ModelBuilder`가 붙인 model 이름은 prefix로 찾기 어렵습니다. 이 kit의 `99_cleanup`이 boto3로 그 순서를 처리합니다([cleanup이 실제로 지우는 것](04_sagemaker_inference.md#cleanup이-실제로-지우는-것)).
-
----
+| 페이지 | 다루는 것 |
+|---|---|
+| [SDK V3 학습](training.md) | `ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` |
+| [SDK V3 배포](serving.md) | `ModelBuilder`의 `build()`/`deploy()`, 추론 호출, 리소스 조회·정리 |
 
 ## V2 코드를 옮길 때 걸리는 것들
 
@@ -290,7 +122,7 @@ MXNet·Chainer·`RLEstimator`·Training Compiler는 **대체 없이 삭제**됐�
 
 가장 비싸게 물리는 함정입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 조용히 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. 잡 로그에 `StoppingCondition not provided. Using default` 한 줄이 남는 것이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다 — 어느 쪽이든 3600은 LLM 파인튜닝에 짧습니다).
 
-이 kit이 실제로 여기 걸렸습니다 — 학습은 100% 끝났는데 어댑터 머지 중에 잡이 잘려 배포 불가능한 아티팩트가 남았습니다. 증상·타임라인·대응은 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)이 전부 갖고 있으니 그쪽을 보세요.
+이 kit이 실제로 여기 걸렸습니다 — 학습은 100% 끝났는데 어댑터 머지 중에 잡이 잘려 배포 불가능한 아티팩트가 남았습니다. 증상·타임라인·대응은 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)이 전부 갖고 있으니 그쪽을 보세요.
 
 같은 파일에 조용한 기본값이 더 있습니다. `DEFAULT_INSTANCE_TYPE = "ml.m5.xlarge"` — **CPU 인스턴스**입니다. `compute=`를 빼먹은 GPU 학습은 에러 없이 CPU에서 돌기 시작합니다(`DEFAULT_INSTANCE_COUNT=1`, `DEFAULT_VOLUME_SIZE=30`도 같은 방식). 결론은 하나입니다 — `compute`와 `stopping_condition`은 항상 명시하세요.
 
@@ -337,9 +169,9 @@ except ModuleNotFoundError:
 | endpoint 호출 | (SDK 아님) boto3 `sagemaker-runtime` | `common/aws_utils.py` |
 | 삭제·정리 | (SDK 아님) boto3 `sagemaker` client | `99_cleanup` |
 
-세부는 [파인튜닝](03_finetuning.md)과 [SageMaker 추론](04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](05_serving_containers.md#이미지-해석-우선순위--commondlcpy)에 있습니다.
+세부는 [파인튜닝](../03_finetuning.md)과 [SageMaker 추론](../04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../05_serving_containers.md#이미지-해석-우선순위--commondlcpy)에 있습니다.
 
-**왜 프레임워크 estimator 대신 커스텀 `train.py`인가.** 선택의 여지가 없습니다 — V3에 `HuggingFace` estimator가 없습니다. 그리고 AWS가 문서화한 후속 경로가 정확히 이 형태입니다: `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 고르고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 내 스크립트를 얹는 것. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 이제 estimator를 언급하지 않고 "Hugging Face SageMaker AI ModelTrainer"로 안내합니다. 즉 이 kit의 "PyTorch DLC + 내 `train.py`"는 우회로가 아니라 **문서화된 정규 경로**입니다. 부수 효과로 컨테이너 안에서 `requirements.txt`로 최신 `transformers`/`trl`을 맞출 수 있어, 프레임워크 버전이 SDK 릴리스에 묶이지 않습니다([JumpStart vs 자체 train.py](03_finetuning.md#jumpstart-vs-자체-trainpy)).
+**왜 프레임워크 estimator 대신 커스텀 `train.py`인가.** 선택의 여지가 없습니다 — V3에 `HuggingFace` estimator가 없습니다. 그리고 AWS가 문서화한 후속 경로가 정확히 이 형태입니다: `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 고르고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 내 스크립트를 얹는 것. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 이제 estimator를 언급하지 않고 "Hugging Face SageMaker AI ModelTrainer"로 안내합니다. 즉 이 kit의 "PyTorch DLC + 내 `train.py`"는 우회로가 아니라 **문서화된 정규 경로**입니다. 부수 효과로 컨테이너 안에서 `requirements.txt`로 최신 `transformers`/`trl`을 맞출 수 있어, 프레임워크 버전이 SDK 릴리스에 묶이지 않습니다([JumpStart vs 자체 train.py](../03_finetuning.md#jumpstart-vs-자체-trainpy)).
 
 ---
 
@@ -363,9 +195,9 @@ except ModuleNotFoundError:
 
 ## 이어서 볼 문서
 
-- [01 SageMaker 기초](01_sagemaker_basics.md#training-job--잡이-끝나면-사라지는-계산) — `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 계약
-- [03 파인튜닝](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정) — `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
-- [04 SageMaker 추론](04_sagemaker_inference.md#endpoint-3층-구조와-호출) — endpoint 3층 구조, 호출 스키마, cleanup 순서
-- [05 서빙 컨테이너](05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증) — `ModelBuilder`의 `Mode` 3단계와 로컬 검증
-- [실행 runbook](RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서와 비용 가드
+- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--잡이-끝나면-사라지는-계산) — `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 계약
+- [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정) — `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
+- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출) — endpoint 3층 구조, 호출 스키마, cleanup 순서
+- [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증) — `ModelBuilder`의 `Mode` 3단계와 로컬 검증
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서와 비용 가드
 - [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md) · [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html) — V2 지원 종료 일정과 매핑 표

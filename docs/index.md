@@ -26,6 +26,7 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 | 배포 | [04 SageMaker 추론](04_sagemaker_inference.md) · [05 서빙 컨테이너](05_serving_containers.md) |
 | 활용 | [06 Agentic loop](06_agentic.md) |
 | 완주 | [실행 runbook](RUN_E2E.md) |
+| 참조 | [SDK V3](sdk_v3/index.md) — V2에서 바뀐 것 · [학습](sdk_v3/training.md) · [배포](sdk_v3/serving.md) |
 
 ## 파이프라인
 
@@ -47,11 +48,11 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 
 | 코스 | 태스크 | 시드 데이터셋 |
 |---|---|---|
-| [`01_extraction_to_json`](track_extraction.md) | 텍스트 → 구조화 JSON 추출 | `glaiveai/glaive-function-calling-v2` |
-| [`02_classification`](track_classification.md) | 의도 분류 | `mteb/banking77` |
-| [`03_summarization`](track_summarization.md) | 문서 요약 | `FiscalNote/billsum` |
-| [`04_domain_qa`](track_domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` |
-| [`05_multimodal_extraction`](track_multimodal.md) | 이미지 → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` |
+| [`01_extraction_to_json`](courses/extraction.md) | 텍스트 → 구조화 JSON 추출 | `glaiveai/glaive-function-calling-v2` |
+| [`02_classification`](courses/classification.md) | 의도 분류 | `mteb/banking77` |
+| [`03_summarization`](courses/summarization.md) | 문서 요약 | `FiscalNote/billsum` |
+| [`04_domain_qa`](courses/domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` |
+| [`05_multimodal_extraction`](courses/multimodal.md) | 이미지 → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` |
 
 코스 이름을 누르면 해당 코스 페이지로 갑니다. 각 페이지에 그 코스가 푸는 문제, 시드 데이터의 변환 전후, 성공 기준 지표, 노트북 순서, 코스별 설정값이 있습니다.
 

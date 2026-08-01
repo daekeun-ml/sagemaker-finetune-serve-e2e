@@ -82,13 +82,20 @@ nav:
       - 05 서빙 컨테이너: 05_serving_containers.md
       - 06 Agentic loop: 06_agentic.md
   # 코스 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 코스 번호 01→05.
-  # 파일명 track_*.md는 공개된 URL이라 그대로 둡니다(디렉터리 tracks/와 같은 초기 명칭).
+  # 다섯 페이지는 courses/ 하위에 모여 있고, 폴더명이 옛 track_ 접두어의 역할을 대신합니다
+  # (URL도 .../courses/extraction/ 으로 바뀌었습니다).
   - 코스:
-      - 추출 → JSON: track_extraction.md
-      - 분류: track_classification.md
-      - 요약: track_summarization.md
-      - 도메인 QA: track_domain_qa.md
-      - 멀티모달 추출: track_multimodal.md
+      - 추출 → JSON: courses/extraction.md
+      - 분류: courses/classification.md
+      - 요약: courses/summarization.md
+      - 도메인 QA: courses/domain_qa.md
+      - 멀티모달 추출: courses/multimodal.md
+  # SDK V3는 가이드 번호 체계(00~06, 파이프라인 순서)에 넣지 않습니다. 순서대로 읽는 문서가
+  # 아니라 V2 코드를 옮길 때 찾아보는 참조 문서라, 번호를 붙이면 '일곱 번째로 읽는 것'으로 오해됩니다.
+  - SDK V3:
+      - V2에서 바뀐 것: sdk_v3/index.md
+      - 학습: sdk_v3/training.md
+      - 배포: sdk_v3/serving.md
   - 실행 runbook: RUN_E2E.md
 
 extra_css:

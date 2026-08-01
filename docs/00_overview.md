@@ -173,11 +173,11 @@
 
 | 코스 | task | 시드 데이터셋 (라이선스) | 주 지표 |
 |---|---|---|---|
-| [추출 → JSON](track_extraction.md) (**플래그십**) | 텍스트 → 구조화 JSON | `glaiveai/glaive-function-calling-v2` (apache-2.0) | `arg_f1` |
-| [분류](track_classification.md) | 은행 고객 문의 intent 77종 분류 | `mteb/banking77` (mit) | macro-F1 |
-| [요약](track_summarization.md) | 법안 원문 요약 | `FiscalNote/billsum` (cc0-1.0) | ROUGE-L |
-| [도메인 QA](track_domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) | LLM-judge |
-| [멀티모달 추출](track_multimodal.md) | **이미지** → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` (cc-by-4.0) | valid JSON + 필드 정확도 — **육안 대조**(`04_evaluate` 없음) |
+| [추출 → JSON](courses/extraction.md) (**플래그십**) | 텍스트 → 구조화 JSON | `glaiveai/glaive-function-calling-v2` (apache-2.0) | `arg_f1` |
+| [분류](courses/classification.md) | 은행 고객 문의 intent 77종 분류 | `mteb/banking77` (mit) | macro-F1 |
+| [요약](courses/summarization.md) | 법안 원문 요약 | `FiscalNote/billsum` (cc0-1.0) | ROUGE-L |
+| [도메인 QA](courses/domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) | LLM-judge |
+| [멀티모달 추출](courses/multimodal.md) | **이미지** → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` (cc-by-4.0) | valid JSON + 필드 정확도 — **육안 대조**(`04_evaluate` 없음) |
 
 지표가 코스 선택을 가르는 지점이 하나 있습니다 — 추출·분류는 **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다. 요약·도메인 QA는 정답이 하나가 아니라 LLM-judge를 붙여야 하고(Bedrock 호출 과금), 같은 이유로 GRPO(`02a`)가 없습니다.
 
@@ -213,7 +213,7 @@
 
 ### 멀티모달 코스의 다른 점
 
-[멀티모달 추출 코스](track_multimodal.md)는 노트북이 5개뿐이고 합성·agentic 단계가 없습니다 — 단계 도해와 이유는 위의 [멀티모달 코스 05의 별도 파이프라인](#멀티모달-코스-05의-별도-파이프라인)에 있습니다.
+[멀티모달 추출 코스](courses/multimodal.md)는 노트북이 5개뿐이고 합성·agentic 단계가 없습니다 — 단계 도해와 이유는 위의 [멀티모달 코스 05의 별도 파이프라인](#멀티모달-코스-05의-별도-파이프라인)에 있습니다.
 
 ### 공유되는 common 부품
 
@@ -327,6 +327,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 | [05 서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 | `03_deploy_endpoint`, `02b_local_serve` | `common/dlc.py`, `common/model_inspect.py` |
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
 | [실행 runbook](RUN_E2E.md) | 단계별 핸드오프·비용 가드·완료 기준 | 전 단계 | — |
+| [SDK V3](sdk_v3/index.md) | V2→V3 매핑, 메타패키지 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
 
 위 표의 가이드는 **주제별**(데이터·학습·배포·에이전트)이라 5개 코스에 공통으로 적용됩니다. **코스별**로 무엇이 다른지는 코스 문서 5개가 따로 다루며, [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)의 표에서 연결됩니다.
 
