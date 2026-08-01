@@ -1,26 +1,26 @@
-# 멀티모달 추출 트랙 — 영수증 사진에서 필드를 JSON으로
+# 멀티모달 추출 코스 — 영수증 사진에서 필드를 JSON으로
 
 !!! info "Scope"
-    **이미지를 입력으로 받는** 모델을 만들려는 분을 위한 트랙 소개입니다(`tracks/05_multimodal_extraction`). "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 트랙이 맞습니다.
+    **이미지를 입력으로 받는** 모델을 만들려는 분을 위한 **태스크별 실습 코스**(데이터 준비 → 학습 → 배포 → 검증 → 정리를 한 태스크로 완주하는 단위) 소개입니다(`tracks/05_multimodal_extraction`). "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
     선행 조건은 AWS 자격증명과 SageMaker 실행 role뿐입니다(`00_setup`이 확인합니다). SageMaker가 처음이면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
-    다루는 것은 이 트랙의 task 정의·시드 데이터셋·성공 기준·노트북 구성·트랙별 설정값입니다. 학습 방식 자체는 [파인튜닝](03_finetuning.md), 배포·서빙은 [SageMaker 추론](04_sagemaker_inference.md), 컨테이너 메모리 함정은 [서빙 컨테이너](05_serving_containers.md)가 담당하므로 여기서 반복하지 않습니다.
-    **다루지 않는 것**: 이 트랙에는 합성 데이터 단계와 agentic 단계가 없습니다 — 그 두 단계를 찾아왔다면 텍스트 트랙(01~04) 쪽이고, 텍스트에서 JSON을 뽑는 문제는 [추출 트랙](track_extraction.md)입니다.
+    다루는 것은 이 코스의 task 정의·시드 데이터셋·성공 기준·노트북 구성·코스별 설정값입니다. 학습 방식 자체는 [파인튜닝](03_finetuning.md), 배포·서빙은 [SageMaker 추론](04_sagemaker_inference.md), 컨테이너 메모리 함정은 [서빙 컨테이너](05_serving_containers.md)가 담당하므로 여기서 반복하지 않습니다.
+    **다루지 않는 것**: 이 코스에는 합성 데이터 단계와 agentic 단계가 없습니다 — 그 두 단계를 찾아왔다면 텍스트 코스(01~04) 쪽이고, 텍스트에서 JSON을 뽑는 문제는 [추출 코스](track_extraction.md)입니다.
 
-이 트랙과 관련된 리포지토리 파일:
+이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/05_multimodal_extraction/track_data.py` — cord-v2 로드, `{images, messages}` 어댑터, `INSTRUCTION`
 - `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoModelForImageTextToText` + `AutoProcessor`)
 - `tracks/05_multimodal_extraction/samples/` — 배포 검증용 영수증 2장 + 정답 JSON(`README.md`에 선정 근거)
-- `tracks/05_multimodal_extraction/*.ipynb` — 이 트랙의 노트북 5개
+- `tracks/05_multimodal_extraction/*.ipynb` — 이 코스의 노트북 5개
 - `common/config.py` — `TRACKS['mm_extraction']` 레지스트리(시드 데이터셋, `max_seq_length=2048`, `num_train_epochs=2`, `multimodal=True`)
-- `tracks/05_multimodal_extraction/_build_notebooks.py` — 이 트랙 전용 `TrackSpec`과 노트북 빌더(공용 `_shared_build`에서 셀 헬퍼만 재사용)
+- `tracks/05_multimodal_extraction/_build_notebooks.py` — 이 코스 전용 `TrackSpec`과 노트북 빌더(공용 `_shared_build`에서 셀 헬퍼만 재사용)
 
 ---
 
-## 이 트랙이 푸는 문제
+## 이 코스가 푸는 문제
 
 !!! abstract "쉽게 말하면"
-    영수증 **사진 한 장**을 넣으면 `{"menu": [{"name", "count", "price"}, ...]}` JSON이 나오는 모델을 만드는 트랙입니다. 텍스트 트랙과 다른 점은 단 하나, 입력이 문자열이 아니라 이미지라는 것입니다.
+    영수증 **사진 한 장**을 넣으면 `{"menu": [{"name", "count", "price"}, ...]}` JSON이 나오는 모델을 만드는 코스입니다. 텍스트 코스와 다른 점은 단 하나, 입력이 문자열이 아니라 이미지라는 것입니다.
 
 원본 row는 이미지와 문자열 JSON 두 개입니다(cord-v2 `train` 스플릿).
 
@@ -56,10 +56,10 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 
 시드는 [`naver-clova-ix/cord-v2`](https://huggingface.co/datasets/naver-clova-ix/cord-v2)(CORD: Consolidated Receipt Dataset, **cc-by-4.0**, ungated)입니다. 영수증 이미지와 사람이 만든 구조화 `ground_truth`가 짝지어 있고, 상점명·주소 같은 개인정보는 **원본에서 이미 마스킹된 상태**입니다.
 
-이미지 태스크에서 permissive 라이선스 라벨 데이터는 드물기 때문에 이 트랙의 시드 선택 폭은 넓지 않습니다. cc-by-4.0은 출처 표기만 하면 재배포도 가능해서, 아래 `samples/`가 리포에 들어올 수 있었습니다.
+이미지 태스크에서 permissive 라이선스 라벨 데이터는 드물기 때문에 이 코스의 시드 선택 폭은 넓지 않습니다. cc-by-4.0은 출처 표기만 하면 재배포도 가능해서, 아래 `samples/`가 리포에 들어올 수 있었습니다.
 
 !!! warning "이미지가 parquet에 내장돼 있어 첫 로드가 느립니다"
-    이것이 이 트랙에서 실제로 사람을 물어뜯는 지점입니다. 캐시가 없으면 **1건을 꺼내는 데 약 40초**가 걸립니다.
+    이것이 이 코스에서 실제로 사람을 물어뜯는 지점입니다. 캐시가 없으면 **1건을 꺼내는 데 약 40초**가 걸립니다.
 
     | 로드 방식 | 첫 회 | 재실행 |
     |---|---|---|
@@ -79,20 +79,20 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 
 ## 성공 기준
 
-이 트랙의 목표 지표는 **valid JSON 비율 + 필드 정확도**입니다. 파싱 결과를 사람이 읽는 것이 아니라 다음 시스템이 먹기 때문에, "그럴듯한 문장"은 0점이고 `json.loads()`가 통과하는지가 먼저입니다. 그다음이 `name`/`count`/`price` 필드가 정답과 일치하는지입니다.
+이 코스의 목표 지표는 **valid JSON 비율 + 필드 정확도**입니다. 파싱 결과를 사람이 읽는 것이 아니라 다음 시스템이 먹기 때문에, "그럴듯한 문장"은 0점이고 `json.loads()`가 통과하는지가 먼저입니다. 그다음이 `name`/`count`/`price` 필드가 정답과 일치하는지입니다.
 
-!!! warning "이 트랙에는 `04_evaluate` 노트북이 없습니다 — 검증은 눈으로 대조하는 단계까지입니다"
-    `03_deploy_mm_endpoint`가 `samples/`의 영수증을 endpoint에 보내고, `show_image_inference()`로 이미지와 예측 JSON을 나란히 렌더한 뒤 `ground_truth`를 함께 출력해 **육안 대조**하도록 합니다. 정량 지표를 내는 자동 노트북은 이 트랙에 포함돼 있지 않습니다.
+!!! warning "이 코스에는 `04_evaluate` 노트북이 없습니다 — 검증은 눈으로 대조하는 단계까지입니다"
+    `03_deploy_mm_endpoint`가 `samples/`의 영수증을 endpoint에 보내고, `show_image_inference()`로 이미지와 예측 JSON을 나란히 렌더한 뒤 `ground_truth`를 함께 출력해 **육안 대조**하도록 합니다. 정량 지표를 내는 자동 노트북은 이 코스에 포함돼 있지 않습니다.
 
-    직접 붙일 때 알아 둘 것: `common/eval_utils.py`의 `eval_extraction()`은 gold를 `{"name", "arguments"}` 형태로 가정하고 `valid_json_rate`를 그 구조 유효성으로 계산합니다. 즉 함수호출 추출(01 트랙) 전용이며 `{"menu": [...]}`에는 그대로 쓸 수 없습니다 — held-out 이미지로 채점하려면 `menu` 항목 집합에 대한 F1을 별도로 짜야 합니다. `TrackSpec`의 `eval_kind="extraction"`이 이 트랙 spec에도 들어 있지만, 이 값을 읽는 코드(`_c06` = `04_evaluate` 빌더)를 05가 호출하지 않으므로 실제로는 쓰이지 않습니다.
+    직접 붙일 때 알아 둘 것: `common/eval_utils.py`의 `eval_extraction()`은 gold를 `{"name", "arguments"}` 형태로 가정하고 `valid_json_rate`를 그 구조 유효성으로 계산합니다. 즉 함수호출 추출(01 코스) 전용이며 `{"menu": [...]}`에는 그대로 쓸 수 없습니다 — held-out 이미지로 채점하려면 `menu` 항목 집합에 대한 F1을 별도로 짜야 합니다. `TrackSpec`의 `eval_kind="extraction"`이 이 코스 spec에도 들어 있지만, 이 값을 읽는 코드(`_c06` = `04_evaluate` 빌더)를 05가 호출하지 않으므로 실제로는 쓰이지 않습니다.
 
-held-out 원칙은 텍스트 트랙과 같습니다 — 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
+held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
 
 ---
 
 ## 노트북 순서
 
-이 트랙의 노트북은 **5개**입니다(텍스트 트랙은 9~10개). 공용 빌더(`tracks/_shared_build.py`)에서 셀 헬퍼만 빌려 쓰는 별도 파이프라인입니다.
+이 코스의 노트북은 **5개**입니다(텍스트 코스는 9~10개). 공용 빌더(`tracks/_shared_build.py`)에서 셀 헬퍼만 빌려 쓰는 별도 파이프라인입니다.
 
 | 노트북 | 산출물 |
 |---|---|
@@ -102,71 +102,71 @@ held-out 원칙은 텍스트 트랙과 같습니다 — 학습에 쓴 이미지�
 | `03_deploy_mm_endpoint` | 이미지 입력을 허용하는 real-time endpoint(`gemma-mm-extraction-*`) + `samples/` 영수증 추론 |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제 |
 
-없는 노트북과 그 이유가 이 트랙의 정체성입니다.
+없는 노트북과 그 이유가 이 코스의 정체성입니다.
 
-| 텍스트 트랙 노트북 | 05에 있나 | 이유 |
+| 텍스트 코스 노트북 | 05에 있나 | 이유 |
 |---|---|---|
 | `01_data_and_synthetic` | ❌ (`01_data_explore`로 대체) | **이미지 합성은 별개 문제**입니다. Bedrock으로 텍스트를 늘리는 방식이 통하지 않아 시드 라벨을 직접 씁니다 |
-| `02a_train_grpo_sagemaker` | ❌ | `grpo_reward_kind`가 비어 있습니다. `train_grpo.py`의 `--reward_kind`는 `extraction`/`classification`만 받고, 이 트랙에는 `train_grpo.py` 자체가 없습니다 |
-| `02b_local_serve` | ❌ | 트랙 spec의 `has_local_serve=False`. 그래서 `99_cleanup`에 '로컬 모델 정리' 섹션도 넣지 않습니다(없는 스크립트를 안내하지 않기 위해) |
+| `02a_train_grpo_sagemaker` | ❌ | `grpo_reward_kind`가 비어 있습니다. `train_grpo.py`의 `--reward_kind`는 `extraction`/`classification`만 받고, 이 코스에는 `train_grpo.py` 자체가 없습니다 |
+| `02b_local_serve` | ❌ | 코스 spec의 `has_local_serve=False`. 그래서 `99_cleanup`에 '로컬 모델 정리' 섹션도 넣지 않습니다(없는 스크립트를 안내하지 않기 위해) |
 | `04_evaluate` | ❌ | [성공 기준](#성공-기준) 참고 |
-| `05_agentic_strands` · `06_agentcore_deploy` | ❌ | agentic 단계는 텍스트 트랙 전용입니다 |
+| `05_agentic_strands` · `06_agentcore_deploy` | ❌ | agentic 단계는 텍스트 코스 전용입니다 |
 
 학습 데이터를 S3에 올리는 채널도 없습니다. `train_mm.py`가 컨테이너 안에서 `load_dataset(seed_dataset, split="train")`으로 이미지를 직접 받으므로, `02` 노트북은 `input_data` 채널 없이 하이퍼파라미터만 넘깁니다.
 
 !!! tip "먼저 DRY_RUN으로 한 바퀴 도세요"
-    `train_mm.py --dry_run`은 앞 16건 · 1 epoch로 파이프라인 형태만 빠르게 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북도 `MAX_TRAIN_SAMPLES=200`으로 시작하도록 되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 쓰입니다(무제한이 아닙니다 — 더 쓰려면 숫자를 명시하세요). 단계별 핸드오프와 비용 가드는 [실행 runbook](RUN_E2E.md#멀티모달-트랙-05-파이프라인)에 정리돼 있습니다.
+    `train_mm.py --dry_run`은 앞 16건 · 1 epoch로 파이프라인 형태만 빠르게 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북도 `MAX_TRAIN_SAMPLES=200`으로 시작하도록 되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 쓰입니다(무제한이 아닙니다 — 더 쓰려면 숫자를 명시하세요). 단계별 핸드오프와 비용 가드는 [실행 runbook](RUN_E2E.md#멀티모달-코스-05-파이프라인)에 정리돼 있습니다.
 
 ---
 
-## 트랙별 설정값
+## 코스별 설정값
 
 ### 학습 — vision tower 동결 + language LoRA
 
-| 설정 | 이 트랙의 값 | 근거 |
+| 설정 | 이 코스의 값 | 근거 |
 |---|---|---|
 | `max_seq_length` | 2048 | 정답 JSON이 메뉴 22개에서 592토큰까지 갑니다(실측 100건). 이미지 토큰까지 함께 들어가므로 512·1024로는 부족합니다 |
-| `num_train_epochs` | **2** | 5개 트랙 중 유일하게 3이 아닙니다(`TRACKS['mm_extraction']`). 이미지 forward가 비싸 1 epoch 비용이 텍스트 트랙보다 큽니다 |
-| `multimodal` | `True` | "이 트랙은 이미지 입력"이라는 **선언용 메타데이터**입니다(분기하는 코드는 없습니다 — 아래 참고) |
+| `num_train_epochs` | **2** | 5개 코스 중 유일하게 3이 아닙니다(`TRACKS['mm_extraction']`). 이미지 forward가 비싸 1 epoch 비용이 텍스트 코스보다 큽니다 |
+| `multimodal` | `True` | "이 코스는 이미지 입력"이라는 **선언용 메타데이터**입니다(분기하는 코드는 없습니다 — 아래 참고) |
 | LoRA target | `.*language_model\..*\.(q_proj\|k_proj\|v_proj\|o_proj\|gate_proj\|up_proj\|down_proj)$` | `all-linear`나 이름 리스트를 주면 vision/audio proj(`Gemma4ClippableLinear`)까지 매칭돼 `get_peft_model`이 크래시합니다 — 상세는 [LoRA target](03_finetuning.md#lora-target--멀티모달은-language_model만) |
 | `freeze_vision` | `True` (기본) | vision/audio 파라미터를 `requires_grad=False`로 두고 language LoRA만 학습합니다 |
 | `use_qlora` · `merge_adapter` | 둘 다 `True` | 4bit nf4로 학습하고, 머지는 base(bf16)를 CPU에 다시 올려 수행합니다. 멀티모달 full 모델은 vision+audio를 포함해 특히 커서 호스트 RAM 여유가 필요합니다 |
 
-`scripts/requirements.txt`에 텍스트 트랙에 없는 한 줄이 있습니다 — `torchvision>=0.20.0`(Gemma4 image processor 의존). 이것이 빠지면 processor 로드부터 실패합니다.
+`scripts/requirements.txt`에 텍스트 코스에 없는 한 줄이 있습니다 — `torchvision>=0.20.0`(Gemma4 image processor 의존). 이것이 빠지면 processor 로드부터 실패합니다.
 
 !!! warning "`multimodal=True`를 읽고 분기하는 코드는 없습니다"
-    이 필드는 레지스트리를 볼 때 트랙 성격을 알려 주는 표식이고, 파이프라인 동작을 바꾸지는 않습니다. 실제 분기는 **코드가 놓인 위치**가 만듭니다 — 합성 단계가 없는 것은 `_build_notebooks.py`의 빌더 목록에 `01_data_and_synthetic`이 아예 없기 때문이고(`build_00/01/02/03/99`), processor 경로는 `train_mm.py`에 `AutoProcessor.from_pretrained`가 그대로 적혀 있기 때문입니다.
-    리포 전체에서 이 필드를 읽는 곳은 `02_train_mm_sagemaker`의 확인용 `print` 한 줄과 `tests/test_smoke.py`의 assert뿐입니다. 같은 이유로 `eval_kind="extraction"`도 이 트랙에서는 쓰이지 않습니다([성공 기준](#성공-기준) 참고). 값을 바꿔도 노트북 세트는 그대로이므로, 자기 트랙을 만들 때 이 플래그만 켜고 빌더를 그대로 두면 아무 일도 일어나지 않습니다.
+    이 필드는 레지스트리를 볼 때 코스 성격을 알려 주는 표식이고, 파이프라인 동작을 바꾸지는 않습니다. 실제 분기는 **코드가 놓인 위치**가 만듭니다 — 합성 단계가 없는 것은 `_build_notebooks.py`의 빌더 목록에 `01_data_and_synthetic`이 아예 없기 때문이고(`build_00/01/02/03/99`), processor 경로는 `train_mm.py`에 `AutoProcessor.from_pretrained`가 그대로 적혀 있기 때문입니다.
+    리포 전체에서 이 필드를 읽는 곳은 `02_train_mm_sagemaker`의 확인용 `print` 한 줄과 `tests/test_smoke.py`의 assert뿐입니다. 같은 이유로 `eval_kind="extraction"`도 이 코스에서는 쓰이지 않습니다([성공 기준](#성공-기준) 참고). 값을 바꿔도 노트북 세트는 그대로이므로, 자기 코스를 만들 때 이 플래그만 켜고 빌더를 그대로 두면 아무 일도 일어나지 않습니다.
 
 ### 서빙 — 멀티모달 그대로
 
-**이 트랙은 텍스트 re-export를 하지 않습니다.** 텍스트 트랙은 머지 후 `language_model` 서브모듈만 `*ForCausalLM`으로 다시 저장하지만(안 하면 서빙 컨테이너가 image processor를 찾다가 죽습니다 — [텍스트 전용 re-export](03_finetuning.md#텍스트-전용-re-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 트랙과 똑같이 필요하며, 키 접두사만 `model.language_model.*`로 다릅니다.
+**이 코스는 텍스트 re-export를 하지 않습니다.** 텍스트 코스는 머지 후 `language_model` 서브모듈만 `*ForCausalLM`으로 다시 저장하지만(안 하면 서빙 컨테이너가 image processor를 찾다가 죽습니다 — [텍스트 전용 re-export](03_finetuning.md#텍스트-전용-re-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 코스와 똑같이 필요하며, 키 접두사만 `model.language_model.*`로 다릅니다.
 
 배포 셀의 값과 근거입니다.
 
 | 값 | 설정 | 근거 |
 |---|---|---|
-| `mm_limit={"image": 1}` | 이미지 입력 허용 | 텍스트 트랙의 배포 셀은 이 인자를 주지 않습니다(re-export로 이미 텍스트 전용이라 불필요 — re-export하지 않은 멀티모달 아티팩트를 텍스트로만 쓸 때 `{"image": 0, "audio": 0}`으로 막는 주석이 남아 있습니다). 여기서 `image=0`을 쓰면 이미지가 거부됩니다 |
-| `max_model_len=2048` | 서빙 컨텍스트 | 이 트랙은 학습 길이와 같은 값을 씁니다(공용 빌더의 `serve_max_model_len` 경로를 타지 않고 노트북이 직접 지정). 입력이 짧은 지시문 + 이미지라 요약·QA 트랙처럼 프롬프트가 컨텍스트를 잡아먹지 않습니다([학습 길이와 서빙 길이](00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
+| `mm_limit={"image": 1}` | 이미지 입력 허용 | 텍스트 코스의 배포 셀은 이 인자를 주지 않습니다(re-export로 이미 텍스트 전용이라 불필요 — re-export하지 않은 멀티모달 아티팩트를 텍스트로만 쓸 때 `{"image": 0, "audio": 0}`으로 막는 주석이 남아 있습니다). 여기서 `image=0`을 쓰면 이미지가 거부됩니다 |
+| `max_model_len=2048` | 서빙 컨텍스트 | 이 코스는 학습 길이와 같은 값을 씁니다(공용 빌더의 `serve_max_model_len` 경로를 타지 않고 노트북이 직접 지정). 입력이 짧은 지시문 + 이미지라 요약·QA 코스처럼 프롬프트가 컨텍스트를 잡아먹지 않습니다([학습 길이와 서빙 길이](00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
 | `max_tokens=768` | 생성 상한 | 공용 기본값 256이 아닙니다. 정답 JSON 최대 **592토큰**(실측 100건)이라 512로는 잘립니다. L4에서 768 생성에 **21.3초** 실측 — `/invocations` 60초 한도의 3분의 1입니다 |
 | `max_num_seqs=32`, `gpu_memory_utilization=0.90` | 24GB GPU OOM 회피 | 아래 참고 |
 
 !!! danger "기본값으로 배포하면 24GB GPU에서 endpoint가 Failed합니다"
-    멀티모달 아티팩트는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 트랙 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV를 4.69 GiB로 과대 배정하면 여유가 0.34 GiB뿐이고, 실제로 더 필요한 양이 1.12 GiB라 **0.78 GiB 부족**으로 CUDA OOM이 납니다. 증상은 `did not pass the ping health check` 한 줄뿐이고 진짜 원인은 CloudWatch 로그 안에 있습니다.
+    멀티모달 아티팩트는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 코스 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV를 4.69 GiB로 과대 배정하면 여유가 0.34 GiB뿐이고, 실제로 더 필요한 양이 1.12 GiB라 **0.78 GiB 부족**으로 CUDA OOM이 납니다. 증상은 `did not pass the ping health check` 한 줄뿐이고 진짜 원인은 CloudWatch 로그 안에 있습니다.
     범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다 — 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
 
-호출 스키마는 텍스트 트랙과 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일) — real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](04_sagemaker_inference.md)).
+호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일) — real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](04_sagemaker_inference.md)).
 
 ---
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](00_overview.md#5개-독립-트랙과-공통-레이어) — 5개 트랙 비교표와 이 트랙의 위치(단계 도해는 [멀티모달 트랙 05의 별도 파이프라인](00_overview.md#멀티모달-트랙-05의-별도-파이프라인))
+- [00 전체 지도](00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](00_overview.md#멀티모달-코스-05의-별도-파이프라인))
 - [03 파인튜닝](03_finetuning.md) — LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
 - [04 SageMaker 추론](04_sagemaker_inference.md) — endpoint 3층 구조, 호출 스키마, payload·timeout 한도
 - [05 서빙 컨테이너](05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](RUN_E2E.md#멀티모달-트랙-05-파이프라인) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [실행 runbook](RUN_E2E.md#멀티모달-코스-05-파이프라인) — 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 잡은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 트랙을 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
-    이 트랙은 이미지 forward가 비싸 1 epoch 비용이 텍스트 트랙보다 크므로 `MAX_TRAIN_SAMPLES`를 낮춰 시작하세요. 합성·agentic 단계가 없어 Bedrock 과금은 발생하지 않습니다.
+    학습 잡은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    이 코스는 이미지 forward가 비싸 1 epoch 비용이 텍스트 코스보다 크므로 `MAX_TRAIN_SAMPLES`를 낮춰 시작하세요. 합성·agentic 단계가 없어 Bedrock 과금은 발생하지 않습니다.

@@ -1,4 +1,4 @@
-# E2E 실행 runbook — 한 트랙을 처음부터 끝까지 완주하기
+# E2E 실행 runbook — 한 코스를 처음부터 끝까지 완주하기
 
 !!! info "Scope"
     파이프라인을 **클라우드에서 한 번에 완주**하려는 사람. 어떤 순서로, 무엇을 준비하고, 각 단계가 무엇을 다음으로 넘기고, 얼마가 들고, 무엇을 확인하고 넘어가는지를 한 곳에 모았습니다.
@@ -17,12 +17,14 @@
 
 ## TL;DR
 
-**한 트랙 폴더(`tracks/<트랙>/`)의 노트북을 `00 → 99` 순서로 실행하면 1개 E2E가 완성됩니다. 첫 완주는 `DRY_RUN=1`로 소량·저비용으로 돌려 파이프라인을 검증하고, 두 번째 완주에서만 본격 과금하세요.**
+**태스크별 실습 코스 하나(`tracks/<track>/` 폴더)의 노트북을 `00 → 99` 순서로 실행하면 1개 E2E가 완성됩니다. 첫 완주는 `DRY_RUN=1`로 소량·저비용으로 돌려 파이프라인을 검증하고, 두 번째 완주에서만 본격 과금하세요.**
+
+폴더 이름과 코드 식별자(`tracks/`, `TRACKS`, `track_data.py`)는 초기 이름인 `track`을 그대로 쓰고 있습니다 — 이 문서에서 말하는 **코스**와 같은 것을 가리킵니다.
 
 정리하면 다음과 같습니다.
 
-1. **트랙 하나가 완결된 E2E입니다.** 5개 트랙은 서로 독립이므로 한 트랙을 끝내고 정리한 뒤 다음 트랙으로 옮기세요 — [5개 트랙을 모두 돌리려면](#5개-트랙을-모두-돌리려면).
-2. **핸드오프는 `%store`와 트랙 로컬 파일로 이어집니다.** 어느 노트북이 무엇을 만들어 넘기는지는 [단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프)의 표에 정리했습니다.
+1. **코스 하나가 완결된 E2E입니다.** 5개 코스는 서로 독립이므로 한 코스를 끝내고 정리한 뒤 다음 코스로 옮기세요 — [5개 코스를 모두 돌리려면](#5개-코스를-모두-돌리려면).
+2. **핸드오프는 `%store`와 코스 로컬 파일로 이어집니다.** 어느 노트북이 무엇을 만들어 넘기는지는 [단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프)의 표에 정리했습니다.
 3. **두 번 완주가 정석입니다.** 1차는 `DRY_RUN=1`, 2차는 실제 규모입니다 — [왜 두 번 완주하는가](#왜-두-번-완주하는가--dry_run-우선).
 4. **막히는 지점은 거의 정해져 있습니다.** `%store` 오염, `MaxRuntimeExceeded`, 24GB GPU CUDA OOM, Bedrock 모델 ID 형식 — [E2E 흐름에서 자주 막히는 곳](#e2e-흐름에서-자주-막히는-곳)에 증상별로 모았습니다.
 5. **real-time endpoint는 삭제 전까지 시간당 과금됩니다.** 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다 — [비용과 cleanup](#비용과-cleanup).
@@ -33,8 +35,8 @@
 
 완주를 시도한 사람이 실제로 자주 겪는 것들입니다.
 
-- "노트북이 10개인데 **어디서 시작해서 어디서 끝나는 건가요?**" — 트랙마다 선택 단계가 섞여 있어 필수 경로가 안 보입니다.
-- "`02`에서 `train_path`가 없다고 합니다." — 앞 노트북을 건너뛰었거나, `%store` 값이 **다른 트랙 것**입니다.
+- "노트북이 10개인데 **어디서 시작해서 어디서 끝나는 건가요?**" — 코스마다 선택 단계가 섞여 있어 필수 경로가 안 보입니다.
+- "`02`에서 `train_path`가 없다고 합니다." — 앞 노트북을 건너뛰었거나, `%store` 값이 **다른 코스 것**입니다.
 - "학습 잡이 `Completed`인데 **배포가 안 됩니다.**" — 머지 단계가 시간 제한에 잘려 서빙용 모델이 아티팩트에 없습니다.
 - "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**" — 24GB GPU에서 엔진 기본값이 메모리를 넘겼습니다.
 - "**얼마 나올지 모르겠어서** 시작이 무섭습니다." — 무엇이 상시 과금이고 무엇이 호출당 과금인지 구분이 안 됩니다.
@@ -80,9 +82,9 @@
 
 ## 파이프라인 한눈에
 
-각 노트북은 결과를 `%store`로 저장하고 다음 노트북이 `%store -r`로 읽습니다. 다만 `train.jsonl`처럼 **트랙 간 오염이 치명적인 값은 트랙 로컬 파일로 고정**해 두었습니다([단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프) 표 참고).
+각 노트북은 결과를 `%store`로 저장하고 다음 노트북이 `%store -r`로 읽습니다. 다만 `train.jsonl`처럼 **코스 간 오염이 치명적인 값은 코스 로컬 파일로 고정**해 두었습니다([단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프) 표 참고).
 
-### 텍스트 트랙 (01~04) 파이프라인
+### 텍스트 코스 (01~04) 파이프라인
 
 ```
 00_setup ──▶ 01_data_and_synthetic ──▶ 02_train_sft_sagemaker ──▶ 03_deploy_endpoint
@@ -97,13 +99,13 @@
                                                                      99_cleanup
 ```
 
-- **(선택) `02a_train_grpo_sagemaker`**(SFT→GRPO 정련)는 리워드를 프로그램으로 채점할 수 있는 **추출·분류 트랙에만** 있습니다.
-- **(선택) `02b_local_serve`**(배포 전 로컬 vLLM 프리플라이트)는 4개 텍스트 트랙 모두에 있습니다.
+- **(선택) `02a_train_grpo_sagemaker`**(SFT→GRPO 정련)는 리워드를 프로그램으로 채점할 수 있는 **추출·분류 코스에만** 있습니다.
+- **(선택) `02b_local_serve`**(배포 전 로컬 vLLM 프리플라이트)는 4개 텍스트 코스 모두에 있습니다.
 - 평가는 `04_evaluate`(로컬 메트릭·빠름·저렴) 한 경로입니다. SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용이어서, gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다(실측: `DescribeHubContent ... does not exist`).
 
-### 멀티모달 트랙 (05) 파이프라인
+### 멀티모달 코스 (05) 파이프라인
 
-멀티모달 트랙은 **노트북 세트가 다르고 더 짧습니다**(이미지 입력, 합성·agentic 단계 없음).
+멀티모달 코스는 **노트북 세트가 다르고 더 짧습니다**(이미지 입력, 합성·agentic 단계 없음).
 
 ```
 00_setup ──▶ 01_data_explore ──▶ 02_train_mm_sagemaker ──▶ 03_deploy_mm_endpoint ──▶ 99_cleanup
@@ -145,26 +147,26 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 
 ## 단계별 실행과 데이터 핸드오프
 
-`jupyter lab`을 띄우고 `tracks/<트랙>/`에서 번호 순서대로 실행합니다. 아래는 각 단계가 **무엇을 하고 / 무엇을 넘기고 / 무엇을 확인**하는지입니다.
+`jupyter lab`을 띄우고 코스 폴더(`tracks/<track>/`)에서 번호 순서대로 실행합니다. 아래는 각 단계가 **무엇을 하고 / 무엇을 넘기고 / 무엇을 확인**하는지입니다.
 
 | # | 노트북 | 하는 일 | 다음으로 넘기는 것 | 완료 확인 |
 |---|---|---|---|---|
 | ① | `00_setup` | 설치·자격증명·role/bucket 해석 | `%store`: `role`, `bucket` | account id 출력, role/bucket 정상 |
-| ② | `01_data_and_synthetic` | 시드 로드 + grounded 합성 + EDA | 트랙 로컬 파일 `data/train.jsonl` | JSONL 생성, 포맷·토큰 길이 미리보기 정상 |
-| ③ | `02_train_sft_sagemaker` | (선택 로컬 dry-run →) [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) 기반 SageMaker 학습 잡 | `%store`: `model_data`, `md_<트랙>` | 잡 `Completed`, CloudWatch 링크 |
-| ③-a | (선택) `02a_train_grpo_sagemaker` | SFT→GRPO 정련 — **추출·분류 트랙만** | `model_data` 갱신 | 잡 `Completed` |
+| ② | `01_data_and_synthetic` | 시드 로드 + grounded 합성 + EDA | 코스 로컬 파일 `data/train.jsonl` | JSONL 생성, 포맷·토큰 길이 미리보기 정상 |
+| ③ | `02_train_sft_sagemaker` | (선택 로컬 dry-run →) [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) 기반 SageMaker 학습 잡 | `%store`: `model_data`, `md_<track_key>` | 잡 `Completed`, CloudWatch 링크 |
+| ③-a | (선택) `02a_train_grpo_sagemaker` | SFT→GRPO 정련 — **추출·분류 코스만** | `model_data` 갱신 | 잡 `Completed` |
 | ③-b | (선택) `02b_local_serve` | 배포 전 로컬 vLLM 프리플라이트 | (없음) | 로컬 invoke 응답 정상 |
-| ④ | `03_deploy_endpoint` | [real-time endpoint](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) 배포 + invoke 스모크 | `%store`: `endpoint_name`, `ep_<트랙>` | `InService` 도달, invoke 응답 정상 |
+| ④ | `03_deploy_endpoint` | [real-time endpoint](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) 배포 + invoke 스모크 | `%store`: `endpoint_name`, `ep_<track_key>` | `InService` 도달, invoke 응답 정상 |
 | ⑤ | `04_evaluate` | held-out 세트로 성공기준 수치화 | (없음) | 지표 출력(`arg_f1`/`macro_f1`/ROUGE-L/judge) |
 | ⑥ | `05_agentic_strands` | SLM(tool) + Bedrock Claude 루프 ([Strands](https://github.com/strands-agents/sdk-python)) | (없음) | 에이전트 응답 정상 |
 | ⑦ | `06_agentcore_deploy` | [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) 배포(프로덕션) | (없음) | (선택) Runtime 호출 성공 |
-| ⑧ | `99_cleanup` | endpoint·config·model·Runtime 삭제 | (없음) | 이 트랙 endpoint 목록이 비어 있음 |
+| ⑧ | `99_cleanup` | endpoint·config·model·Runtime 삭제 | (없음) | 이 코스 endpoint 목록이 비어 있음 |
 
 학습 잡과 endpoint 생성은 **SageMaker 서버에서 진행되므로 커널이나 세션이 끊겨도 계속됩니다.** 각 노트북에 재접속 셀이 있어 잡 이름(`TrainingJob.get(name)`)이나 endpoint 이름(`Endpoint.get(name)`)으로 다시 붙을 수 있습니다.
 
 ### 단계별 주의
 
-- **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 트랙 지연 때문에 100으로 낮춰 두었습니다(요약 시드 1건 중앙 1,651자 vs 추출 475자 → 배치 프롬프트 약 10,900자. 출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없고 순수 지연입니다). 합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
+- **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다(요약 시드 1건 중앙 1,651자 vs 추출 475자 → 배치 프롬프트 약 10,900자. 출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없고 순수 지연입니다). 합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
 - **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
 - **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다. 셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다. **한 번에 하나만** 배포하세요(둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다). endpoint 기동에는 5~15분이 걸립니다. 세 엔진의 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine)에, 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측)에, 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)에 있습니다.
 - **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다. `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
@@ -185,9 +187,9 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 
 ---
 
-## 5개 트랙을 모두 돌리려면
+## 5개 코스를 모두 돌리려면
 
-트랙은 **독립**입니다. 한 트랙을 완주하고 정리한 뒤, 다른 트랙 폴더에서 같은 순서를 반복하면 됩니다.
+코스는 **독립**입니다. 한 코스를 완주하고 정리한 뒤, 다른 코스 폴더에서 같은 순서를 반복하면 됩니다.
 
 ```
 tracks/01_extraction_to_json/    (텍스트→JSON 추출)   ← 플래그십, 여기부터
@@ -197,15 +199,15 @@ tracks/04_domain_qa/             (도메인 QA)
 tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vision)  ← 별도 구조
 ```
 
-- 텍스트 트랙(01~04)은 위 [텍스트 트랙 파이프라인](#텍스트-트랙-0104-파이프라인)의 `00 → 99` 순서를 따릅니다.
-- 멀티모달 트랙(05)은 [멀티모달 트랙 파이프라인](#멀티모달-트랙-05-파이프라인)의 5단계 세트를 씁니다.
-- 트랙마다 **별도 endpoint**가 뜹니다 → 각 트랙의 `99_cleanup`을 각각 실행하세요.
-- 공통 로직은 `common/`이 공유하므로, 텍스트 트랙 간 차이는 데이터 어댑터(`tracks/*/track_data.py`)와 `config.TRACKS` 레지스트리뿐입니다.
-- 여러 트랙을 동시에 띄우면 GPU 인스턴스 비용이 트랙 수만큼 늘어납니다. **한 트랙씩 완주하고 정리하는 방식**을 권장합니다.
+- 텍스트 코스(01~04)는 위 [텍스트 코스 파이프라인](#텍스트-코스-0104-파이프라인)의 `00 → 99` 순서를 따릅니다.
+- 멀티모달 코스(05)는 [멀티모달 코스 파이프라인](#멀티모달-코스-05-파이프라인)의 5단계 세트를 씁니다.
+- 코스마다 **별도 endpoint**가 뜹니다 → 각 코스의 `99_cleanup`을 각각 실행하세요.
+- 공통 로직은 `common/`이 공유하므로, 텍스트 코스 간 차이는 데이터 어댑터(`tracks/*/track_data.py`)와 `config.TRACKS` 레지스트리뿐입니다.
+- 여러 코스를 동시에 띄우면 GPU 인스턴스 비용이 코스 수만큼 늘어납니다. **한 코스씩 완주하고 정리하는 방식**을 권장합니다.
 
-??? question "오개념 — “트랙을 옮기면 `%store` 값도 알아서 바뀌겠지?”"
-    **그렇지 않습니다.** `%store`는 IPython 프로필 단위라 **트랙을 넘어 공유**됩니다. 전역 `endpoint_name`/`model_data`는 마지막에 실행한 트랙 값이 남아, 엉뚱한 endpoint를 호출하거나 다른 트랙 모델을 배포하게 됩니다.
-    그래서 노트북은 트랙 전용 키(`ep_<트랙>`, `md_<트랙>`)를 먼저 읽고, `train_path`는 아예 트랙 로컬 파일(`data/train.jsonl`)로 고정합니다.
+??? question "오개념 — “코스를 옮기면 `%store` 값도 알아서 바뀌겠지?”"
+    **그렇지 않습니다.** `%store`는 IPython 프로필 단위라 **코스를 넘어 공유**됩니다. 전역 `endpoint_name`/`model_data`는 마지막에 실행한 코스 값이 남아, 엉뚱한 endpoint를 호출하거나 다른 코스 모델을 배포하게 됩니다.
+    그래서 노트북은 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 먼저 읽고, `train_path`는 아예 코스 로컬 파일(`data/train.jsonl`)로 고정합니다.
 
 ---
 
@@ -213,8 +215,8 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 | 증상 | 원인과 해결 |
 |---|---|
-| `02`에서 `train_path`/`data/train.jsonl` 없음 | `01`을 실행하지 않았습니다. 트랙 내 노트북은 **순서대로** 실행하세요 |
-| 다른 트랙 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 트랙 전용 키(`ep_<트랙>`, `md_<트랙>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 아티팩트를 걸러 줍니다 |
+| `02`에서 `train_path`/`data/train.jsonl` 없음 | `01`을 실행하지 않았습니다. 코스 내 노트북은 **순서대로** 실행하세요 |
+| 다른 코스 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 아티팩트를 걸러 줍니다 |
 | 학습 잡이 시작 직후 실패 | IAM role 권한(S3/ECR) 또는 DLC 태그 문제 → CloudWatch 로그 확인, `.env`의 `DLC_IMAGE_URI` 리전·태그 재확인(`aws ecr describe-images`). 권한이 제출 시점에 안 걸리고 여기서 터지는 구조는 [실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr) |
 | 학습이 끝났는데 잡이 `Stopped`, 아티팩트에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). 실측에서는 Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료됐고, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
 | `InsufficientInstanceCapacity`로 잡이 안 뜸 | 리전별 GPU 용량 문제 → `AWS_REGION`을 바꿔 재시도(`.env`의 DLC URI 리전도 함께 변경) |
@@ -231,14 +233,14 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 ## 완료 기준 — Definition of Done
 
-한 트랙 E2E가 "됐다"고 말할 수 있는 조건입니다.
+한 코스 E2E가 "됐다"고 말할 수 있는 조건입니다.
 
 - [ ] `02` 학습 잡이 `Completed`이고, 아티팩트 루트에 **머지된 서빙용 모델**이 있음(어댑터만 있으면 배포되지 않습니다)
 - [ ] `03` invoke 스모크가 의미 있는 출력을 반환
 - [ ] `04_evaluate` 지표가 나옴 (가능하면 파인튜닝 전 baseline과 비교해 개선 폭 확인)
 - [ ] (선택) `05_agentic_strands`에서 Claude가 SLM endpoint를 tool로 호출하는 왕복이 성공
 - [ ] (프로덕션 목표 시) `06_agentcore_deploy`로 Runtime 배포 확인
-- [ ] `99_cleanup` 실행 → 이 트랙 prefix의 endpoint 목록이 비어 있고, 콘솔에서도 0개
+- [ ] `99_cleanup` 실행 → 이 코스 prefix의 endpoint 목록이 비어 있고, 콘솔에서도 0개
 
 ---
 
@@ -246,8 +248,8 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 !!! danger "비용과 cleanup"
     **real-time endpoint는 삭제하기 전까지 시간당(GPU 인스턴스) 요금이 계속 부과됩니다.** 호출이 0건이어도 켜져 있는 동안 과금됩니다.
-    실습이 끝나면 **모든 트랙의 `99_cleanup`을 실행하고 콘솔에서 endpoint 0개를 확인**하세요.
-    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 트랙 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하고, 다른 리전에도 띄운 적이 있으면 그 리전도 확인하세요.
+    실습이 끝나면 **모든 코스의 `99_cleanup`을 실행하고 콘솔에서 endpoint 0개를 확인**하세요.
+    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하고, 다른 리전에도 띄운 적이 있으면 그 리전도 확인하세요.
 
 삭제 순서는 **endpoint → endpoint-config → model**입니다(앞을 지우지 않으면 뒤가 사용 중이라 거부됩니다). model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 `endpoint_name`으로는 찾을 수 없습니다 — `99_cleanup`은 endpoint-config에서 실제 `ModelName`을 먼저 조회해 지웁니다.
 
@@ -276,14 +278,14 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 - `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 리전 정합성 검사(`ensure_model_data_in_region`), 비용 경고(`COST_WARNING`)
 - `.env` — 인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 비시크릿 설정값
 
-학습 스크립트(트랙 폴더에 자족적으로 들어 있음):
+학습 스크립트(코스 폴더에 자족적으로 들어 있음):
 
 - `tracks/*/scripts/train.py` — SFT + LoRA/QLoRA 학습, 머지 후 텍스트 re-export
-- `tracks/*/scripts/train_grpo.py` — SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 트랙만)
+- `tracks/*/scripts/train_grpo.py` — SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 코스만)
 - `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 re-export 없음)
 
 평가와 정리:
 
-- `common/eval_utils.py` — 트랙별 지표(`arg_f1`/`macro_f1`/ROUGE-L/LLM-judge)
+- `common/eval_utils.py` — 코스별 지표(`arg_f1`/`macro_f1`/ROUGE-L/LLM-judge)
 - `tracks/*/99_cleanup.ipynb` — endpoint → endpoint-config → model 삭제
 - `agentcore/cleanup_agent.sh` — AgentCore Runtime + ECR 정리(`--aws`)

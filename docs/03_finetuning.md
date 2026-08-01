@@ -2,17 +2,17 @@
 
 !!! info "Scope"
     SageMaker에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다. HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 잡·DLC·LoRA 관용구는 처음이어도 괜찮습니다.
-    선행 조건은 각 트랙의 `01_data_and_synthetic.ipynb`까지 실행해 `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태입니다. Training Job이 무엇이고 `/opt/ml/*` 경로 계약이 왜 있는지가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
+    선행 조건은 각 태스크별 실습 코스의 `01_data_and_synthetic.ipynb`까지 실행해 `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태입니다. Training Job이 무엇이고 `/opt/ml/*` 경로 계약이 왜 있는지가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
     다루는 것은 학습 경로 선택·Gemma 관용구·LoRA/QLoRA·머지/re-export·`MaxRuntimeExceeded` 함정·SFT→GRPO 데이터 규율이고, endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md)이, 합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)가 다룹니다.
 
 이 문서와 관련된 리포지토리 파일:
 
-- `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 트랙 정의(`TRACKS`), HF 토큰 조회
+- `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 코스 정의(`TRACKS` — 코드 식별자는 초기 이름을 그대로 유지합니다), HF 토큰 조회
 - `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)
-- `common/gemma_format.py` — 트랙별 raw row를 표준 `messages`로 변환, 수동 호출용 `fold_system_into_user` 헬퍼
+- `common/gemma_format.py` — 코스별 raw row를 표준 `messages`로 변환, 수동 호출용 `fold_system_into_user` 헬퍼
 - `common/grpo_data.py` — GRPO prompt 소스 준비(`holdout`/`synth`/`failures`)
 - `tracks/*/scripts/train.py` — SFT 학습 스크립트(LoRA/QLoRA, 머지, 텍스트 re-export)
-- `tracks/*/scripts/train_grpo.py` — GRPO 정련 스크립트(프로그램적 reward, 추출·분류 트랙)
+- `tracks/*/scripts/train_grpo.py` — GRPO 정련 스크립트(프로그램적 reward, 추출·분류 코스)
 - `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT(vision tower 유지, re-export 없음)
 - `tracks/*/scripts/requirements.txt` — 학습 컨테이너 안에서 올리는 transformers/trl/peft 핀
 
@@ -383,18 +383,18 @@ def _to_grpo(example):
 | `failures` | `04_evaluate`에서 틀린 건만 | 03·04 선행 필요 | 가장 강함 |
 | `holdout` | SFT가 쓰지 않은 구간 | 무료·즉시 | 약함(같은 분포) |
 
-- **`synth`가 기본인 이유** — `holdout`은 무료지만 같은 분포라 advantage가 잘 생기지 않습니다. `synth`는 생성 프롬프트에 **난이도 제약**을 걸어 어려운 예시를 만듭니다. 추출 트랙 실측에서는 제약 없이 합성하면 8건 전부 인자 0개였는데(시드 분포가 인자 없는 함수 94%), 제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다. 제약은 **생성 프롬프트에만** 넣습니다 — critique에도 넣으면 시드와 다르다며 전부 기각합니다(실측 8/8 기각).
+- **`synth`가 기본인 이유** — `holdout`은 무료지만 같은 분포라 advantage가 잘 생기지 않습니다. `synth`는 생성 프롬프트에 **난이도 제약**을 걸어 어려운 예시를 만듭니다. 추출 코스 실측에서는 제약 없이 합성하면 8건 전부 인자 0개였는데(시드 분포가 인자 없는 함수 94%), 제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다. 제약은 **생성 프롬프트에만** 넣습니다 — critique에도 넣으면 시드와 다르다며 전부 기각합니다(실측 8/8 기각).
 - **`synth`의 함정** — SFT 합성과 **같은 시드**를 주면 분포가 또 겹칩니다. 노트북은 `NUM_SEED_SAMPLES` 이후 구간의 시드만 넘겨 이를 피합니다. RL은 정답이 학습 입력이 아니므로 prompt 생성이 SFT 합성보다 쉽고 싸지만, 이 kit의 reward는 프로그램적 채점이라 reference가 필요해 (input, output) 형태로 만듭니다.
 - **`failures`** — 실무에서 가장 효율적인 경로입니다. reward 신호가 강한 구간에만 집중합니다. 실패가 0건이면 GRPO로 얻을 것이 적다는 뜻이므로(좋은 신호) `N_EVAL`을 키워 더 어려운 케이스를 찾으세요.
 - **`holdout`** — 추가 비용 없이 파이프라인을 끝까지 볼 수 있게 하는 값입니다. 누출은 막지만, 학습 후 reward가 거의 변하지 않으면 [advantage ≈ 0 문제](#왜-학습이-안-되는가--advantage--0)로 보고 다른 소스로 옮기세요.
 
 프로덕션에서는 하나가 더 있습니다 — **실제 트래픽 로그**. 분포가 진짜라서 가장 가치 있지만 공개 데이터로 재현할 수 없어 이 kit에는 넣지 않았습니다. held-out 분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)을 참고하세요.
 
-### 왜 추출·분류 트랙에만 GRPO가 있나
+### 왜 추출·분류 코스에만 GRPO가 있나
 
 GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다. `train_grpo.py`의 `--reward_kind`가 받는 값도 `extraction`과 `classification` 둘뿐입니다.
 
-| 트랙 | 프로그램적 채점 | GRPO 노트북 |
+| 코스 | 프로그램적 채점 | GRPO 노트북 |
 |---|---|---|
 | 추출(JSON) | ✅ 가능 — JSON 유효성 + 함수명/인자 F1 | ✅ 제공 (`02a_train_grpo_sagemaker`) |
 | 분류 | ✅ 가능 — 라벨 정확 일치 | ✅ 제공 (`02a_train_grpo_sagemaker`) |
@@ -448,7 +448,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 !!! danger "비용과 cleanup"
     학습 잡은 **실행 시간만큼** 과금되고, GPU 인스턴스는 저렴하지 않습니다. 반드시 로컬 `--dry_run`으로 파이프라인을 먼저 검증한 뒤 실제 학습을 제출하세요.
-    학습 잡은 끝나면 인스턴스가 자동 해제되지만 **endpoint는 켜 두면 계속 과금**됩니다. 트랙을 마쳤으면 `99_cleanup` 노트북으로 endpoint와 아티팩트를 정리하세요.
+    학습 잡은 끝나면 인스턴스가 자동 해제되지만 **endpoint는 켜 두면 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup` 노트북으로 endpoint와 아티팩트를 정리하세요.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|

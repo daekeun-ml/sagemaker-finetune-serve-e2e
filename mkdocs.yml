@@ -81,8 +81,9 @@ nav:
       - 04 SageMaker 추론: 04_sagemaker_inference.md
       - 05 서빙 컨테이너: 05_serving_containers.md
       - 06 Agentic loop: 06_agentic.md
-  # 트랙 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 트랙 번호 01→05.
-  - 트랙:
+  # 코스 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 코스 번호 01→05.
+  # 파일명 track_*.md는 공개된 URL이라 그대로 둡니다(디렉터리 tracks/와 같은 초기 명칭).
+  - 코스:
       - 추출 → JSON: track_extraction.md
       - 분류: track_classification.md
       - 요약: track_summarization.md

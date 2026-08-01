@@ -17,12 +17,12 @@
 
 ## TL;DR
 
-**task → 오픈 시드 데이터 → grounded 합성 → SageMaker 학습(PyTorch DLC + TRL/PEFT) → real-time endpoint(vLLM DLC 기본) → agentic(Strands → AgentCore) → held-out 평가까지, 5개 독립 트랙이 얇은 `common/` 레이어를 공유하는 step-by-step 실습 kit입니다.**
+**task → 오픈 시드 데이터 → grounded 합성 → SageMaker 학습(PyTorch DLC + TRL/PEFT) → real-time endpoint(vLLM DLC 기본) → agentic(Strands → AgentCore) → held-out 평가까지, 독립적으로 완결되는 태스크별 실습 코스 5개가 얇은 `common/` 레이어를 공유하는 step-by-step 실습 kit입니다.**
 
 정리하면 다음과 같습니다.
 
-1. **텍스트 트랙 파이프라인은 7단계**입니다. 노트북 `00→06` + `99_cleanup`이 그대로 각 단계에 대응합니다 — [E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계).
-2. **트랙은 5개**(추출→JSON / 분류 / 요약 / 도메인-QA / 멀티모달 추출)이고 서로 독립된 E2E입니다. 공통 로직만 분리했습니다 — [5개 독립 트랙과 공통 레이어](#5개-독립-트랙과-공통-레이어).
+1. **텍스트 코스 파이프라인은 7단계**입니다. 노트북 `00→06` + `99_cleanup`이 그대로 각 단계에 대응합니다 — [E2E 파이프라인](#e2e-파이프라인-텍스트-코스-7단계).
+2. **코스는 5개**(추출→JSON / 분류 / 요약 / 도메인-QA / 멀티모달 추출)이고 서로 독립된 E2E입니다. 공통 로직만 분리했습니다 — [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어).
 3. **기본 모델은 `google/gemma-4-E4B-it`**(apache-2.0 · ungated · HF 토큰 불필요)이고, `MODEL_SIZE`로 `E2B` / `E4B` / `12B` / `26B-A4B` / `31B`를 고릅니다 — [모델 선택](#모델-선택-gemma-4-프리셋-5종).
 4. **학습은 PyTorch DLC + TRL/PEFT(JumpStart 아님), 서빙 기본은 vLLM DLC**이며 `SERVING_ENGINE`으로 `sglang`·`lmi`로 바꿀 수 있습니다 — [왜 이 구조인가](#왜-이-구조인가).
 5. **실행 규율은 `DRY_RUN=1` 먼저**입니다. [파이프라인을 dry-run으로 확인](#실행-방법과-dry_run-규율)한 뒤 실제 실행으로 넘어가고, 끝나면 반드시 정리하세요 — [비용과 cleanup](#비용과-cleanup).
@@ -52,8 +52,8 @@
 
 !!! abstract "쉽게 말하면"
     이 kit은 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
-    부품(합성·학습·서빙·평가)은 `common/`에 한 번만 작성해 두고, 트랙은 데이터와 프롬프트만 갈아끼웁니다.
-    멀티모달 트랙만 이미지 입력이라 구조가 조금 다릅니다.
+    부품(합성·학습·서빙·평가)은 `common/`에 한 번만 작성해 두고, 코스는 데이터와 프롬프트만 갈아끼웁니다.
+    멀티모달 코스만 이미지 입력이라 구조가 조금 다릅니다.
 
 ### 인프라 비용은 TCO의 한 칸일 뿐입니다
 
@@ -73,7 +73,7 @@
 
 그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 kit의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
 
-- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**. 마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분하지만, 트랙마다 다른 모델이 붙기 시작하면(이 kit만 해도 추출·분류·요약·멀티모달 트랙이 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
+- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**. 마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분하지만, 코스마다 다른 모델이 붙기 시작하면(이 kit만 해도 추출·분류·요약·멀티모달 코스가 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
 - **성능** — 지연 시간, 처리량, 가용성. 지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있지만(vLLM은 같은 vLLM입니다), **가용성**은 엔진이 주지 않습니다 — `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능이고(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다 — 이 kit은 실습이라 `initial_instance_count=1` 고정입니다), 모델을 교체할 때의 canary·롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
 - **복잡성** — 엔지니어링 공수, 모델 크기·테스트·업그레이드, **페이로드 크기**, 추론 워크플로. 페이로드 크기와 처리 시간이 커지면 Real-time이 아니라 Asynchronous나 Batch Transform이 답인데, 자체 배포에서는 그 세 가지를 각각 큐·워커·잡 러너로 내가 만들어야 합니다([추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)).
 
@@ -98,16 +98,16 @@
 
 1. **서비스 경계를 코드로 분리했습니다.** SageMaker endpoint 호출은 `boto3 sagemaker-runtime.invoke_endpoint()`(스트리밍은 `invoke_endpoint_with_response_stream`), Bedrock 호출은 `boto3 bedrock-runtime.converse()`를 씁니다. 이 둘은 **별개 서비스·별개 클라이언트**입니다(`common/aws_utils.py`, 호출 스키마와 API 문서 링크는 [서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
 2. **DLC 이미지 URI를 env로 분리했습니다.** 태그는 자주 바뀌므로 코드에 박지 않고 완전 URI env(`DLC_IMAGE_URI` / `VLLM_IMAGE_URI` / `SGLANG_IMAGE_URI` / `LMI_IMAGE_URI`)를 최우선으로 읽고, 없으면 `DLC_REPOSITORY`+`DLC_TAG`나 SDK `image_uris.retrieve`로 폴백합니다(`common/dlc.py`). 현행 계정·리포지토리·태그 조합은 [deep-learning-containers의 available_images.md](https://github.com/aws/deep-learning-containers/blob/master/available_images.md)가 원본입니다. 로컬 `transformers`와 컨테이너 `transformers`도 서로 다르므로 구분합니다.
-3. **Gemma 함정 방어를 기본값으로 넣었습니다.** `attn=eager`를 안전 기본값으로 두고, `bf16`을 강제하며(**fp16 금지** — Gemma에서 NaN을 유발합니다), packing은 flash-attn이 아니면 자동으로 끕니다. 여기에 E2B/E4B는 저장 직전 KV-shared dead weight를 base에서 복원하고(`_revive_kv_shared_from_base`), 텍스트 트랙은 머지 후 language 서브모듈만 `*ForCausalLM`으로 re-export합니다 — 이 모두가 `tracks/*/scripts/train.py`에 내장되어 있습니다.
+3. **Gemma 함정 방어를 기본값으로 넣었습니다.** `attn=eager`를 안전 기본값으로 두고, `bf16`을 강제하며(**fp16 금지** — Gemma에서 NaN을 유발합니다), packing은 flash-attn이 아니면 자동으로 끕니다. 여기에 E2B/E4B는 저장 직전 KV-shared dead weight를 base에서 복원하고(`_revive_kv_shared_from_base`), 텍스트 코스는 머지 후 language 서브모듈만 `*ForCausalLM`으로 re-export합니다 — 이 모두가 `tracks/*/scripts/train.py`에 내장되어 있습니다.
 
 ---
 
-## E2E 파이프라인 (텍스트 트랙 7단계)
+## E2E 파이프라인 (텍스트 코스 7단계)
 
 !!! abstract "쉽게 말하면"
     문제를 정하고 → 데이터를 만들고 → 학습하고 → 띄우고 → 에이전트로 감싸고 → 채점하는 흐름입니다.
-    각 단계가 노트북 하나에 대응합니다. 아래는 텍스트 트랙(01~04) 기준이고,
-    멀티모달 트랙 05는 더 짧은 별도 파이프라인입니다.
+    각 단계가 노트북 하나에 대응합니다. 아래는 텍스트 코스(01~04) 기준이고,
+    멀티모달 코스 05는 더 짧은 별도 파이프라인입니다.
 
 ```
  task 정의
@@ -122,7 +122,7 @@
  [02_train_sft_sagemaker]     PyTorch DLC + TRL SFTTrainer(LoRA/QLoRA)  ← JumpStart 아님
    │                       └ tracks/*/scripts/train.py (로컬 dry-run ↔ SageMaker .fit() 겸용)
    │
-   ├┈┈▶ (선택) [02a_train_grpo_sagemaker]  SFT→GRPO 정련(RLHF)  ← 추출·분류 트랙만
+   ├┈┈▶ (선택) [02a_train_grpo_sagemaker]  SFT→GRPO 정련(RLHF)  ← 추출·분류 코스만
    ├┈┈▶ (선택) [02b_local_serve]           배포 전 로컬 vLLM 프리플라이트
    ▼
  [03_deploy_endpoint]     real-time endpoint (vLLM DLC 기본 · SGLang/DJL LMI 선택)
@@ -142,15 +142,15 @@
 
 - **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`).
 - **(선택) `02b_local_serve`**: SageMaker 배포 전 로컬 vLLM으로 프리플라이트합니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).
-- 위 두 노트북은 트랙마다 있고 없고가 갈립니다 — 어느 트랙에 붙는지는 [텍스트 트랙의 공통 노트북 세트](#텍스트-트랙의-공통-노트북-세트)에 있습니다.
-- **`04_evaluate`**: endpoint를 held-out 세트로 직접 호출해 트랙별 지표를 계산합니다. 로컬에서 돌기 때문에 빠르고 저렴합니다.
+- 위 두 노트북은 코스마다 있고 없고가 갈립니다 — 어느 코스에 붙는지는 [텍스트 코스의 공통 노트북 세트](#텍스트-코스의-공통-노트북-세트)에 있습니다.
+- **`04_evaluate`**: endpoint를 held-out 세트로 직접 호출해 코스별 지표를 계산합니다. 로컬에서 돌기 때문에 빠르고 저렴합니다.
 
 !!! danger "합성·학습셋으로 평가하지 마세요"
     증강 이전 seed에서 **held-out을 먼저 분리**한 뒤 나머지만 합성으로 늘립니다.
     합성 데이터나 학습셋으로 채점하면 지표가 조용히 부풀고, 그 수치를 근거로 배포 결정을 내리게 됩니다.
     분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다.
 
-### 멀티모달 트랙 05의 별도 파이프라인
+### 멀티모달 코스 05의 별도 파이프라인
 
 `tracks/05_multimodal_extraction`은 이미지 → 구조화 JSON 추출이라 합성 데이터 단계가 없고 노트북 세트가 다릅니다(5단계).
 
@@ -161,17 +161,17 @@
               (합성 단계 없음)          scripts/train_mm.py
 ```
 
-서빙은 **이미지 입력을 받는 멀티모달 endpoint**입니다(텍스트 전용으로 re-export 하지 않고 vision tower를 유지합니다). agentic/agentcore 단계는 텍스트 트랙 전용이라 05에는 없습니다.
+서빙은 **이미지 입력을 받는 멀티모달 endpoint**입니다(텍스트 전용으로 re-export 하지 않고 vision tower를 유지합니다). agentic/agentcore 단계는 텍스트 코스 전용이라 05에는 없습니다.
 
 ---
 
-## 5개 독립 트랙과 공통 레이어
+## 5개 독립 코스와 공통 레이어
 
-**텍스트 4개 트랙은 데이터셋과 프롬프트만 다르고 파이프라인은 동일합니다.** 그래서 공통 부품은 `common/`에 한 번만 두면 됩니다. 멀티모달 트랙(05)만 이미지 입력이라 노트북 세트가 다릅니다.
+**텍스트 4개 코스는 데이터셋과 프롬프트만 다르고 파이프라인은 동일합니다.** 그래서 공통 부품은 `common/`에 한 번만 두면 됩니다. 멀티모달 코스(05)만 이미지 입력이라 노트북 세트가 다릅니다.
 
-아래 표는 **어느 트랙을 고를지** 정하는 데 필요한 것만 담았습니다. 주 지표를 고른 이유와 보조 지표, 시드 데이터셋의 함정은 각 트랙 문서에 있습니다 — 트랙 이름을 누르면 갑니다.
+아래 표는 **어느 코스를 고를지** 정하는 데 필요한 것만 담았습니다. 주 지표를 고른 이유와 보조 지표, 시드 데이터셋의 함정은 각 코스 문서에 있습니다 — 코스 이름을 누르면 갑니다.
 
-| 트랙 | task | 시드 데이터셋 (라이선스) | 주 지표 |
+| 코스 | task | 시드 데이터셋 (라이선스) | 주 지표 |
 |---|---|---|---|
 | [추출 → JSON](track_extraction.md) (**플래그십**) | 텍스트 → 구조화 JSON | `glaiveai/glaive-function-calling-v2` (apache-2.0) | `arg_f1` |
 | [분류](track_classification.md) | 은행 고객 문의 intent 77종 분류 | `mteb/banking77` (mit) | macro-F1 |
@@ -179,13 +179,13 @@
 | [도메인 QA](track_domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) | LLM-judge |
 | [멀티모달 추출](track_multimodal.md) | **이미지** → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` (cc-by-4.0) | valid JSON + 필드 정확도 — **육안 대조**(`04_evaluate` 없음) |
 
-지표가 트랙 선택을 가르는 지점이 하나 있습니다 — 추출·분류는 **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다. 요약·도메인 QA는 정답이 하나가 아니라 LLM-judge를 붙여야 하고(Bedrock 호출 과금), 같은 이유로 GRPO(`02a`)가 없습니다.
+지표가 코스 선택을 가르는 지점이 하나 있습니다 — 추출·분류는 **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다. 요약·도메인 QA는 정답이 하나가 아니라 LLM-judge를 붙여야 하고(Bedrock 호출 과금), 같은 이유로 GRPO(`02a`)가 없습니다.
 
-디렉토리는 표 순서대로 `tracks/01_extraction_to_json` · `02_classification` · `03_summarization` · `04_domain_qa` · `05_multimodal_extraction`입니다.
+디렉터리는 표 순서대로 `tracks/01_extraction_to_json` · `02_classification` · `03_summarization` · `04_domain_qa` · `05_multimodal_extraction`입니다. 코드 쪽 이름(`tracks/` 디렉터리, `TRACKS` 레지스트리, `--track` 인자)은 초기 명칭을 그대로 유지하고 있으므로, 본문의 "코스"와 같은 것을 가리킨다고 읽으시면 됩니다.
 
-### 텍스트 트랙의 공통 노트북 세트
+### 텍스트 코스의 공통 노트북 세트
 
-트랙 01~04은 **항상 있는 노트북 8개**를 같은 순서로 갖습니다([E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계)의 7단계 + `99_cleanup`).
+코스 01~04는 **항상 있는 노트북 8개**를 같은 순서로 갖습니다([E2E 파이프라인](#e2e-파이프라인-텍스트-코스-7단계)의 7단계 + `99_cleanup`).
 
 ```
 00_setup  →  01_data_and_synthetic  →  02_train_sft_sagemaker
@@ -193,27 +193,27 @@
           →  05_agentic_strands     →  06_agentcore_deploy     →  99_cleanup
 ```
 
-여기에 조건부 노트북이 두 개 더 붙습니다(무엇을 하는 단계인지는 위 [E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계)에 있습니다).
+여기에 조건부 노트북이 두 개 더 붙습니다(무엇을 하는 단계인지는 위 [E2E 파이프라인](#e2e-파이프라인-텍스트-코스-7단계)에 있습니다).
 
-- **`02a_train_grpo_sagemaker` — 추출·분류 트랙에만 있습니다.** 리워드를 프로그램으로 채점할 수 있는 두 트랙만 대상입니다([왜 추출·분류 트랙에만 GRPO가 있나](03_finetuning.md#왜-추출분류-트랙에만-grpo가-있나)). 그래서 이 두 트랙은 노트북이 10개, 요약·도메인 QA는 9개입니다.
-- **`02b_local_serve` — 4개 트랙 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
+- **`02a_train_grpo_sagemaker` — 추출·분류 코스에만 있습니다.** 리워드를 프로그램으로 채점할 수 있는 두 코스만 대상입니다([왜 추출·분류 코스에만 GRPO가 있나](03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)). 그래서 이 두 코스는 노트북이 10개, 요약·도메인 QA는 9개입니다.
+- **`02b_local_serve` — 4개 코스 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
 
 따라서 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`이고, 노트북별 산출물은 [노트북 단계와 산출물](#노트북-단계와-산출물) 표에 있습니다.
 
-트랙별로 달라지는 값은 두 곳에만 있습니다.
+코스별로 달라지는 값은 두 곳에만 있습니다.
 
 - `tracks/*/track_data.py` — 시드 데이터셋 로드와 `messages` 어댑터(원본 row → 학습 형태).
-- `common/config.py`의 `TRACKS` 레지스트리 — `seed_dataset`·`max_seq_length`·epoch 등 트랙 상수.
+- `common/config.py`의 `TRACKS` 레지스트리 — `seed_dataset`·`max_seq_length`·epoch 등 코스 상수.
 
 ### 학습 길이와 서빙 길이는 다른 값입니다
 
-트랙 페이지의 설정 표에 `max_seq_length`(학습)와 `serve_max_model_len`(서빙)이 따로 나오는 이유입니다. 학습은 "입력+정답"이 `max_seq_length`에 들어가도록 자르지만, 서빙은 "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다. 두 값을 하나로 묶으면 입력이 긴 트랙에서 `(프롬프트 + max_tokens) > 컨텍스트`가 되어 vLLM이 400(`context length exceeded`)으로 거부합니다(요약 트랙: 프롬프트 max 2,006 + 생성 256 > 2048).
+코스 페이지의 설정 표에 `max_seq_length`(학습)와 `serve_max_model_len`(서빙)이 따로 나오는 이유입니다. 학습은 "입력+정답"이 `max_seq_length`에 들어가도록 자르지만, 서빙은 "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다. 두 값을 하나로 묶으면 입력이 긴 코스에서 `(프롬프트 + max_tokens) > 컨텍스트`가 되어 vLLM이 400(`context length exceeded`)으로 거부합니다(요약 코스: 프롬프트 max 2,006 + 생성 256 > 2048).
 
-`TrackSpec.serve_max_model_len`을 지정하지 않은 트랙은 `tracks/_shared_build._serve_len()`이 `max_seq_length × 2`를 씁니다(입력만큼 생성 여유를 둔다는 뜻). 생성 상한 `gen_max_tokens`는 또 별개이며 트랙별 정답 길이 분포에서 정합니다 — 트랙별 값과 절단 확인법은 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+`TrackSpec.serve_max_model_len`을 지정하지 않은 코스는 `tracks/_shared_build._serve_len()`이 `max_seq_length × 2`를 씁니다(입력만큼 생성 여유를 둔다는 뜻). 생성 상한 `gen_max_tokens`는 또 별개이며 코스별 정답 길이 분포에서 정합니다 — 코스별 값과 절단 확인법은 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
 
-### 멀티모달 트랙의 다른 점
+### 멀티모달 코스의 다른 점
 
-[멀티모달 추출 트랙](track_multimodal.md)은 노트북이 5개뿐이고 합성·agentic 단계가 없습니다 — 단계 도해와 이유는 위의 [멀티모달 트랙 05의 별도 파이프라인](#멀티모달-트랙-05의-별도-파이프라인)에 있습니다.
+[멀티모달 추출 코스](track_multimodal.md)는 노트북이 5개뿐이고 합성·agentic 단계가 없습니다 — 단계 도해와 이유는 위의 [멀티모달 코스 05의 별도 파이프라인](#멀티모달-코스-05의-별도-파이프라인)에 있습니다.
 
 ### 공유되는 common 부품
 
@@ -226,12 +226,12 @@
 | `common/model_inspect.py` | 체크포인트 점검(KV-sharing 여부·서빙 가능 엔진 판정) |
 | `common/llm_gateway.py` | (LiteLLM) Bedrock + SageMaker endpoint 단일 인터페이스 |
 | `common/synth/bedrock_synth.py` | grounded 합성 (Converse + critique/refine, boto3만·무의존성) |
-| `common/eval_utils.py` | 트랙별 메트릭 (추출/분류/요약/QA) + Bedrock LLM-judge |
+| `common/eval_utils.py` | 코스별 메트릭 (추출/분류/요약/QA) + Bedrock LLM-judge |
 | `tracks/*/scripts/train.py` · `train_grpo.py` | self-contained 학습 (로컬 dry-run ↔ SageMaker 겸용) |
 | `agentcore/app.py` | AgentCore Runtime 엔트리포인트 ([bedrock-agentcore SDK](https://github.com/aws/bedrock-agentcore-sdk-python)로 Strands 에이전트 호스팅) |
 
-??? question "오개념 — “트랙끼리 뭔가 공유하니 순서대로 해야 하나?”"
-    **그렇지 않습니다.** 5개 트랙은 **완전히 독립된 E2E**입니다. 관심 있는 트랙 하나만 `00→99`로 돌려도 완결됩니다.
+??? question "오개념 — “코스끼리 뭔가 공유하니 순서대로 해야 하나?”"
+    **그렇지 않습니다.** 5개 코스는 **완전히 독립된 E2E**입니다. 관심 있는 코스 하나만 `00→99`로 돌려도 완결됩니다.
     `common/`은 코드 중복을 제거하기 위한 것일 뿐, 실행 의존성이 아닙니다.
 
 ---
@@ -251,7 +251,7 @@
 - **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S, nominal 48GB · 가용 44GiB)입니다.** 4bit로도 base가 24GB 카드(L4·A10G, 가용 22GiB)를 넘길 수 있어서입니다 — quantizable linear 29.29B는 NF4로 14.6GB(+double-quant 상수 0.46GB)까지 줄지만, `embed_tokens` 1.41B와 vision tower 0.58B는 4bit로 내려가지 않아 bf16으로 남아 base만 약 19.1GB가 됩니다. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다. `params/2` 어림값이 통하지 않는 지점입니다. 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
 - 이 kit의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
 - **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/re-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM 실측값은 약 17.5GB입니다.
-- **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 re-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
+- **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 코스는 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 re-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
     **gemma-4는 아닙니다.** 라이선스는 **모델 계열**을 따릅니다. Gemma 3/2/3n은 gated + Gemma Terms(서빙 시 use-restriction 전파 의무)이지만,
@@ -263,7 +263,7 @@
 `tracks/*/scripts/train.py`에 기본으로 들어가 있는 결정들입니다.
 
 - chat template은 `-it` 토크나이저에 내장되어 있으므로 `apply_chat_template`에 위임합니다(수동으로 `<start_of_turn>`를 조립하지 마세요). system role이 거부되면 첫 user 턴에 fold합니다.
-- LoRA는 텍스트 트랙에서 `target_modules="all-linear"` + `modules_to_save=["lm_head","embed_tokens"]`입니다. 멀티모달 학습은 vision/audio proj가 `ClippableLinear`라 매칭되면 크래시하므로 `language_model` 한정 regex를 씁니다.
+- LoRA는 텍스트 코스에서 `target_modules="all-linear"` + `modules_to_save=["lm_head","embed_tokens"]`입니다. 멀티모달 학습은 vision/audio proj가 `ClippableLinear`라 매칭되면 크래시하므로 `language_model` 한정 regex를 씁니다.
 - `bf16`은 필수입니다(**fp16 금지** — Gemma에서 오버플로/NaN을 유발합니다). `attn=eager`가 안전 기본값입니다(soft-cap/sliding-window 정합성).
 - packing은 `flash_attention_2`일 때만 켜집니다. eager/sdpa에서는 **샘플 간 cross-contamination을 방지하기 위해 자동으로 꺼집니다**.
 - E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 54개). 그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). `train.py`는 저장 직전 그 텐서를 base에서 복원하며(복원 전 665키 → 복원 후 719키 = 원본과 동일), 연산에 쓰이지 않는 dead weight라 정확도에는 무해합니다.
@@ -328,9 +328,9 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
 | [실행 runbook](RUN_E2E.md) | 단계별 핸드오프·비용 가드·완료 기준 | 전 단계 | — |
 
-위 표의 가이드는 **주제별**(데이터·학습·배포·에이전트)이라 5개 트랙에 공통으로 적용됩니다. **트랙별**로 무엇이 다른지는 트랙 문서 5개가 따로 다루며, [5개 독립 트랙과 공통 레이어](#5개-독립-트랙과-공통-레이어)의 표에서 연결됩니다.
+위 표의 가이드는 **주제별**(데이터·학습·배포·에이전트)이라 5개 코스에 공통으로 적용됩니다. **코스별**로 무엇이 다른지는 코스 문서 5개가 따로 다루며, [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)의 표에서 연결됩니다.
 
-평가는 별도 문서 없이 `common/eval_utils.py`와 각 트랙의 `04_evaluate` 노트북에 담겨 있습니다(held-out 평가, 트랙별 메트릭, LLM-judge).
+평가는 별도 문서 없이 `common/eval_utils.py`와 각 코스의 `04_evaluate` 노트북에 담겨 있습니다(held-out 평가, 코스별 메트릭, LLM-judge).
 
 ### 노트북 단계와 산출물
 
@@ -339,7 +339,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 | `00_setup` | env/role/bucket 확인 | `DRY_RUN` 권장 |
 | `01_data_and_synthetic` | `messages` JSONL(합성) | S3 업로드 |
 | `02_train_sft_sagemaker` | 학습 잡 → 모델 아티팩트(S3) | LoRA 머지 + 텍스트 re-export 산출물 포함 |
-| (선택) `02a_train_grpo_sagemaker` | GRPO 정련 모델 | 추출·분류 트랙만 |
+| (선택) `02a_train_grpo_sagemaker` | GRPO 정련 모델 | 추출·분류 코스만 |
 | (선택) `02b_local_serve` | 로컬 vLLM 프리플라이트 결과 | 과금 없음(로컬 GPU) |
 | `03_deploy_endpoint` | real-time endpoint | 과금 시작 |
 | `04_evaluate` | 메트릭 리포트 | held-out만 (로컬·빠름·저렴) |
@@ -392,7 +392,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 !!! danger "비용과 cleanup"
     **real-time endpoint는 삭제 전까지 시간당(GPU 인스턴스) 과금됩니다.** 실습 후에는 반드시 `99_cleanup.ipynb`를 실행하거나 endpoint를 직접 삭제하세요.
     **AgentCore Runtime**도 배포하면 Runtime 리소스가 과금되므로 사용하지 않을 때는 정리해 주세요.
-    여러 트랙·여러 리전에 띄운 적이 있다면 각 트랙 prefix와 리전별 endpoint 목록을 모두 확인해야 합니다.
+    여러 코스·여러 리전에 띄운 적이 있다면 각 코스 prefix와 리전별 endpoint 목록을 모두 확인해야 합니다.
 
 각 노트북은 학습/배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links`).
 

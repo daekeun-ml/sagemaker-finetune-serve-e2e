@@ -2,7 +2,7 @@
 
 !!! info "Scope"
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다. Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
-    선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 트랙의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
+    선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 태스크별 실습 코스의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
     다루는 것은 grounded 생성·critique 게이트·held-out 규율·라이브러리 대안이고, 학습 자체는 [파인튜닝](03_finetuning.md)이 다룹니다.
 
 이 문서와 관련된 리포지토리 파일:
@@ -11,11 +11,11 @@
 - `common/synth/README.md` — 기본 경로와 오픈 라이브러리 대안의 선택 근거
 - `common/config.py` — 모델 ID·리전·`NUM_SYNTHETIC` 등 env 기반 설정
 - `common/aws_utils.py` — Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker/Bedrock 서비스 경계
-- `common/gemma_format.py` — 트랙별 raw row → 표준 `messages` 변환(`build_messages`)
+- `common/gemma_format.py` — 코스별 raw row → 표준 `messages` 변환(`build_messages`)
 - `common/llm_gateway.py` — LiteLLM 경유로 Bedrock과 SageMaker endpoint를 단일 인터페이스로 호출(대안 경로)
-- `common/eval_utils.py` — 트랙별 held-out 평가 메트릭
+- `common/eval_utils.py` — 코스별 held-out 평가 메트릭
 
-노트북 순서: 각 트랙의 `01_data_and_synthetic.ipynb`(생성) → (학습·배포) → `04_evaluate.ipynb`(held-out 전용)
+노트북 순서: 각 코스의 `01_data_and_synthetic.ipynb`(생성) → (학습·배포) → `04_evaluate.ipynb`(held-out 전용)
 
 !!! warning "빠르게 바뀌는 값"
     Bedrock 모델 ID·inference-profile prefix·sampling 파라미터 지원 여부·토큰 단가·boto3/SDK 버전·리전, 그리고 대안 라이브러리의 버전·라이선스·유지보수 상태는 **실행 직전에 다시 확인**하세요.
@@ -102,7 +102,7 @@ seed 샘플(증강 이전)
   g ≥ min_groundedness AND r ≥ min_relevance ?
       │ yes
       ▼
-to_messages() → 표준 messages (트랙별 어댑터, gemma_format.build_messages)
+to_messages() → 표준 messages (코스별 어댑터, gemma_format.build_messages)
       ▼
 save_jsonl → {"messages":[...]} JSONL  →  SFTTrainer conversational 입력
 ```
@@ -114,7 +114,7 @@ PII/중복 필터가 critique **앞**에 있는 순서가 중요합니다. 탈�
 ```python
 from common.synth import bedrock_synth as bs
 synth = bs.generate_grounded(
-    task_instruction=td.TASK_INSTRUCTION,      # 트랙별 (critique 기준으로도 쓰임)
+    task_instruction=td.TASK_INSTRUCTION,      # 코스별 (critique 기준으로도 쓰임)
     seed_texts=td.seed_texts_for_synth(seeds), # 증강 이전 seed
     n_total=NUM_SYNTH,                         # USER 결정값
     model_id=config.BEDROCK_CLAUDE_MODEL_ID,   # env 주입, 하드코딩 금지
@@ -139,7 +139,7 @@ synth = bs.generate_grounded(
 
 ### 생성 지시와 채점 기준의 분리
 
-생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 실측: 8건 생성 → 8건 기각).
+생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 코스 실측: 8건 생성 → 8건 기각).
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
@@ -151,7 +151,7 @@ synth = bs.generate_grounded(
 
 ## 생성 건수 결정 — NUM_SYNTHETIC 기본값
 
-- `config.NUM_SYNTHETIC`의 기본값은 **200/트랙**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 kit의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 트랙(`03_summarization`)은 seed 문서가 커서 호출당 지연이 큽니다(seed 1건 중앙 1,651자 vs 추출 트랙 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
+- `config.NUM_SYNTHETIC`의 기본값은 **200/코스**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 kit의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 코스(`03_summarization`)는 seed 문서가 커서 호출당 지연이 큽니다(seed 1건 중앙 1,651자 vs 추출 코스 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
 - seed 샘플 수는 `config.NUM_SEED_SAMPLES`(기본 300)로 따로 잡습니다. 합성 건수와 seed 건수는 별개 값입니다.
 - **언제 늘리나요** — seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
 - **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
@@ -175,13 +175,13 @@ seed 전체
    └─ 나머지 seed  ──►  grounded 합성 증강  ──►  train.jsonl (SFTTrainer)
 ```
 
-평가는 `04_evaluate.ipynb`에서 **held-out으로만** 수행합니다. 트랙별 메트릭은 추출이 `arg_f1`(primary) + `valid_json_rate` + `name_accuracy`, 분류가 macro-F1 + accuracy, 요약이 ROUGE-L + LLM-judge(groundedness/coverage), 도메인 QA가 LLM-judge(correctness/helpfulness/groundedness 1~5) + ROUGE-L proxy입니다(`common/eval_utils.py`).
+평가는 `04_evaluate.ipynb`에서 **held-out으로만** 수행합니다. 코스별 메트릭은 추출이 `arg_f1`(primary) + `valid_json_rate` + `name_accuracy`, 분류가 macro-F1 + accuracy, 요약이 ROUGE-L + LLM-judge(groundedness/coverage), 도메인 QA가 LLM-judge(correctness/helpfulness/groundedness 1~5) + ROUGE-L proxy입니다(`common/eval_utils.py`).
 
 !!! danger "합성/학습셋으로 평가하면 점수가 조용히 부풀려집니다"
     넉넉히 로드해서 뒤쪽 N건을 쓰는 방식(`pool[-N_EVAL:]`)은 위험합니다. `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간(0~299) **안쪽**에 통째로 들어갑니다.
     그래서 `04_evaluate`는 `01_data_and_synthetic`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명시적으로 건너뛰고** 그 뒤 `N_EVAL`건(기본 50)을 씁니다.
 
-`load_seed_examples`는 같은 인덱스를 항상 같은 순서로 돌려주므로(분류 트랙은 고정 시드 42로 셔플) 이 분리는 재현 가능합니다. 시드가 학습 구간보다 작으면 assert가 먼저 실패하므로, `NUM_SEED_SAMPLES`를 줄이거나 더 큰 시드 데이터셋을 쓰세요.
+`load_seed_examples`는 같은 인덱스를 항상 같은 순서로 돌려주므로(분류 코스는 고정 시드 42로 셔플) 이 분리는 재현 가능합니다. 시드가 학습 구간보다 작으면 assert가 먼저 실패하므로, `NUM_SEED_SAMPLES`를 줄이거나 더 큰 시드 데이터셋을 쓰세요.
 
 ??? question "오개념 — “합성 데이터의 groundedness 점수가 높으면 평가에 써도 되나요?”"
     안 됩니다. groundedness는 "seed 도메인에 맞는가"를 나타낼 뿐 "정답인가"를 뜻하지 않습니다.
@@ -232,7 +232,7 @@ seed 전체
 필터 쪽에서도 기본값을 상수로 오해하는 일이 있습니다.
 
 ??? question "오개념 — “critique 임계값 0.6은 고정값인가요?”"
-    아닙니다. `min_groundedness`/`min_relevance` 인자로 트랙별 조정이 가능합니다.
+    아닙니다. `min_groundedness`/`min_relevance` 인자로 코스별 조정이 가능합니다.
     정밀한 라벨 태스크는 임계값을 올리고, 다양성이 중요한 QA는 낮출 수 있습니다. 다만 올릴수록 수율이 떨어져 같은 `n_total`을 채우는 데 호출이 늘어납니다.
 
 ---

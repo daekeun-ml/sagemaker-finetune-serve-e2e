@@ -8,6 +8,8 @@
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
 
+본문의 실측값은 이 kit의 **태스크별 실습 코스**(하나의 태스크를 데이터 준비부터 학습·배포·평가·정리까지 완주하는 실습 단위, 다섯 개) 중 요약·멀티모달 코스에서 나왔습니다. 이후로는 짧게 **코스**로 씁니다. 리포지토리 디렉터리는 초기 이름을 유지해 `tracks/`이고 `track_data`·`ep_<track_key>` 같은 코드 식별자도 그대로이므로, 본문의 "코스"와 코드의 `track`을 같은 것으로 읽으세요.
+
 !!! warning "빠르게 바뀌는 값"
     DLC 이미지 태그·`OPTION_*`/`SM_*` 키 이름·SDK 버전·엔진 지원 매트릭스·리전·GA 상태는 분기마다 바뀝니다.
     본문의 태그와 버전 예시는 전부 **실행 직전 재확인** 대상이며, 정확한 태그는 [available_images 페이지](https://aws.github.io/deep-learning-containers/reference/available_images/)나 ECR 실조회로 확인해 env로 주입하세요.
@@ -446,7 +448,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 | 활성 + 비torch + CUDAGraph | 1.12 GiB 필요 | 6.28 GiB |
 | **결과** | ❌ 실패 — 남은 여유 0.34 GiB, 0.78 GiB 부족(CUDA OOM) | ✅ 통과 — 간신히 |
 
-- **텍스트 트랙도 안전지대가 아닙니다** — KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
+- **텍스트 코스도 안전지대가 아닙니다** — KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
 - vLLM 자신도 로그에서 `--kv-cache-memory=3.76 GiB`를 권고합니다 → **KV를 4.69로 과대 배정한 것**입니다.
 
 ??? question "오개념 — “GPU 타입을 바꿔야 하나?”"
@@ -494,14 +496,14 @@ serve_env = dlc.serving_env(
 
 **결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측으로 확인했습니다.
 
-실측 조건은 요약 트랙 endpoint, vLLM 0.26.0, `ml.g6.2xlarge`, 입력 5,996자입니다.
+실측 조건은 요약 코스 endpoint, vLLM 0.26.0, `ml.g6.2xlarge`, 입력 5,996자입니다.
 
 | 방식 | 첫 응답 | 완료 | 조각 수 |
 |---|---|---|---|
 | [`invoke_endpoint_with_response_stream`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html) (`stream: true`) | **0.42초** | 15.9초 | 391 |
 | `invoke_endpoint` (완성 대기) | 16.16초 | 16.2초 | 1 |
 
-**첫 응답 체감 38배**. 요약처럼 응답이 긴 트랙에서 차이가 큽니다.
+**첫 응답 체감 38배**. 요약처럼 응답이 긴 코스에서 차이가 큽니다.
 
 ### SSE 청크 경계 파싱 함정
 
@@ -523,7 +525,7 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 ### 태스크별로 켜고 끄기
 
-- **켤 만한 것**: 요약·도메인 QA 같은 긴 자유서술 → 이 kit은 두 트랙에서 `STREAM = True`가 기본입니다(`_stream_default()`가 `eval_kind`로 판정).
+- **켤 만한 것**: 요약·도메인 QA 같은 긴 자유서술 → 이 kit은 두 코스에서 `STREAM = True`가 기본입니다(`_stream_default()`가 `eval_kind`로 판정).
 - **끄는 게 맞는 것**: 추출(JSON)·분류(라벨) → 응답이 **완성돼야 파싱/사용 가능**하고 애초에 짧습니다. agentic tool도 완성값을 반환해야 Claude가 소비합니다. → `STREAM = False` 기본.
 
 ### 스트리밍이 개선하지 않는 것
@@ -538,7 +540,7 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 ### max_tokens 절단과 finish_reason
 
-응답이 짧게 끝났을 때 **모델이 요약을 잘한 것인지 잘린 것인지 구분하려면 `finish_reason`을 보세요.** `length`면 잘린 것이고, `stop`이면 모델이 스스로 끝낸 것입니다. 아래는 요약 트랙 endpoint(입력 5,996자) 실측값입니다.
+응답이 짧게 끝났을 때 **모델이 요약을 잘한 것인지 잘린 것인지 구분하려면 `finish_reason`을 보세요.** `length`면 잘린 것이고, `stop`이면 모델이 스스로 끝낸 것입니다. 아래는 요약 코스 endpoint(입력 5,996자) 실측값입니다.
 
 | `max_tokens` | `finish_reason` | `completion_tokens` | 응답 길이 |
 |---|---|---|---|
@@ -552,9 +554,9 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 - 노트북이 `print(pred[:400])` 처럼 출력까지 자르면 **이중으로 가려집니다** — 이 kit이 실제로 그랬습니다(응답 1,262자 중 400자만 표시). 그래서 `common/display_utils.show_inference()`로 전체를 렌더링하도록 바꿨습니다.
 - 평가 지표에서는 더 위험합니다 — 정답이 `max_tokens`보다 길면 예측이 구조적으로 잘려 **ROUGE/정확도가 실제보다 낮게** 나옵니다(모델 탓이 아닌데 모델을 의심하게 됩니다).
 
-대응으로 트랙별 `gen_max_tokens`(spec)를 정답 길이 분포에서 정하고, 배포·평가·에이전트 셀이 **모두 같은 값**을 쓰게 했습니다.
+대응으로 코스별 `gen_max_tokens`(spec)를 정답 길이 분포에서 정하고, 배포·평가·에이전트 셀이 **모두 같은 값**을 쓰게 했습니다.
 
-| 트랙 | `gen_max_tokens` | 근거(정답 토큰 분포) |
+| 코스 | `gen_max_tokens` | 근거(정답 토큰 분포) |
 |---|---|---|
 | 추출 / 분류 | 256 | JSON·라벨은 짧음 |
 | 요약 | 512 | median 209 / p90 475 (max 964는 미포함 — 필요하면 1024) |
@@ -571,7 +573,7 @@ assert ch['finish_reason'] != 'length', '응답이 잘렸습니다 — max_token
 
 ### 입력 텍스트가 노트북 마크다운을 깨뜨릴 때
 
-요약 트랙 실시간 추론에서 **첫 번째 결과의 응답이 화면에 아예 안 보였습니다**(두 번째는 정상). 호출은 성공했고 응답도 1,596자가 정상 수신된 상태였습니다. 원인은 시드 데이터의 백틱이었습니다 — billsum 법안 원문은 구식 인용부호로 **이중 백틱**을 씁니다.
+요약 코스 실시간 추론에서 **첫 번째 결과의 응답이 화면에 아예 안 보였습니다**(두 번째는 정상). 호출은 성공했고 응답도 1,596자가 정상 수신된 상태였습니다. 원인은 시드 데이터의 백틱이었습니다 — billsum 법안 원문은 구식 인용부호로 **이중 백틱**을 씁니다.
 
 ```
 (A) by inserting ``and'' at the end of paragraph (6)
@@ -638,7 +640,7 @@ html.escape("``and''")   # → "``and''"   (그대로!)
 
 ### %store 전역 오염 — 엉뚱한 endpoint 호출
 
-요약 트랙에서 추론했는데 이런 400 에러가 났습니다.
+요약 코스에서 추론했는데 이런 400 에러가 났습니다.
 
 ```
 ModelError: ... "This model's maximum context length is 2048 tokens.
@@ -652,20 +654,20 @@ However, you requested 512 output tokens and your prompt contains at least
 .../Endpoints/gemma-mm-extraction-vllm-1785498368   ← 멀티모달 엔드포인트!
 ```
 
-`%store`는 IPython의 **전역** 저장소로, 트랙·커널·리전을 넘어 값이 유지됩니다. 멀티모달 트랙(`max_model_len=2048`)을 배포한 뒤 요약 노트북을 열면 `%store -r endpoint_name`이 **멀티모달 엔드포인트 이름**을 복구해 옵니다.
+`%store`는 IPython의 **전역** 저장소로, 코스·커널·리전을 넘어 값이 유지됩니다. 멀티모달 코스(`max_model_len=2048`)를 배포한 뒤 요약 노트북을 열면 `%store -r endpoint_name`이 **멀티모달 엔드포인트 이름**을 복구해 옵니다.
 
 | 엔드포인트 | `max_model_len` | 2049 토큰 |
 |---|---|---|
 | 요약 (의도한 것) | 4096 | ✅ 여유 |
 | 멀티모달 (실제 호출된 것) | 2048 | ❌ 초과 — 1토큰 |
 
-**진단이 어려운 이유**: 에러가 "context length"를 말하니 `max_tokens`나 `serve_max_model_len` 설정을 의심하게 됩니다. 실제 문제는 **엔드포인트를 잘못 골랐다**는 것입니다. 대응은 트랙마다 고유 키(`ep_<track_key>`)로도 저장하고, 복구할 때 **그 키를 우선**하는 것입니다.
+**진단이 어려운 이유**: 에러가 "context length"를 말하니 `max_tokens`나 `serve_max_model_len` 설정을 의심하게 됩니다. 실제 문제는 **엔드포인트를 잘못 골랐다**는 것입니다. 대응은 코스마다 고유 키(`ep_<track_key>`)로도 저장하고, 복구할 때 **그 키를 우선**하는 것입니다.
 
 ```python
 # 저장 (배포 직후)
 ep_summarization = endpoint_name
 %store endpoint_name          # 하위호환용 전역
-%store ep_summarization       # 트랙 전용 — 충돌 불가
+%store ep_summarization       # 코스 전용 — 충돌 불가
 
 # 복구
 %store -r ep_summarization
@@ -675,7 +677,7 @@ assert endpoint_name, 'endpoint_name 이 없습니다 — 03의 배포 셀을 �
 print('사용할 endpoint:', endpoint_name)     # 무엇을 부르는지 항상 눈에 보이게
 ```
 
-키가 `ep_extraction` / `ep_classification` / `ep_summarization` / `ep_domain_qa` / `ep_mm_extraction`로 갈리므로 **여러 트랙을 병행해도 섞이지 않습니다.** 실제 커널에서 전역을 멀티모달로 오염시킨 뒤 요약 복구를 실행해 올바른 엔드포인트가 선택됨을 확인했습니다. 같은 이유로 `train_path`는 `%store`를 **아예 쓰지 않고** 트랙 로컬 파일(`data/train.jsonl`)을 직접 씁니다. `%store`에 담아야 할 값은 "이 트랙 것"임을 이름에 새기세요.
+키가 `ep_extraction` / `ep_classification` / `ep_summarization` / `ep_domain_qa` / `ep_mm_extraction`로 갈리므로 **여러 코스를 병행해도 섞이지 않습니다.** 실제 커널에서 전역을 멀티모달로 오염시킨 뒤 요약 복구를 실행해 올바른 엔드포인트가 선택됨을 확인했습니다. 같은 이유로 `train_path`는 `%store`를 **아예 쓰지 않고** 코스 로컬 파일(`data/train.jsonl`)을 직접 씁니다. `%store`에 담아야 할 값은 "이 코스 것"임을 이름에 새기세요.
 
 ---
 

@@ -239,7 +239,7 @@ Training Job에 경로 계약이 있듯이 Endpoint에도 계약이 있고, 학�
 !!! danger "초심자에게 가장 비싼 오해 — “학습이 끝났으니 다 끝난 것”"
     **Training Job은 스스로 멈추지만 Endpoint는 스스로 멈추지 않습니다.** 이 한 줄의 차이가 실제 청구서를 만듭니다.
     Real-time endpoint는 요청이 0건이어도 GPU 인스턴스 시간당 요금이 계속 부과되며, 노트북 커널을 닫거나 랩톱을 꺼도 **AWS 쪽 서버는 계속 떠 있습니다.**
-    실습이 끝나면 반드시 해당 트랙의 **`99_cleanup.ipynb`를 실행**하세요. 삭제 순서·잔여 리소스 훑는 방법·다른 리전 확인까지 실행 절차는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 정리돼 있습니다.
+    실습이 끝나면 반드시 해당 태스크별 실습 코스의 **`99_cleanup.ipynb`를 실행**하세요. 삭제 순서·잔여 리소스 훑는 방법·다른 리전 확인까지 실행 절차는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 정리돼 있습니다.
 
 "삭제가 유일한 정지 수단인가"에는 예외가 하나 있습니다.
 
@@ -327,7 +327,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 절대적인 정답은 없고, **조건에 따라** 갈립니다. 조건을 하나만 남긴다면 [TCO 세 칸](00_overview.md#인프라-비용은-tco의-한-칸일-뿐입니다) 중 운영·규정 준수 칸을 **내가 이미 내고 있는지**입니다.
 
-- **SageMaker AI Training Job / Endpoint를 고르세요, 만약** 파인튜닝이나 서빙이 간헐적이고, 전담 인프라 팀이 없고, "지금 잡 하나를 돌려 결과를 보는 것"이 목적인 경우. 이 kit의 모든 트랙이 이 경우에 해당합니다.
+- **SageMaker AI Training Job / Endpoint를 고르세요, 만약** 파인튜닝이나 서빙이 간헐적이고, 전담 인프라 팀이 없고, "지금 잡 하나를 돌려 결과를 보는 것"이 목적인 경우. 이 kit의 모든 코스가 이 경우에 해당합니다.
 - **HyperPod를 고르세요, 만약** 다수의 GPU를 **오래** 점유하며 여러 팀이 큐를 공유해야 하고, 노드 장애로 며칠짜리 학습이 처음부터 다시 시작되는 것을 감당할 수 없는 경우. 이때 Slurm과 EKS 중에서는 팀이 이미 쓰는 스택(HPC 관행이면 Slurm, Kubernetes 표준이 있으면 EKS)을 따르는 편이 운영 비용이 낮습니다.
 - **EC2 자체 구성을 고르세요, 만약** 커널·드라이버·토폴로지를 직접 통제해야 하거나(특수 빌드, 실험적 라이브러리), 이미 EC2 기반 표준·자동화 자산이 충분해 관리형 계층이 오히려 제약이 되는 경우. 후자가 곧 "운영·규정 준수 칸을 이미 지불했다"는 상태이고, 그때는 시간당 단가 비교가 실제로 유효합니다.
 - **on-prem을 고르세요, 만약** GPU 사용률이 지속적으로 높아 감가상각이 시간당 요금보다 유리하거나, 데이터를 물리적으로 외부에 낼 수 없는 규제·계약 요건이 있는 경우. 반대로 **on-prem이 지는 지점은 두 가지**입니다 — (1) **탄력성**: 이번 주에만 GPU 8장이 더 필요할 때 살 수 없습니다, (2) **차별화되지 않는 운영 작업**: 드라이버 업그레이드, 장애 부품 교체, 용량 계획에 들어가는 시간은 모델 품질에 아무것도 기여하지 않습니다.
@@ -341,14 +341,14 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 ## 이 kit에서는
 
-개념이 어느 노트북에 대응하는지 정리하면 다음과 같습니다(플래그십 트랙 `tracks/01_extraction_to_json/` 기준).
+개념이 어느 노트북에 대응하는지 정리하면 다음과 같습니다(플래그십 코스 `tracks/01_extraction_to_json/` 기준). 디렉터리와 코드 식별자는 초기 이름 그대로 `tracks/`·`TRACKS`를 쓰므로, 경로에 `track`이 보이면 문서에서 말하는 코스와 같은 것으로 읽으세요.
 
 | 노트북 | 만드는 SageMaker 리소스 | 개념 |
 |---|---|---|
 | `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr)) |
 | `01_data_and_synthetic.ipynb` | 없음(로컬 `data/train.jsonl` 생성) | 학습 입력 준비 |
 | `02_train_sft_sagemaker.ipynb` | ✅ 생성 — **Training Job** (`ModelTrainer.train()`) | 데이터 S3 업로드 → 잡 제출 → `model_data` 확보 |
-| `02a_train_grpo_sagemaker.ipynb` (선택) | ✅ 생성 — **Training Job** (SFT→GRPO 정련) | 추출·분류 트랙만 제공 |
+| `02a_train_grpo_sagemaker.ipynb` (선택) | ✅ 생성 — **Training Job** (SFT→GRPO 정련) | 추출·분류 코스만 제공 |
 | `02b_local_serve.ipynb` (선택) | 없음(로컬 vLLM) | 배포 전 프리플라이트 |
 | `03_deploy_endpoint.ipynb` | ✅ 생성 — **Endpoint** (+ `EndpointConfig` + `Model`) | `model_data` → 상시 서버. **여기서 시간당 과금이 시작됩니다** |
 | `04_evaluate.ipynb` | 없음(endpoint 호출) | held-out 평가 |
@@ -358,7 +358,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 - Training Job을 만드는 노트북은 `02`(및 선택 `02a`)이고, **끝나면 인스턴스가 자동 해제**되므로 별도 정리가 필요 없습니다. 남는 것은 S3 아티팩트와 CloudWatch 로그(용량당 과금)입니다.
 - Endpoint를 만드는 노트북은 `03`이며, **삭제하는 노트북은 `99`뿐입니다.** 삭제 순서가 정해져 있고(Endpoint → EndpointConfig → Model), `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 만들기 때문에 `endpoint_name`만으로 지우면 Model이 조용히 남습니다.
-- 멀티모달 트랙(`tracks/05_multimodal_extraction/`)은 노트북 세트가 짧습니다 — Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`입니다.
+- 멀티모달 코스(`tracks/05_multimodal_extraction/`)는 노트북 세트가 짧습니다 — Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`입니다.
 - 학습 스크립트는 `tracks/*/scripts/train.py` 하나로, 로컬 `--dry_run`과 SageMaker Training Job에서 **같은 파일**이 돕니다. 먼저 로컬에서 파이프라인을 검증하고 클라우드로 제출하는 것이 이 kit의 규율입니다([시작하기](getting_started.md)의 방식 B).
 
 다음 단계는 [실행 runbook](RUN_E2E.md)입니다. 개념을 잡았다면 그 문서의 순서를 그대로 따라가면 됩니다.
@@ -367,7 +367,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 ## 관련 리포지토리 파일
 
-이 문서의 개념이 코드로 나타나는 곳입니다(플래그십 트랙 `tracks/01_extraction_to_json/` 기준).
+이 문서의 개념이 코드로 나타나는 곳입니다(플래그십 코스 `tracks/01_extraction_to_json/` 기준).
 
 경로 계약과 Training Job:
 

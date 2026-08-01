@@ -1,7 +1,7 @@
 # SageMaker Fine-tuning & Serving E2E
 
 Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 자산입니다.
-5개 트랙이 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
+**태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 - **가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
 - **처음이라면** → [`docs/getting_started.md`](docs/getting_started.md) (설치 → 스모크 → 로컬 dry-run → 노트북)
@@ -13,7 +13,7 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 
 **Good fit**
 
-- 자체 데이터로 SLM을 파인튜닝해 **엔드포인트까지 올려 보고 싶은 분**. 데이터 준비부터 정리까지 한 트랙이면 끝납니다.
+- 자체 데이터로 SLM을 파인튜닝해 **엔드포인트까지 올려 보고 싶은 분**. 데이터 준비부터 정리까지 한 코스면 끝납니다.
 - 관리형 레시피가 **아직 지원하지 않는 모델·기법**을 써야 하는 분 (아래 [Why this asset](#why-this-asset) 참고).
 - 학습 코드를 **직접 손대야 하는 분**. `scripts/train.py`가 self-contained라 TRL/PEFT 설정을 그대로 읽고 고칠 수 있습니다.
 - SLM을 **에이전트의 tool로 붙이는 구조**를 보고 싶은 분 (reasoning은 Claude, 특화 추출은 SLM).
@@ -40,7 +40,7 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 | 로컬 GPU | 선택. 있으면 `--dry_run`으로 클라우드 제출 전에 파이프라인을 검증할 수 있습니다 |
 | HF 토큰 | Gemma 4는 ungated라 불필요. gated 모델(Gemma 3 등)을 쓸 때만 `hf auth login` |
 
-**비용 감각** — 기본값(200건 x 2 epoch)이면 학습 1회가 20분대이고, 엔드포인트는 시간당 과금입니다. 트랙 하나를 학습부터 정리까지 도는 데 대략 몇 달러 수준입니다(리전·인스턴스에 따라 다름). **엔드포인트를 지우지 않으면 계속 과금되므로** `99_cleanup.ipynb`를 반드시 실행하세요.
+**비용 감각** — 기본값(200건 x 2 epoch)이면 학습 1회가 20분대이고, 엔드포인트는 시간당 과금입니다. 코스 하나를 학습부터 정리까지 도는 데 대략 몇 달러 수준입니다(리전·인스턴스에 따라 다름). **엔드포인트를 지우지 않으면 계속 과금되므로** `99_cleanup.ipynb`를 반드시 실행하세요.
 
 ## Why this asset
 
@@ -72,9 +72,9 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 | Stage | What happens |
 |---|---|
 | 데이터 | 공개 permissive 시드 + Bedrock Converse로 grounded 합성 (critique/refine 루프) |
-| 학습 | PyTorch DLC + TRL `SFTTrainer` + PEFT LoRA/QLoRA. 추출·분류 트랙은 SFT→GRPO 정련 선택 가능 |
+| 학습 | PyTorch DLC + TRL `SFTTrainer` + PEFT LoRA/QLoRA. 추출·분류 코스는 SFT→GRPO 정련 선택 가능 |
 | 서빙 | SageMaker real-time endpoint — vLLM(기본) / SGLang / DJL LMI 중 선택 (셋 다 OpenAI 호환) |
-| 평가 | held-out 세트로 endpoint를 직접 호출해 트랙별 지표 산출 (합성·학습셋 사용 금지) |
+| 평가 | held-out 세트로 endpoint를 직접 호출해 코스별 지표 산출 (합성·학습셋 사용 금지) |
 | Agent | Strands Agent — reasoning은 Bedrock Claude, 파인튜닝한 SLM은 tool로 호출. AgentCore Runtime 배포까지 |
 
 기본 모델은 `google/gemma-4-E4B-it`(apache-2.0, ungated)입니다. `MODEL_SIZE` 환경변수로 `E2B` / `E4B` / `12B` / `26B-A4B` / `31B`를 고르거나, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
@@ -91,17 +91,17 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 | `04_domain_qa` | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) |
 | `05_multimodal_extraction` | 이미지 → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` (cc-by-4.0) |
 
-**텍스트 트랙(01~04) 노트북 순서**
+**텍스트 코스(01~04) 노트북 순서**
 
 ```
 00_setup → 01_data_and_synthetic → 02_train_sft_sagemaker → 03_deploy_endpoint
         → 04_evaluate → 05_agentic_strands → 06_agentcore_deploy → 99_cleanup
 ```
 
-- `02a_train_grpo_sagemaker` (선택): 추출·분류 트랙만. reward를 프로그램으로 채점할 수 있는 태스크에 적용합니다.
+- `02a_train_grpo_sagemaker` (선택): 추출·분류 코스만. reward를 프로그램으로 채점할 수 있는 태스크에 적용합니다.
 - `02b_local_serve` (선택): 배포 전에 로컬 vLLM으로 모델이 뜨는지 확인합니다.
 
-**멀티모달 트랙(05)** 은 이미지 입력이라 구조가 다릅니다 — 합성 단계가 없고, endpoint가 이미지를 받습니다.
+**멀티모달 코스(05)** 는 이미지 입력이라 구조가 다릅니다 — 합성 단계가 없고, endpoint가 이미지를 받습니다.
 
 ```
 00_setup → 01_data_explore → 02_train_mm_sagemaker → 03_deploy_mm_endpoint → 99_cleanup
@@ -109,7 +109,7 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 
 ## Evaluation
 
-`04_evaluate`가 held-out 세트로 endpoint를 호출해 트랙별 지표를 계산합니다.
+`04_evaluate`가 held-out 세트로 endpoint를 호출해 코스별 지표를 계산합니다.
 
 | Track | Metrics |
 |---|---|
@@ -122,12 +122,12 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 
 ## Repository layout
 
-각 트랙은 노트북 + `track_data.py`(시드 어댑터) + `scripts/`(학습·서빙 코드)로 같은 구조를 갖습니다.
+각 코스는 노트북 + `track_data.py`(시드 어댑터) + `scripts/`(학습·서빙 코드)로 같은 구조를 갖습니다. 디렉터리 이름 `tracks/`와 `track_data.py`·`TRACKS` 같은 코드 식별자는 초기 명칭을 그대로 유지하고 있으므로, 본문의 "코스"와 코드의 `track`은 같은 것을 가리킵니다.
 
 ```
 sagemaker-finetune-serve-e2e/
 ├── common/     노트북이 공통으로 import 하는 얇은 레이어
-├── tracks/     5개 트랙 (각각 독립 E2E)
+├── tracks/     5개 코스 (각각 독립 E2E)
 ├── docs/       파인튜닝 · 서빙 컨테이너 · 합성 데이터 · agentic 가이드
 ├── tools/      노트북 셀 출력 정리
 └── agentcore/  ARM64 컨테이너 스캐폴드 (Strands → AgentCore Runtime)
@@ -143,7 +143,7 @@ sagemaker-finetune-serve-e2e/
 | `aws_utils.py` | endpoint 호출(스트리밍 포함) · Bedrock Converse · CloudWatch 링크 |
 | `dlc.py` | DLC 이미지 해석 + 엔진별(vLLM/SGLang/LMI) 서빙 env 조립 |
 | `display_utils.py` | 노트북 추론 결과 렌더링 |
-| `eval_utils.py` | 트랙별 평가 지표 |
+| `eval_utils.py` | 코스별 평가 지표 |
 | `grpo_data.py` | GRPO 프롬프트 소스 3종 (holdout / synth / failures) |
 | `model_inspect.py` | 체크포인트가 vLLM으로 서빙 가능한지 판정 |
 | `synth/` | grounded 합성 (Bedrock Converse + critique/refine) |
@@ -151,23 +151,23 @@ sagemaker-finetune-serve-e2e/
 </details>
 
 <details>
-<summary><b>tracks/</b> — 트랙별 대표 코드</summary>
+<summary><b>tracks/</b> — 코스별 대표 코드</summary>
 
-**텍스트 트랙 (01~04)** — 노트북 구성은 위 [Tracks](#tracks) 참고.
+**텍스트 코스 (01~04)** — 노트북 구성은 위 [Tracks](#tracks) 참고.
 
 | File | Role |
 |---|---|
-| `track_data.py` | 시드 데이터셋 로드 + `{input, output}` → messages 변환 (트랙마다 다름) |
+| `track_data.py` | 시드 데이터셋 로드 + `{input, output}` → messages 변환 (코스마다 다름) |
 | `scripts/train.py` | SFT. 로컬 `--dry_run`과 SageMaker 학습 잡에서 같은 파일을 씁니다 |
-| `scripts/train_grpo.py` | SFT→GRPO 정련. reward를 프로그램으로 채점하는 추출·분류 트랙에서 사용 |
+| `scripts/train_grpo.py` | SFT→GRPO 정련. reward를 프로그램으로 채점하는 추출·분류 코스에서 사용 |
 | `scripts/serve_local_vllm.sh` | 배포 전 로컬 vLLM으로 모델 로드 확인 |
 | `scripts/bench_local_vllm.sh` | 로컬 처리량·지연 측정 |
 | `scripts/cleanup_local.sh` | 로컬에 받아 둔 모델·벤치 산출물 정리 |
 | `scripts/requirements.txt` | 학습 컨테이너 안에서 설치할 패키지 (로컬 환경과 별개) |
 
-`train.py` / `train_grpo.py` / `*.sh`는 네 트랙에서 **내용이 동일**합니다. 트랙 차이는 `track_data.py`와 노트북의 하이퍼파라미터에 있습니다.
+`train.py` / `train_grpo.py` / `*.sh`는 네 코스에서 **내용이 동일**합니다. 코스 차이는 `track_data.py`와 노트북의 하이퍼파라미터에 있습니다.
 
-**멀티모달 트랙 (05)**
+**멀티모달 코스 (05)**
 
 | File | Role |
 |---|---|

@@ -8,6 +8,8 @@
 
 이 문서는 이 kit의 **추론 앵커 문서**입니다. 다른 가이드(학습·agentic·평가)는 "endpoint가 무엇인지"를 설명할 때 이 문서로 링크를 겁니다.
 
+본문에 인용한 실측값은 이 kit의 **태스크별 실습 코스**에서 나왔습니다 — 하나의 태스크를 데이터 준비부터 학습·배포·평가·정리까지 혼자 완주하는 실습 단위이고, 모두 다섯 개입니다. 이후로는 짧게 **코스**라고 부릅니다. 리포지토리 디렉터리 이름은 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`·`--track` 같은 코드 식별자도 바뀌지 않았습니다 — 본문의 "코스"와 코드의 `track`은 같은 것을 가리킵니다.
+
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK 버전·리전·서비스 한도(payload/timeout/cold start)·GA 상태는 분기마다 바뀝니다.
     이 문서의 구체 수치와 태그는 전부 **실행 직전 재확인** 대상입니다 — 각 주장 옆에 붙은 공식 문서 링크가 최종 확인처입니다.
@@ -86,7 +88,7 @@ AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.c
 
 표의 수치는 다음 근거에서 나옵니다. **Real-time**은 `InvokeEndpoint`의 `Body` 길이 제한이 6,291,456바이트(= 6 MB)이고 "모델 컨테이너는 60초 안에 응답해야 한다"가 API 계약입니다([InvokeEndpoint API](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html)). **Serverless**는 요청·응답 payload가 각각 4 MB, `/invocations` timeout이 1분, `/ping` 응답은 3분 안이며 **GPU·Multi-Model Endpoint·VPC·Model Monitor가 기능 제외 목록**에 있습니다([Serverless 호출](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints-invoke.html)). **Async**는 payload 1 GB·처리 시간 최대 1시간이며 요청이 없을 때 **인스턴스를 0으로 축소**합니다([Async 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html) — 위 그림의 "최대 15분"이 과거 한도인 이유는 그림 아래 주의를 보세요). **Batch**는 S3 객체를 키 단위로 인스턴스에 매핑해 나눠 처리하고(입력 파일이 1개면 인스턴스를 늘려도 1대만 일합니다), `SplitType=Line`으로 미니배치를 쪼개며 `MaxConcurrentTransforms × MaxPayloadInMB ≤ 100 MB` 제약을 받습니다([Batch Transform 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/batch-transform.html)).
 
-**이 60초·6 MB가 이 kit에 주는 실질적 제약**이 있습니다. Real-time endpoint의 생성 요청은 컨테이너가 60초 안에 응답을 끝내야 하므로, 긴 생성(`max_tokens`를 크게 잡은 요약)은 timeout에 걸릴 수 있습니다. 앞서 실측한 요약 트랙 완성 대기가 **16.16초**였으니 아직 여유가 있습니다. 주의할 점은 [응답 스트리밍](#응답-스트리밍--invoke_endpoint_with_response_stream)이 이 벽을 옮겨 주지 않는다는 것입니다 — 스트리밍은 첫 토큰 체감만 줄이고 전체 생성 시간은 그대로이며, 응답을 끝내지 못하면 `ModelInvocationTimeExceeded`(스트림 도중의 `ModelStreamError`)로 끊깁니다([InvokeEndpointWithResponseStream API](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html)). 60초를 넘길 수 있는 워크로드는 스트리밍이 아니라 **Asynchronous**로 옮기는 것이 정답입니다. 6 MB는 프롬프트 기준으로 충분히 크지만(요약 트랙 입력이 5,996자), 이미지·오디오를 base64로 묶어 보내는 멀티모달 호출에서는 실제로 닿을 수 있는 벽입니다.
+**이 60초·6 MB가 이 kit에 주는 실질적 제약**이 있습니다. Real-time endpoint의 생성 요청은 컨테이너가 60초 안에 응답을 끝내야 하므로, 긴 생성(`max_tokens`를 크게 잡은 요약)은 timeout에 걸릴 수 있습니다. 앞서 실측한 요약 코스 완성 대기가 **16.16초**였으니 아직 여유가 있습니다. 주의할 점은 [응답 스트리밍](#응답-스트리밍--invoke_endpoint_with_response_stream)이 이 벽을 옮겨 주지 않는다는 것입니다 — 스트리밍은 첫 토큰 체감만 줄이고 전체 생성 시간은 그대로이며, 응답을 끝내지 못하면 `ModelInvocationTimeExceeded`(스트림 도중의 `ModelStreamError`)로 끊깁니다([InvokeEndpointWithResponseStream API](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html)). 60초를 넘길 수 있는 워크로드는 스트리밍이 아니라 **Asynchronous**로 옮기는 것이 정답입니다. 6 MB는 프롬프트 기준으로 충분히 크지만(요약 코스 입력이 5,996자), 이미지·오디오를 base64로 묶어 보내는 멀티모달 호출에서는 실제로 닿을 수 있는 벽입니다.
 
 cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 같은 값은 위에 인용한 한도와 달리 **더 자주 바뀝니다**. 이 표는 각 옵션의 "성격"을 잡기 위한 것이므로, 실제 값은 **실행 전에 위 표의 옵션별 공식 문서에서 재확인**하세요.
 
@@ -150,11 +152,11 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 | 레이어 | 고르는 것 | 이 kit의 선택 |
 |---|---|---|
-| **모델** | 단일 모델 배포 / [멀티 모델 배포(MME)](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) / [오토스케일링](#오토스케일과-cloudwatch-관측) | 단일 모델 배포(트랙별 endpoint 1개) |
+| **모델** | 단일 모델 배포 / [멀티 모델 배포(MME)](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) / [오토스케일링](#오토스케일과-cloudwatch-관측) | 단일 모델 배포(코스별 endpoint 1개) |
 | **컨테이너** | 단일 컨테이너 / [멀티 컨테이너](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-endpoints.html) · 안에 들어가는 것은 vLLM·SGLang·ONNX·PyTorch·HuggingFace 등 | 단일 컨테이너 + vLLM DLC(기본) |
 | **인프라** | GPU(G4dn·G5·P4 등) / [Inferentia2·Trainium](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/) / CPU 노드 | `ml.g6.2xlarge`(L4 24GB) |
 
-- **멀티 모델 배포(MME)는 LLM 서빙에 잘 맞지 않습니다.** GPU 기반 MME는 [Triton Inference Server 컨테이너를 통해서만 지원](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-support.html)되고, 지원 GPU 인스턴스도 **p2·p3·g5·g4dn**으로 한정됩니다. vLLM/SGLang DLC는 MME 컨테이너가 아니므로, 이 kit은 트랙마다 **단일 모델 endpoint를 따로** 띄웁니다.
+- **멀티 모델 배포(MME)는 LLM 서빙에 잘 맞지 않습니다.** GPU 기반 MME는 [Triton Inference Server 컨테이너를 통해서만 지원](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-support.html)되고, 지원 GPU 인스턴스도 **p2·p3·g5·g4dn**으로 한정됩니다. vLLM/SGLang DLC는 MME 컨테이너가 아니므로, 이 kit은 코스마다 **단일 모델 endpoint를 따로** 띄웁니다.
 - **멀티 컨테이너는 한 endpoint에 최대 15개 컨테이너**까지 얹을 수 있고, `InferenceExecutionConfig.Mode`가 `Serial`(기본값, inference pipeline으로 순차 실행)인지 `Direct`(`TargetContainerHostname`으로 개별 호출)인지에 따라 호출 방식이 달라집니다([create 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-create.html)). 단일 SLM 하나를 서빙하는 이 kit에는 필요 없습니다.
 - **인프라를 바꾸면 컨테이너도 함께 바꿔야 합니다.** 축이 독립적이라는 말은 "아무 조합이나 된다"가 아닙니다 — `.env`의 서빙 이미지는 전부 CUDA 빌드(vLLM/SGLang/LMI 모두 `cu130`)라 GPU 전용이고, Inferentia2/Trainium으로 옮기려면 Neuron 전용 DLC(`*-neuronx` 계열)로 교체해야 합니다. 위 그림의 GPU 예시(P4·G5·G4dn)는 스냅샷이며, 이 kit은 g5 용량 대기 때문에 **G6(L4)** 세대를 씁니다.
 - **응답 채널(스트리밍 / 비스트리밍)은 호출 시점에 고르지만, 스트리밍은 컨테이너가 지원해야 합니다.** 같은 endpoint를 두 방식으로 부를 수 있는 것은 **연속 배칭 엔진(vLLM·SGLang·LMI)** 을 얹었을 때의 이야기이고, AWS도 `InvokeEndpointWithResponseStream`에 "해당 모델의 컨테이너가 추론 스트리밍을 지원해야 한다"는 조건을 달아 둡니다. 그림의 컨테이너 칸에 있는 PyTorch·HuggingFace(transformers 단건 서빙) 계열은 응답을 완성본으로 버퍼링하므로 스트리밍이 나오지 않습니다([응답 스트리밍](#응답-스트리밍--invoke_endpoint_with_response_stream)).
@@ -188,7 +190,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 토큰을 한 번에 받지 않고 흘려받고 싶다면(챗 UX에 유용합니다) 동일한 `sagemaker-runtime`의 [`invoke_endpoint_with_response_stream()`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html)을 쓰고 payload에 `"stream": true`를 넣습니다. 이 kit은 `aws_utils.stream_sagemaker_chat()`으로 감쌌습니다.
 
-요약 트랙 endpoint 실측(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다** — 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
+요약 코스 endpoint 실측(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다** — 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
 
 **SSE 청크 경계는 줄 경계와 일치하지 않습니다.** 실측에서 `PayloadPart` 하나가 JSON 중간에서 끊겨 `..."system_finger` / `print":"vllm..."`로 나뉘어 도착했습니다. 청크를 받는 즉시 파싱하면 `JSONDecodeError`가 나므로, 버퍼에 모아 `\n\n`(SSE 이벤트 구분자) 단위로만 잘라 파싱해야 합니다(`stream_sagemaker_chat()`이 그렇게 합니다). 스트리밍 payload 필드와 이벤트 파싱 방식은 컨테이너·SDK 버전에 따라 달라지므로 **실행 전 재확인**이 필요합니다.
 
@@ -246,7 +248,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 - 배포할 때 Model이 이 S3 아티팩트를 컨테이너의 `/opt/ml/model`에 풀어 놓고, 서빙 엔진이 그 경로를 로드합니다(`SM_VLLM_MODEL=/opt/ml/model`). `train.py`가 머지 모델을 아티팩트 루트에 저장하기 때문에 하위 경로 지정이 필요 없습니다.
 - `03_deploy_endpoint`는 앞 단계에서 `%store`로 저장해 둔 `model_data`를 받아 `ModelBuilder(s3_model_data_url=...)`에 물립니다. SDK v3에서 `model_path`는 **로컬 경로**이므로 S3 URI에 쓰면 안 됩니다.
 
-Gemma를 서빙할 때 주의할 점입니다(**실행 전 재확인** 항목). chat template은 서버(vLLM/SGLang/LMI) 또는 `apply_chat_template`에 위임합니다(이 kit의 `common/gemma_format.py`). **Gemma 템플릿에는 전용 system 슬롯이 없는 경우가 많지만**(정확한 동작은 모델별 `tokenizer_config`가 결정합니다), 이 kit의 트랙은 `build_inference_messages(..., system_content=...)`로 만든 system role을 그대로 endpoint에 보내고 서버의 chat template이 처리합니다 — 이 문서에 인용한 실측값도 그 경로에서 나왔습니다. 템플릿이 system role을 **거부하는** 모델을 만났을 때만 `fold_system_into_user()`로 첫 user 턴에 병합하세요(자동 폴백은 없습니다). 학습과 추론의 프롬프트 형식이 어긋나면 점수가 떨어지므로, **학습에 쓴 형식과 같은 쪽**을 유지하는 것이 원칙입니다. dtype는 **bf16 필수** — **fp16은 금지**이며 Gemma에서 오버플로/NaN을 유발합니다. 텍스트 LoRA는 all-linear에 `modules_to_save=["lm_head","embed_tokens"]`를 함께 지정하고, 멀티모달 트랙은 vision/audio proj가 매칭돼 크래시하므로 language_model 한정 `target_modules`에 `modules_to_save=None`을 씁니다. 상세는 `tracks/*/scripts/train.py`를 참고하세요.
+Gemma를 서빙할 때 주의할 점입니다(**실행 전 재확인** 항목). chat template은 서버(vLLM/SGLang/LMI) 또는 `apply_chat_template`에 위임합니다(이 kit의 `common/gemma_format.py`). **Gemma 템플릿에는 전용 system 슬롯이 없는 경우가 많지만**(정확한 동작은 모델별 `tokenizer_config`가 결정합니다), 이 kit의 코스는 `build_inference_messages(..., system_content=...)`로 만든 system role을 그대로 endpoint에 보내고 서버의 chat template이 처리합니다 — 이 문서에 인용한 실측값도 그 경로에서 나왔습니다. 템플릿이 system role을 **거부하는** 모델을 만났을 때만 `fold_system_into_user()`로 첫 user 턴에 병합하세요(자동 폴백은 없습니다). 학습과 추론의 프롬프트 형식이 어긋나면 점수가 떨어지므로, **학습에 쓴 형식과 같은 쪽**을 유지하는 것이 원칙입니다. dtype는 **bf16 필수** — **fp16은 금지**이며 Gemma에서 오버플로/NaN을 유발합니다. 텍스트 LoRA는 all-linear에 `modules_to_save=["lm_head","embed_tokens"]`를 함께 지정하고, 멀티모달 코스는 vision/audio proj가 매칭돼 크래시하므로 language_model 한정 `target_modules`에 `modules_to_save=None`을 씁니다. 상세는 `tracks/*/scripts/train.py`를 참고하세요.
 
 또 하나: gemma-4 **E2B/E4B는 KV-sharing 레이어**를 갖는데, transformers가 그 레이어의 `k_norm`/`k_proj`/`v_proj` 모듈을 아예 만들지 않아 `save_pretrained` 시 원본 텐서가 소실됩니다(E4B 실측 54개). vLLM은 전 레이어에 `k_norm`을 등록하므로 `weights not initialized` ValueError로 엔진 초기화가 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). 이 kit의 `train.py`는 저장 직전 base에서 그 텐서를 복원하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) E4B도 vLLM으로 정상 서빙됩니다 — 실측 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 OK). 상세는 [E계열 KV-shared dead weight 복원](05_serving_containers.md#e계열-kv-shared-dead-weight-복원)에 있습니다.
 
@@ -316,7 +318,7 @@ SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있�
 - **인스턴스**: `config.INFER_INSTANCE_TYPE`을 씁니다. 프리셋 기본값은 E4B → `ml.g5.2xlarge`, 12B / 26B-A4B → `ml.g5.12xlarge`이며, 이 kit의 `.env`는 g5 용량 대기가 길어 **`ml.g6.2xlarge`(L4 24GB + RAM 32GB)로 오버라이드**해 두었습니다.
 - **비동기 배포**: `deploy(wait=False)`로 즉시 반환합니다. endpoint 생성은 GPU 프로비저닝 + 이미지 pull + 모델 로드로 수 분~십수 분 걸리며, **커널이 끊겨도 서버에서 계속 진행**됩니다. 재접속은 `Endpoint.get(endpoint_name).refresh()`로 합니다.
 - **관측**: `aws_utils.cw_links()`가 SageMaker 콘솔과 CloudWatch Logs(`/aws/sagemaker/Endpoints`)로 가는 바로가기 HTML을 출력합니다.
-- **`%store` 주의**: 전역 `endpoint_name` 키는 다른 트랙이 덮어씁니다. 그래서 각 트랙은 `ep_extraction` 같은 **트랙 전용 키를 함께 저장**하고 복구 시 그쪽을 우선합니다.
+- **`%store` 주의**: 전역 `endpoint_name` 키는 다른 코스가 덮어씁니다. 그래서 각 코스는 `ep_extraction` 같은 **코스 전용 키를 함께 저장**하고 복구 시 그쪽을 우선합니다.
 
 `serving_env()`가 "의미 → 엔진별 키"를 한곳에서 매핑하므로, 노트북은 의미만 넘깁니다. 같은 설정을 세 엔진의 서로 다른 키로 세 번 쓰면 값을 하나 바꿀 때 빼먹기 쉽습니다(이 kit도 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발한 적이 있습니다).
 
@@ -335,7 +337,7 @@ vLLM/SGLang DLC의 entrypoint는 `SM_<ENGINE>_` 접두사를 떼고 소문자화
 
 ### 24GB GPU CUDA OOM — max_num_seqs 기본값
 
-이 kit endpoint 실측값입니다(vLLM 0.26.0, gemma-4 E4B bf16 14.23 GiB, `ml.g6.2xlarge` = L4 22.9GB 가용). KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. 멀티모달 트랙(05)은 vision tower 때문에 가중치가 **1 GiB 더 커서 같은 설정으로 CUDA OOM이 나 배포가 `Failed`**했습니다.
+이 kit endpoint 실측값입니다(vLLM 0.26.0, gemma-4 E4B bf16 14.23 GiB, `ml.g6.2xlarge` = L4 22.9GB 가용). KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. 멀티모달 코스(05)는 vision tower 때문에 가중치가 **1 GiB 더 커서 같은 설정으로 CUDA OOM이 나 배포가 `Failed`**했습니다.
 
 - `max_num_seqs`(vLLM 기본 **256**)는 샘플러 logits 버퍼를 `256 × vocab 262,144 × 4B = 256 MiB`로 잡습니다. 실습은 동시 요청이 1~2건이므로 **32**로 낮춰도 손실이 없고, 버퍼는 32 MiB로 줄어듭니다. 그래서 `serving_env()`의 기본값이 `max_num_seqs=32`, `gpu_memory_utilization=0.90`입니다.
 - **증상이 원인을 가립니다.** 배포 실패가 `did not pass the ping health check`로만 보이고, 실제 `torch.OutOfMemoryError`는 **CloudWatch endpoint 로그에만** 남습니다. `Endpoint.get(name)`의 `failure_reason`부터 확인하고, 로그로 내려가세요.
@@ -376,7 +378,7 @@ vLLM/SGLang DLC의 entrypoint는 `SM_<ENGINE>_` 접두사를 떼고 소문자화
 !!! danger "비용과 cleanup"
     **Real-time endpoint는 삭제하기 전까지 시간당(GPU 인스턴스) 요금이 계속 부과됩니다.** 호출이 전혀 없어도 켜져 있는 한 비용이 발생합니다.
     실습이 끝나면 **반드시 `99_cleanup.ipynb`를 실행**하거나 endpoint를 직접 삭제하세요.
-    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 트랙 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하세요.
+    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하세요.
     다른 리전에도 띄운 적이 있다면 그 리전의 endpoint 목록도 확인해야 합니다.
 
 `common/aws_utils.COST_WARNING`이 노트북에서 출력하는 내용과 같습니다.
@@ -402,11 +404,11 @@ sm.delete_endpoint_config(EndpointConfigName=endpoint_name)    # 설계도 제�
 for m in model_names:
     sm.delete_model(ModelName=m)                               # 임의 생성된 model 이름
 
-# 3) 확인 — 이 트랙 것과 다른 트랙 것을 구분해서 본다
-sm.list_endpoints()   # 이 트랙 prefix가 비어 있으면 그 트랙 과금은 멈춤
+# 3) 확인 — 이 코스 것과 다른 코스 것을 구분해서 본다
+sm.list_endpoints()   # 이 코스 prefix가 비어 있으면 그 코스 과금은 멈춤
 ```
 
-**순서에 주의하세요.** Endpoint를 먼저 지워야 EndpointConfig를, 그다음에 Model을 지울 수 있습니다. 계정 전체 목록만 보면 다른 트랙의 endpoint를 보고 "이 트랙이 안 지워졌다"고 오해하게 되므로, prefix로 나눠서 확인하는 편이 낫습니다. 로컬 vLLM을 종료할 때는 `kill <pid>`로 정밀하게 하세요 — `pkill -f vllm`은 실행 중인 셸이나 노트북까지 죽일 수 있습니다.
+**순서에 주의하세요.** Endpoint를 먼저 지워야 EndpointConfig를, 그다음에 Model을 지울 수 있습니다. 계정 전체 목록만 보면 다른 코스의 endpoint를 보고 "이 코스가 안 지워졌다"고 오해하게 되므로, prefix로 나눠서 확인하는 편이 낫습니다. 로컬 vLLM을 종료할 때는 `kill <pid>`로 정밀하게 하세요 — `pkill -f vllm`은 실행 중인 셸이나 노트북까지 죽일 수 있습니다.
 
 ---
 

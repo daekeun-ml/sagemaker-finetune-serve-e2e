@@ -5,11 +5,11 @@
     다루는 것: SLM endpoint를 tool로 노출하는 방법, Bedrock Claude를 reasoning으로 붙이는 방법, AgentCore Runtime 배포 계약.
     다루지 않는 것: 학습·데이터 합성([파인튜닝](03_finetuning.md)·[합성 데이터](02_synthetic_data.md)), 서빙 컨테이너 선택([서빙 컨테이너 선택](05_serving_containers.md)).
 
-이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다.
+이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다. 아래에서 말하는 **코스**는 이 kit의 **태스크별 실습 코스**를 뜻합니다 — 하나의 태스크를 데이터 준비부터 학습·배포·평가·정리까지 완주하는 실습 단위이고, 모두 다섯 개입니다. 디렉터리 이름은 초기 이름을 그대로 둬서 `tracks/`이고 `track_data`·`--track` 같은 코드 식별자도 바뀌지 않았으니, 본문의 "코스"와 코드의 `track`은 같은 것입니다.
 
 이 문서와 관련된 리포지토리 파일:
 
-- `agentcore/app.py` — AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 트랙 tool 포함
+- `agentcore/app.py` — AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
 - `agentcore/templates/main.py` — CLI 스캐폴딩의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
 - `agentcore/templates/load.py` — reasoning 모델 로더, `BEDROCK_CLAUDE_MODEL_ID` env를 읽고 없으면 kit 기본값으로 폴백
 - `agentcore/Dockerfile` — ARM64 런타임 이미지(`/invocations`+`/ping`:8080 계약은 SDK가 제공)
@@ -121,7 +121,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 
 - 배포된 모델을 코드에서 호출하는 경로는 [SageMaker 모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에 정리되어 있습니다. 이 kit의 tool은 그중 boto3 `sagemaker-runtime` 직접 호출을 씁니다.
 - endpoint 호출 스키마는 서빙 컨테이너를 따릅니다. 이 kit의 기본 엔진은 vLLM(대안 SGLang·DJL LMI)이고 셋 다 **OpenAI 호환**이므로, tool은 `{"messages": [...]}` 스키마를 씁니다 — `common/aws_utils.py`의 `invoke_sagemaker_chat()`입니다. `{"inputs", "parameters"}` generation 스키마(LMI rolling-batch·HF TGI 관용)가 필요하면 같은 파일의 `invoke_sagemaker_endpoint()`를 쓰세요.
-- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. **요약 트랙 endpoint 실측(vLLM 0.26.0, 입력 5,996자)에서 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
+- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. **요약 코스 endpoint 실측(vLLM 0.26.0, 입력 5,996자)에서 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
 - Bedrock은 `converse()`(또는 스트리밍 `converse_stream()`)를 쓰며, [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정한 메시지·`inferenceConfig` 스키마를 따릅니다. 구현은 `common/aws_utils.py`의 `bedrock_converse()`이고, 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
 
 ??? question "오개념 — “LiteLLM 쓰면 둘이 같은 거 아닌가요?”"
@@ -191,11 +191,11 @@ model = BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=AWS_REGION)  # reaso
 agent = Agent(model=model, tools=[extract_structured_json], system_prompt="You orchestrate...")
 ```
 
-노트북에서는 같은 tool을 `common/aws_utils.invoke_sagemaker_chat()`으로 구현해, 응답 파싱까지 공통 코드에 맡깁니다(`temperature=0.1`). SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합니다(트랙별 `track_data.SYSTEM_PROMPT`).
+노트북에서는 같은 tool을 `common/aws_utils.invoke_sagemaker_chat()`으로 구현해, 응답 파싱까지 공통 코드에 맡깁니다(`temperature=0.1`). SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합니다(코스별 `track_data.SYSTEM_PROMPT`).
 
-!!! warning "`max_tokens`는 트랙마다 다릅니다 — 256을 그대로 복사하지 마세요"
-    위 스니펫의 `256`은 **추출·분류 트랙 값**입니다(`agentcore/app.py`가 정보추출 전용 스캐폴드이므로). 요약·도메인 QA 노트북은 **512**를 씁니다.
-    도메인 QA에서 256을 쓰면 정답 13건(8.7%)이 잘려 지표가 과소 측정됩니다. 배포·평가·에이전트 셀이 **모두 같은 값**을 쓰도록 트랙별 `gen_max_tokens`가 정해져 있습니다 — 전체 표는 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+!!! warning "`max_tokens`는 코스마다 다릅니다 — 256을 그대로 복사하지 마세요"
+    위 스니펫의 `256`은 **추출·분류 코스 값**입니다(`agentcore/app.py`가 정보추출 전용 스캐폴드이므로). 요약·도메인 QA 노트북은 **512**를 씁니다.
+    도메인 QA에서 256을 쓰면 정답 13건(8.7%)이 잘려 지표가 과소 측정됩니다. 배포·평가·에이전트 셀이 **모두 같은 값**을 쓰도록 코스별 `gen_max_tokens`가 정해져 있습니다 — 전체 표는 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
 
 ### provider 선택 — BedrockModel과 LiteLLMModel
 
@@ -290,7 +290,7 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 ??? question "오개념 — “`/ping`은 왜 필요한가요?”"
     런타임이 컨테이너의 헬스를 체크하는 엔드포인트입니다. `BedrockAgentCoreApp.run()`이 `/invocations`와 함께 자동으로 제공하므로 직접 구현할 필요는 없습니다.
 
-자세한 배포 절차는 노트북 **`06_agentcore_deploy`** 와 `agentcore/app.py`·`agentcore/Dockerfile`을 참고하세요. `agentcore/app.py`의 스캐폴드는 **정보추출 트랙 전용**(tool = `extract_structured_json`)이므로, 다른 트랙에 쓸 때는 tool 함수와 system 프롬프트를 그 트랙 것으로 바꿔야 합니다.
+자세한 배포 절차는 노트북 **`06_agentcore_deploy`** 와 `agentcore/app.py`·`agentcore/Dockerfile`을 참고하세요. `agentcore/app.py`의 스캐폴드는 **정보추출 코스 전용**(tool = `extract_structured_json`)이므로, 다른 코스에 쓸 때는 tool 함수와 system 프롬프트를 그 코스 것으로 바꿔야 합니다.
 
 ---
 
