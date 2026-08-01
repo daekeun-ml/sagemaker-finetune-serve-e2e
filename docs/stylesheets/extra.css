@@ -18,13 +18,18 @@
    Material 기본값은 word-break:break-word 인데, 이건 '단어 경계'만 끊습니다. 공백도
    하이픈도 없는 식별자는 한 단어로 취급돼 끊기지 않고 표를 밀어냅니다.
    그래서 anywhere 를 !important 로 덮어씁니다(표 안 code 는 특히 자주 넘칩니다). */
-.md-typeset code {
-  overflow-wrap: anywhere !important;
+/* 🔴 pre 안의 code(=코드블록)는 제외합니다. 코드블록은 Material이 가로 스크롤로 처리하는데,
+   여기에 줄바꿈을 강제하면 셸 명령이 중간에서 꺾여 복사·읽기가 어려워지고, 긴 줄이
+   컨테이너를 밀어내 본문 전체가 오른쪽으로 흐릅니다(실측: 174자 EAGLE3 설정 줄). */
+.md-typeset :not(pre) > code {
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 /* 표 안의 code 는 셀 폭이 좁아 더 공격적으로 끊어야 합니다. */
-.md-typeset table:not([class]) td code,
-.md-typeset table:not([class]) th code {
+/* 표 안의 인라인 code 는 셀 폭이 좁아 더 공격적으로 끊습니다. 여기도 pre 는 제외합니다
+   (표 셀 안에 코드블록이 들어가는 경우가 있고, 그건 셀 안에서 스크롤돼야 합니다). */
+.md-typeset table:not([class]) td :not(pre) > code,
+.md-typeset table:not([class]) th :not(pre) > code {
   word-break: break-all;
 }
