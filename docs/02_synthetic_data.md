@@ -1,6 +1,6 @@
 # 02 · Grounded 합성 데이터 — seed에 근거하고 critique로 걸러내기
 
-!!! info "읽는 사람과 범위"
+!!! info "Scope"
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다. Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
     선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 트랙의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
     다루는 것은 grounded 생성·critique 게이트·held-out 규율·라이브러리 대안이고, 학습 자체는 [파인튜닝](03_finetuning.md)이 다룹니다.
@@ -54,7 +54,7 @@
     "백지에 상상해서 써봐"(자유 생성)라고 시키는 대신, **"이 실제 샘플들과 같은 도메인·스타일·라벨공간 안에서, 겹치지 않는 새 예시를 만들어"**(grounded)라고 지시합니다.
     그리고 만들어진 결과를 **다시 채점자 LLM에게 검수시켜** 합격한 것만 남깁니다.
 
-### 대조표 — 자유 생성 vs grounded critique
+### 자유 생성 vs grounded critique
 
 | 축 | 자유 생성 (free) | grounded + critique/refine (이 킷) |
 |---|---|---|
@@ -135,11 +135,11 @@ synth = bs.generate_grounded(
 두 가지 기본값은 Bedrock 호출을 실제로 돌려 보고 정해졌습니다.
 
 - **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다(실측 2026-07-31). 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
-- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다. 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
+- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다(실측 2026-07-31 — 세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다). 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
 
 ### 생성 지시와 채점 기준의 분리
 
-생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(실측: 8건 생성 → 8건 기각).
+생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 실측 2026-07-31: 8건 생성 → 8건 기각).
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
@@ -151,7 +151,7 @@ synth = bs.generate_grounded(
 
 ## 생성 건수 결정 — NUM_SYNTHETIC 기본값
 
-- `config.NUM_SYNTHETIC`의 기본값은 **200/트랙**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 킷의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 트랙(`03_summarization`)은 seed 문서가 커서 호출당 지연이 큽니다(실측: seed 1건 중앙 1,651자 vs 추출 트랙 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
+- `config.NUM_SYNTHETIC`의 기본값은 **200/트랙**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 킷의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 트랙(`03_summarization`)은 seed 문서가 커서 호출당 지연이 큽니다(실측 2026-07-31: seed 1건 중앙 1,651자 vs 추출 트랙 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
 - seed 샘플 수는 `config.NUM_SEED_SAMPLES`(기본 300)로 따로 잡습니다. 합성 건수와 seed 건수는 별개 값입니다.
 - **언제 늘리나요** — seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
 - **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
@@ -193,7 +193,7 @@ seed 전체
 
 기본 경로(`bedrock_synth.py`)만으로도 충분하지만, 오케스트레이션이나 대량 실행이 필요하다면 아래 대안을 붙일 수 있습니다. **버전·라이선스·유지보수 상태는 실행 전 재확인** 대상입니다.
 
-| 도구 | Bedrock 연동 | 상태 (2026-07 실측) | 라이선스 | 쓸 때 |
+| 도구 | Bedrock 연동 | 상태 (GitHub/PyPI 실측 2026-07-19) | 라이선스 | 쓸 때 |
 |---|---|---|---|---|
 | **`bedrock_synth.py` (이 킷)** | boto3 native | 킷 코드 | 킷 코드 | 기본값. 의존성 0, AWS 거버넌스 |
 | **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원 — native (`ModelProviderName.amazon_bedrock`) | 가장 활발 (v1.0.4 @ 2026-07-16) | 확인 필요 — core lib MIT / repo 루트 커스텀 | GUI+오케스트레이션 원할 때 |
@@ -206,7 +206,7 @@ seed 전체
 - 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 킷의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
 
 ??? question "오개념 — “유명한 distilabel을 왜 안 쓰나요?”"
-    유명세와 유지보수는 별개입니다. 실측 시점 기준 **2026년 릴리스가 0건**(마지막 2025-01)이라 프로덕션 의존성으로는 부적합합니다.
+    유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01, 실측 2026-07-19)이라 프로덕션 의존성으로는 부적합합니다.
     이 킷은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
 
 ---

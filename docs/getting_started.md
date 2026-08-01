@@ -54,7 +54,7 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 cd ~/sagemaker-finetune-serve-e2e
 python tests/test_smoke.py
 ```
-기대 출력: `7/7 passed`. (데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직 검증)
+기대 출력: 마지막 줄이 `9/9 passed`(테스트를 추가하면 그만큼 늘어납니다). 실패 없이 끝나는지만 보면 됩니다 — 데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직·멀티모달 트랙 등록을 검증합니다.
 
 ---
 
@@ -142,7 +142,7 @@ jupyter lab           # 브라우저에서 tracks/01_.../00_setup.ipynb 부터 �
 
 ### 노트북 실행 전 필요한 것
 ```bash
-export AWS_REGION=us-east-1
+export AWS_REGION=us-west-2         # config 기본값. .env의 DLC 이미지 URI 리전과 일치해야 합니다
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
 export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID는 콘솔에서 확인
 # export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만

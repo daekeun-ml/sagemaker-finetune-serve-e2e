@@ -1,6 +1,6 @@
 # 00 · 전체 지도 — 킷 구조와 실행 순서
 
-!!! info "읽는 사람과 범위"
+!!! info "Scope"
     이 킷을 처음 여는 ML 엔지니어 / 데이터 과학자. SageMaker·Bedrock을 몰라도 읽을 수 있습니다.
     선행 조건: 없습니다. 이 문서가 킷의 **진입점(index)**입니다.
     다루는 것: 무엇이 어디에 있고 어떤 순서로 도는지, 노트북 ↔ 문서 매핑, 모델·엔진 기본값, 비용과 정리.
@@ -55,7 +55,35 @@
     부품(합성·학습·서빙·평가)은 `common/`에 한 번만 작성해 두고, 트랙은 데이터와 프롬프트만 갈아끼웁니다.
     멀티모달 트랙만 이미지 입력이라 구조가 조금 다릅니다.
 
-### 설계 축 대조표
+### 인프라 비용은 TCO의 한 칸일 뿐입니다
+
+아래 축별 선택보다 한 층 위에 전제가 하나 있습니다 — **왜 관리형 티어인가**. 티어를 고를 때 사람들이 실제로 보는 축은 하나뿐입니다 — **시간당 단가**. 그리고 그 비교에서 관리형이 지는 것은 사실입니다. 이 킷이 쓰는 `ml.g6.2xlarge`를 SageMaker endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다(정확한 배율은 리전·시점에 따라 다르므로 [SageMaker AI 요금](https://aws.amazon.com/sagemaker-ai/pricing/)과 [EC2 온디맨드 요금](https://aws.amazon.com/ec2/pricing/on-demand/)에서 직접 비교하세요). 문제는 그 비교가 **총 소유비용(TCO) 중 인프라 비용 한 칸만** 놓고 이루어진다는 점입니다.
+
+[![관리형 배포와 자체 배포의 총 소유비용 비교 도해. 왼쪽에 대표적 오해 세 가지("EC2나 온프렘으로 서빙하면 간단한데?", "그냥 vLLM/SGLang 띄우는 게 더 낫네!", "SageMaker AI 쓰려니까 EC2보다 인프라 비용이 비싼데?")와 TCO 관점의 반론(숙련된 팀·인력이 구성되지 않음, 유지보수 및 보안에 따른 숨겨진 시간과 비용)이 있고, 오른쪽 위에는 누적 막대 두 개가 있다. 관리형 배포(SageMaker AI) 막대는 짧고, 자체 배포(EC2/EKS) 막대는 훨씬 길며 인프라 비용·운영 비용·규정 준수 비용 세 구간으로 나뉜다. 오른쪽 아래 육각형 세 개는 판단해야 할 축을 비용(모델 호스팅 비용·운영 오버헤드·배포 및 관리해야 할 모델 수), 성능(지연 시간·처리량·가용성), 복잡성(엔지니어링 공수·모델 크기와 테스트와 업그레이드·페이로드 크기·추론 워크플로)으로 나눈다](images/why_sagemaker.png)](images/why_sagemaker.png)
+
+*자체 배포의 막대가 긴 이유는 단가가 아니라 칸 수입니다 — 인프라 비용 위에 운영 비용과 규정 준수 비용이 더 얹힙니다.*
+
+그림 왼쪽의 세 문장은 이 킷을 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다 — **빠진 두 칸을 채우고 다시 비교하세요.**
+
+| 비용 칸 | 무엇이 들어가나 | 자체 배포(EC2/EKS)에서는 | 관리형(SageMaker AI)에서는 |
+|---|---|---|---|
+| **인프라 비용** | 인스턴스·스토리지·네트워크 | 시간당 단가가 낮음 | 시간당 단가가 높음. **여기까지만 보면 자체 배포가 이깁니다** |
+| **운영 비용** | GPU 드라이버·CUDA 업그레이드, `/ping` 상당의 health check와 로드밸런서 구성, 재시작·롤백, 관측 스택, 당직 | 전부 내 몫. 그리고 이것은 **인건비라서 청구서에 안 보입니다** | 컨트롤 플레인이 AWS 몫. 내가 쓰는 것은 `.env` 값과 노트북 몇 줄 |
+| **규정 준수 비용** | guest OS 패치 적용, 감사 증적, 격리·암호화 구성 | [공동 책임 모델](https://aws.amazon.com/compliance/shared-responsibility-model/) 기준으로 guest OS와 그 위의 소프트웨어 패치는 **고객 책임** | 호스트와 관리형 런타임은 AWS 책임. 내 몫은 이미지 태그를 올리는 것([운영 관점 비교](01_sagemaker_basics.md#운영-관점-비교)의 「보안 패치·규정 준수」 행) |
+
+그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 킷의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
+
+- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**. 마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분하지만, 트랙마다 다른 모델이 붙기 시작하면(이 킷만 해도 추출·분류·요약·멀티모달 트랙이 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
+- **성능** — 지연 시간, 처리량, 가용성. 지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있지만(vLLM은 같은 vLLM입니다), **가용성**은 엔진이 주지 않습니다 — `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능이고(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다 — 이 킷은 실습이라 `initial_instance_count=1` 고정입니다), 모델을 교체할 때의 canary·롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
+- **복잡성** — 엔지니어링 공수, 모델 크기·테스트·업그레이드, **페이로드 크기**, 추론 워크플로. 페이로드 크기와 처리 시간이 커지면 Real-time이 아니라 Asynchronous나 Batch Transform이 답인데, 자체 배포에서는 그 세 가지를 각각 큐·워커·잡 러너로 내가 만들어야 합니다([추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)).
+
+??? tip "그래도 자체 배포가 이기는 경우가 있습니다"
+    이 그림은 관리형을 항상 고르라는 주장이 아닙니다. 운영 비용 칸이 **이미 지불된** 팀이 있습니다 — 사내에 Kubernetes 플랫폼 팀과 관측 스택이 서 있고 GPU 노드가 이미 그 위에서 돌고 있다면, 세 번째 칸의 증분은 거의 0이고 남는 것은 인프라 단가 차이뿐입니다. 그때는 자체 배포가 정확히 더 싼 선택입니다.
+    판단의 기준은 "관리형이냐 자체냐"가 아니라 **"운영 비용과 규정 준수 비용을 내가 이미 내고 있는가"**입니다. 티어별 조건 정리는 [언제 무엇을 쓰나](01_sagemaker_basics.md#언제-무엇을-쓰나)에, 티어 간 운영 축 대조는 [운영 관점 비교](01_sagemaker_basics.md#운영-관점-비교)에 있습니다.
+
+티어를 관리형으로 정한 뒤, 그 안에서 축마다 무엇을 골랐는지가 다음 표입니다.
+
+### 설계 축별 선택
 
 | 축 | 이 킷의 선택 | 대안 | 왜 이걸 골랐나 (조건부) |
 |---|---|---|---|
@@ -187,7 +215,7 @@
 
 - `gemma-4-31B`는 **프리셋에 없습니다.** `MODEL_ID`로 직접 지정할 수는 있지만, 인스턴스 사이징과 `transformers` 요건은 직접 맞춰야 합니다.
 - 이 킷의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
-- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B 실측 peak RAM은 약 17.5GB입니다.
+- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM은 약 17.5GB입니다(실측 2026-07).
 - **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 재-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
@@ -203,7 +231,7 @@
 - LoRA는 텍스트 트랙에서 `target_modules="all-linear"` + `modules_to_save=["lm_head","embed_tokens"]`입니다. 멀티모달 학습은 vision/audio proj가 `ClippableLinear`라 매칭되면 크래시하므로 `language_model` 한정 regex를 씁니다.
 - `bf16`은 필수입니다(**fp16 금지** — Gemma에서 오버플로/NaN을 유발합니다). `attn=eager`가 안전 기본값입니다(soft-cap/sliding-window 정합성).
 - packing은 `flash_attention_2`일 때만 켜집니다. eager/sdpa에서는 **샘플 간 cross-contamination을 방지하기 위해 자동으로 꺼집니다**.
-- E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 54개). 그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). `train.py`는 저장 직전 그 텐서를 base에서 복원하며(복원 전 665키 → 복원 후 719키 = 원본과 동일), 연산에 쓰이지 않는 dead weight라 정확도에는 무해합니다.
+- E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 2026-07-30: 54개). 그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). `train.py`는 저장 직전 그 텐서를 base에서 복원하며(복원 전 665키 → 복원 후 719키 = 원본과 동일), 연산에 쓰이지 않는 dead weight라 정확도에는 무해합니다.
 
 ---
 
@@ -290,7 +318,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 ??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 킷은 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
-    LMI도 됩니다 — 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 킷이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족하고, 그보다 **오래된 LMI 버전(lmi26 이하)** 태그는 gemma-4를 로드하지 못합니다. 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아닙니다.
+    LMI도 됩니다 — 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 킷이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회 2026-07-30). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK 폴백에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다 — 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
     세 엔진 모두 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드는 바뀌지 않습니다**. 선택 기준은 [서빙 컨테이너](05_serving_containers.md)에 있습니다.
 
@@ -305,7 +333,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 ??? question "오개념 — “SageMaker 관리형 evaluator로 채점하면 되지 않나요?”"
     **이 킷의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
-    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 실측에서 `DescribeHubContent ... does not exist`로 실패했습니다.
+    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다(실측 2026-07-31).
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다 — 빠르고 저렴하다는 부수 효과도 있습니다.
 
 마지막은 이 킷에서 가장 비싼 착각인 과금에 관한 것입니다.
@@ -318,7 +346,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 ??? info "더 읽을 거리"
     LMI 컨테이너가 실제로 어떻게 빌드되는지는 [djl-serving의 `lmi.Dockerfile`](https://github.com/deepjavalibrary/djl-serving/blob/master/serving/docker/lmi.Dockerfile)에서 Dockerfile 수준으로 확인할 수 있습니다(vLLM·SGLang DLC는 [deep-learning-containers의 `vllm`](https://github.com/aws/deep-learning-containers/tree/master/vllm)·[`sglang`](https://github.com/aws/deep-learning-containers/tree/master/sglang) 디렉터리).
-    엔진 자체의 버전·기능 지원 여부는 문서보다 저장소(위 [설계 축 대조표](#설계-축-대조표)의 vLLM·SGLang 링크)가 빠릅니다.
+    엔진 자체의 버전·기능 지원 여부는 문서보다 저장소(위 [설계 축별 선택](#설계-축별-선택)의 vLLM·SGLang 링크)가 빠릅니다.
 
 ---
 

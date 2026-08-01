@@ -13,19 +13,18 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 ## 가이드
 
 파일명 번호가 곧 읽는 순서입니다. 처음이라면 위에서부터, 특정 단계만 필요하면 해당 항목으로 가세요.
+각 문서가 무엇을 다루고 어느 노트북·참조 코드에 대응하는지는 [전체 지도의 상세 문서 지도](00_overview.md#상세-문서-지도)에 한 표로 정리돼 있습니다.
 
-| 문서 | 단계 | 다루는 내용 |
-|---|---|---|
-| [시작하기](getting_started.md) | 설치 | 스모크 테스트, 로컬 dry-run, 노트북 진입 |
-| [00 전체 지도](00_overview.md) | 지도 | 킷 구조, 노트북 ↔ 문서 매핑 |
-| [01 SageMaker 기초](01_sagemaker_basics.md) | 개념 | Training Job vs Endpoint, 경로 계약, 수명과 과금 |
-| [02 합성 데이터](02_synthetic_data.md) | 데이터 | Bedrock Converse grounded 생성, critique/refine, held-out 규율 |
-| [03 파인튜닝](03_finetuning.md) | 학습 | PyTorch DLC + TRL/PEFT, LoRA vs QLoRA, `MaxRuntimeExceeded` 함정 |
-| [04 SageMaker 추론](04_sagemaker_inference.md) | 배포 | real-time / serverless / async / batch 네 옵션과 선택 기준 |
-| [05 서빙 컨테이너](05_serving_containers.md) | 배포 | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 |
-| [06 Agentic loop](06_agentic.md) | 활용 | Strands Agent — reasoning은 Claude, SLM은 tool로 |
-| [실행 런북](RUN_E2E.md) | 완주 | 단계별 핸드오프, 비용 가드, 체크리스트 |
-
+| 단계 | 문서 |
+|---|---|
+| 설치 | [시작하기](getting_started.md) |
+| 지도 | [00 전체 지도](00_overview.md) |
+| 개념 | [01 SageMaker 기초](01_sagemaker_basics.md) |
+| 데이터 | [02 합성 데이터](02_synthetic_data.md) |
+| 학습 | [03 파인튜닝](03_finetuning.md) |
+| 배포 | [04 SageMaker 추론](04_sagemaker_inference.md) · [05 서빙 컨테이너](05_serving_containers.md) |
+| 활용 | [06 Agentic loop](06_agentic.md) |
+| 완주 | [실행 런북](RUN_E2E.md) |
 
 ## 파이프라인
 
@@ -61,4 +60,4 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 버전 정보에 대해서도 같은 규율이 필요합니다.
 
 !!! warning "빠르게 바뀌는 값"
-    모델 ID·DLC 이미지 태그·SDK 버전·리전 가용성은 빠르게 바뀝니다. 문서의 서술은 특정 시점 기준이므로 **실행 직전에 각 소스에서 재확인**하세요. 확인처는 각 문서의 해당 절에 인라인으로 링크되어 있습니다.
+    모델 ID·DLC 이미지 태그·SDK 버전·리전 가용성은 빠르게 바뀝니다. 각 문서의 수치에는 관측일이 붙어 있으니, 그 날짜를 보고 **실행 직전에 각 소스에서 재확인**하세요. 확인처는 각 문서의 해당 절에 인라인으로 링크되어 있습니다.

@@ -1,6 +1,6 @@
 # 06 · Agentic Loop — 파인튜닝 SLM(tool) + Bedrock Claude(reasoning)
 
-!!! info "읽는 사람과 범위"
+!!! info "Scope"
     이 킷으로 Gemma SLM을 학습(`02_train_sft_sagemaker`)·배포(`03_deploy_endpoint`)해 **real-time endpoint를 이미 가진 분**이 대상입니다. Strands/AgentCore는 처음이어도 괜찮습니다.
     다루는 것: SLM endpoint를 tool로 노출하는 방법, Bedrock Claude를 reasoning으로 붙이는 방법, AgentCore Runtime 배포 계약.
     다루지 않는 것: 학습·데이터 합성([파인튜닝](03_finetuning.md)·[합성 데이터](02_synthetic_data.md)), 서빙 컨테이너 선택([서빙 컨테이너 선택](05_serving_containers.md)).
@@ -65,7 +65,7 @@
 
 역할을 나누는 근거는 과금 모델과 커스터마이즈 수단이 서로 다르다는 데 있습니다.
 
-### 대조표 — reasoning LLM vs specialist SLM
+### reasoning LLM vs specialist SLM
 
 | 축 | Bedrock Claude (reasoning) | 파인튜닝 Gemma SLM (tool) |
 |---|---|---|
@@ -121,7 +121,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 
 - 배포된 모델을 코드에서 호출하는 경로는 [SageMaker 모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에 정리되어 있습니다. 이 킷의 tool은 그중 boto3 `sagemaker-runtime` 직접 호출을 씁니다.
 - endpoint 호출 스키마는 서빙 컨테이너를 따릅니다. 이 킷의 기본 엔진은 vLLM(대안 SGLang·DJL LMI)이고 셋 다 **OpenAI 호환**이므로, tool은 `{"messages": [...]}` 스키마를 씁니다 — `common/aws_utils.py`의 `invoke_sagemaker_chat()`입니다. `{"inputs", "parameters"}` generation 스키마(LMI rolling-batch·HF TGI 관용)가 필요하면 같은 파일의 `invoke_sagemaker_endpoint()`를 쓰세요.
-- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. **실측(요약 트랙 endpoint, vLLM 0.26.0, 입력 5,996자): 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
+- 스트리밍이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. **실측 2026-07-31(요약 트랙 endpoint, vLLM 0.26.0, 입력 5,996자): 첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**입니다. 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다 — 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)에 있습니다.
 - Bedrock은 `converse()`(또는 스트리밍 `converse_stream()`)를 쓰며, [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정한 메시지·`inferenceConfig` 스키마를 따릅니다. 구현은 `common/aws_utils.py`의 `bedrock_converse()`이고, 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
 
 ??? question "오개념 — “LiteLLM 쓰면 둘이 같은 거 아닌가요?”"
@@ -131,13 +131,13 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 경계를 지켰더라도, endpoint에 보내는 **페이로드 형식**에서 한 번 더 걸리는 지점이 있습니다.
 
 ??? question "오개념 — “프롬프트를 렌더해서 inputs로 직송하면 되지 않나?”"
-    안 됩니다. vLLM/SGLang/LMI는 OpenAI 호환 서버라 **chat template을 서버가 적용**합니다. 로컬 토크나이저로 렌더한 raw 문자열을 `{"inputs": ...}`로 보내면 실측으로 다음 에러가 납니다.
+    안 됩니다. vLLM/SGLang/LMI는 OpenAI 호환 서버라 **chat template을 서버가 적용**합니다. 로컬 토크나이저로 렌더한 raw 문자열을 `{"inputs": ...}`로 보내면 다음 에러가 납니다(실측 2026-07-31).
     `Could not find a handler for the request. Expected one of: ['ChatCompletionRequest', 'CompletionRequest']`
     그래서 tool은 `messages`를 그대로 보냅니다 — 클라이언트에 tokenizer/transformers 의존이 필요 없습니다.
 
 ### SageMaker 추론 4옵션
 
-SLM을 어디에 배포할지에도 선택지가 있습니다(`03_deploy_endpoint`에서는 real-time을 선택했습니다). 네 옵션의 정의는 [SageMaker 배포 옵션 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)를 따르며, 축별 상세 비교는 [추론 4옵션 대조표](04_sagemaker_inference.md#추론-4옵션-대조표)에 있습니다.
+SLM을 어디에 배포할지에도 선택지가 있습니다(`03_deploy_endpoint`에서는 real-time을 선택했습니다). 네 옵션의 정의는 [SageMaker 배포 옵션 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)를 따르며, 축별 상세 비교는 [추론 4옵션 비교](04_sagemaker_inference.md#추론-4옵션-비교)에 있습니다.
 
 | 옵션 | 특징 | LLM/SLM 적합성 |
 |---|---|---|
@@ -243,7 +243,7 @@ Strands를 우선(권장하며 이 킷의 기본)으로 하되, 이미 LangGraph
 - **ARM64** 컨테이너를 사용합니다(`FROM --platform=linux/arm64`).
 - HTTP는 **`POST /invocations`**(호출)과 **`GET /ping`**(헬스체크)을 **port 8080**에서 제공합니다.
 - SDK는 [`bedrock-agentcore`](https://github.com/aws/bedrock-agentcore-sdk-python)를 쓰며, `BedrockAgentCoreApp()` + `@app.entrypoint` + `app.run()` 조합으로 구성합니다.
-- CLI는 현행 권장 배포 흐름인 **`@aws/agentcore` (npm CLI)** 를 사용합니다 — `agentcore create/dev/deploy/invoke`. 구 [`bedrock-agentcore-starter-toolkit`](https://github.com/aws/bedrock-agentcore-starter-toolkit)(`agentcore configure/launch`)는 더 이상 권장되지 않으며 참고용입니다.
+- CLI는 권장 배포 흐름인 **`@aws/agentcore` (npm CLI)** 를 사용합니다 — `agentcore create/dev/deploy/invoke`. 구 [`bedrock-agentcore-starter-toolkit`](https://github.com/aws/bedrock-agentcore-starter-toolkit)(`agentcore configure/launch`)는 더 이상 권장되지 않으며 참고용입니다(검증 2026-07).
 
 ```python
 from bedrock_agentcore import BedrockAgentCoreApp
@@ -278,8 +278,8 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 ```
 
 - `@aws/agentcore`는 **Node.js 20 이상**이 필요합니다. 18 이하면 `EBADENGINE` 경고와 런타임 오류가 나고, `/usr/local` 전역 설치는 `EACCES` 권한 오류가 납니다. `setup_agentcore_cli.sh`가 nvm으로 홈에 Node 20을 깔아 두 문제를 모두 피합니다.
-- `create_agent.sh`는 agent-path flag(`--framework`)와 harness-only flag(`--model-id`)를 **섞을 수 없다는 CLI 제약**(실측)을 반영해, 모델 ID는 생성된 `model/load.py`에서 env로 받게 이식합니다. 프로젝트 이름은 영숫자만 허용하고 **23자 이하**여야 합니다(CLI 제약, 실측).
-- `verify_local.sh`는 dev 서버를 `setsid`로 띄우면서 stdin을 `/dev/null`로 분리하고(터미널 점유·stdin 문제 회피), 종료는 `kill <pid>`로 정밀하게 합니다. `pkill -f 'agentcore dev'`는 실행 중인 셸까지 죽입니다(실측).
+- `create_agent.sh`는 agent-path flag(`--framework`)와 harness-only flag(`--model-id`)를 **섞을 수 없다는 CLI 제약**(실측 2026-07)을 반영해, 모델 ID는 생성된 `model/load.py`에서 env로 받게 이식합니다. 프로젝트 이름은 영숫자만 허용하고 **23자 이하**여야 합니다(CLI 제약, 실측 2026-07).
+- `verify_local.sh`는 dev 서버를 `setsid`로 띄우면서 stdin을 `/dev/null`로 분리하고(터미널 점유·stdin 문제 회피), 종료는 `kill <pid>`로 정밀하게 합니다. `pkill -f 'agentcore dev'`는 실행 중인 셸까지 죽입니다(실측 2026-07).
 - CLI를 쓰지 않는 경로는 ARM64 이미지를 ECR에 푸시한 뒤 `bedrock-agentcore-control`의 `create_agent_runtime`을 직접 호출하는 것입니다. 호출은 `bedrock-agentcore`의 `invoke_agent_runtime(agentRuntimeArn=..., runtimeSessionId=<33자 이상>, payload=..., qualifier="DEFAULT")`입니다. 파라미터 스키마가 바뀔 수 있으니 최신 boto3 레퍼런스에서 확인하세요.
 
 ??? question "오개념 — “x86 이미지로 빌드하면 안 되나요?”"
