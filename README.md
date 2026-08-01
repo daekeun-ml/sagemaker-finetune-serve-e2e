@@ -3,11 +3,63 @@
 Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
-- **가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
+**가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
+
+---
+
+## Quick start
+
+### 1) 설치
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh    # uv 미설치 시
+git clone https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e.git
+cd sagemaker-finetune-serve-e2e
+uv sync && source .venv/bin/activate
+```
+
+AWS 자격증명과 리전이 설정돼 있어야 합니다(`aws configure` 또는 환경변수). Gemma 4는 ungated라 HF 토큰이 필요 없습니다.
+
+### 2) 과금 없이 먼저 확인
+
+```bash
+python pipelines/run_extraction.py --stages all --dry-run
+```
+
+몇 초 안에 끝나고 **과금되는 것을 하나도 만들지 않습니다.** 학습 Job·endpoint는 물론 Bedrock 호출도 하지 않으므로, AWS 자격증명이 없어도 전 경로를 밟아 볼 수 있습니다.
+
+### 3) 실제로 돌리기 — 두 가지 방법
+
+**스크립트 (Python)** — 검증된 코스를 다시 돌릴 때, CI, 무인 실행
+
+```bash
+python pipelines/run_extraction.py --stages all       # 전 구간
+
+python pipelines/run_extraction.py --stages data,train    # 학습만 하고
+python pipelines/run_extraction.py --stages deploy,eval   # 나중에 배포
+
+python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
+```
+
+자세한 내용은 [`pipelines/README.md`](pipelines/README.md).
+
+**노트북 (JupyterLab)** — 처음 배울 때, 중간 산출물을 눈으로 볼 때
+
+```bash
+jupyter lab
+```
+
+`tracks/01_extraction_to_json/`을 열어 `00_setup.ipynb`부터 번호 순서대로 실행합니다. 단계별 핸드오프와 비용 가드는 [`docs/RUN_E2E.md`](docs/RUN_E2E.md)에 있습니다.
+
+> [!WARNING]
+> **real-time endpoint는 지울 때까지 시간당 과금됩니다** — 요청이 없어도 인스턴스 비용이 발생합니다.
+> 실습을 마치면 `cleanup` 단계나 `99_cleanup.ipynb`를 **반드시** 실행하세요.
+
+**더 자세한 안내**
+
 - **처음이라면** → [`docs/getting_started.md`](docs/getting_started.md) (설치 → 스모크 → 로컬 dry-run → 노트북)
-- **노트북으로 완주** → [`docs/RUN_E2E.md`](docs/RUN_E2E.md) (단계별 핸드오프와 비용 가드)
-- **스크립트로 실행** → [`pipelines/README.md`](pipelines/README.md) (`python pipelines/run_extraction.py --stages all`)
-- **SDK v2에서 옮겨 왔다면** → [SageMaker Python SDK V3 문서](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/sdk_v3/) (V2와 무엇이 다른지)
+- **설정을 바꾸려면** → [`config.yaml`](config.yaml) (모델 크기·인스턴스·서빙 엔진)
+- **SDK v2에서 옮겨 왔다면** → [SageMaker Python SDK V3](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/sdk_v3/) (V2와 무엇이 다른지)
 
 ---
 
@@ -118,28 +170,18 @@ SageMaker에서 Gemma 4를 다루는 길은 여러 개입니다. 관리형 경�
 00_setup → 01_data_explore → 02_train_mm_sagemaker → 03_deploy_mm_endpoint → 99_cleanup
 ```
 
-## How to run
+## 노트북 vs 스크립트
 
-같은 코스를 **노트북**으로도, **스크립트**로도 돌릴 수 있습니다. 둘은 같은 `common/` 레이어를 쓰므로 결과가 같고, 쓰는 상황이 다릅니다.
+둘은 같은 `common/` 레이어를 쓰므로 결과가 같고, 쓰는 상황이 다릅니다. 실행 명령은 위 [Quick start](#quick-start) 참고.
 
 | | 노트북 (`tracks/`) | 스크립트 (`pipelines/`) |
 |---|---|---|
 | 적합 | 처음 배울 때, 중간 산출물을 볼 때, 질의를 바꿔가며 볼 때 | 검증된 코스 재실행, CI, 무인 실행, 결과 재현 |
-| 실행 | JupyterLab에서 셀 순서대로 | `python pipelines/run_extraction.py --stages all` |
-| 단계 전달 | `%store` (IPython 전용, 전역) | 코스별 JSON 파일 (`.pipeline_state/`) |
+| 단계 전달 | `%store` (IPython 전용이고 **전역**) | 코스별 JSON 파일 (`.pipeline_state/`) |
 | 설정 | 노트북 셀 상수 + `.env` | `config.yaml` + env(시크릿만) |
 | agentic 단계 | 있음 (05, 06) | 없음 — 노트북에만 |
 
-```bash
-# 나눠서 실행 — 학습만 돌려두고 나중에 배포
-python pipelines/run_extraction.py --stages data,train
-python pipelines/run_extraction.py --stages deploy,eval
-
-# 과금 없이 전 경로 점검 (몇 초)
-python pipelines/run_extraction.py --stages all --dry-run
-```
-
-`--dry-run`은 **과금되는 것을 하나도 만들지 않습니다.** 학습 잡·엔드포인트는 물론 Bedrock 호출도 하지 않습니다 — Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 + critique 약 100회가 실제로 청구됩니다.
+agentic 단계를 스크립트로 옮기지 않은 이유는, 질의를 바꿔가며 응답을 보는 성격이라 스크립트로 얻는 것이 없기 때문입니다.
 
 ## Evaluation
 
@@ -216,16 +258,10 @@ sagemaker-finetune-serve-e2e/
 
 ### 1) 의존성 설치
 
+기본 설치는 위 [Quick start](#quick-start)에 있습니다. 그 외에 알아 둘 것:
+
 ```bash
-# uv 미설치 시
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-cd ~/sagemaker-finetune-serve-e2e
-uv sync                     # uv.lock 기반 재현 설치 (권장)
-source .venv/bin/activate
-
-# 최신 버전으로 올리려면
-uv lock --upgrade-package transformers
+uv lock --upgrade-package transformers    # 특정 패키지만 최신으로
 ```
 
 pip만 쓸 경우: `pip install -r requirements.txt` (같은 floor 핀).
@@ -280,8 +316,20 @@ export DRY_RUN=1     # 먼저 파이프라인만 검증
 
 ## How this was built
 
-기본 설계와 의사 코드(pseudo code)는 직접 작성했고, 이를 바탕으로 Claude Code를 활용해 노트북과 스크립트를 생성했습니다.
-생성된 코드는 모두 직접 검수했으며, 학습·배포·추론을 실제로 실행해 동작을 확인한 뒤 반영했습니다.
+기본 설계와 의사 코드(pseudo code)는 직접 작성했고, 이를 바탕으로 Claude Code로 노트북과 스크립트를 생성했습니다.
+
+**백지에서 시작한 것이 아닙니다.** 그동안 직접 만들어 온 SageMaker 실습 에셋들에서 얻은 판단 기준 — 어떤 순서로 가르쳐야 이해되는지, 어디서 사람들이 막히는지, 어떤 값을 기본으로 둬야 안전한지 — 을 컨텍스트로 넣었습니다. 그 축적이 없으면 "돌아가는 코드"는 나오지만 "실습에 쓸 수 있는 코드"는 나오지 않습니다.
+
+**그리고 한 번 생성해서 끝난 것도 아닙니다.** human-in-the-loop으로 돌렸습니다 — 생성 → 실제 실행 → 문제 발견 → 지시 수정 → 재생성을 반복했고, 그 과정에서 나온 판단 기준은 다시 규칙으로 정리해 다음 생성에 반영했습니다.
+
+실제로 이 루프에서 잡아낸 것들입니다.
+
+- **학습 Job이 머지 도중 죽는 문제** — SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 창이 후처리까지 덮습니다. 상태는 `Stopped`이고 `FailureReason`은 비어 있어서, 실행해 보지 않으면 드러나지 않았습니다.
+- **`save_pretrained`가 저장한 체크포인트를 vLLM이 못 읽는 문제** — KV-shared 레이어의 텐서 54개가 소실됩니다. 배포까지 가 봐야 나오는 문제였습니다.
+- **`--dry-run`인데 실제로 과금되던 문제** — 건수만 줄이고 Bedrock 호출은 그대로여서, 합성 100건에 약 110회가 청구됐습니다. 실행 로그를 읽다 발견했습니다.
+- **문서의 어색한 표현** — `재-export` 같은 조어, "근육기억"(muscle memory 직역), 문단 전체를 감싼 볼드 안의 볼드. 사람이 읽어 보고 지적한 뒤에야 고쳐졌습니다.
+
+그래서 이 kit의 코드에는 **한 번에 맞힌 것보다 틀렸다가 고친 것이 더 많이 담겨 있습니다.** 주석에 "왜 이 값인가"가 자주 붙어 있는 이유도 그것입니다.
 
 ## Disclaimer
 
