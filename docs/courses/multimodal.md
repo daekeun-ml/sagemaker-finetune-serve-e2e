@@ -98,7 +98,7 @@ held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지�
 |---|---|
 | `00_setup` | 자격증명·리전·role 확인, 의존성 설치. 마지막에 `01_data_explore.ipynb`로 안내합니다 |
 | `01_data_explore` | cord-v2 3건 로드 → 이미지 렌더 + 타깃 JSON 확인. **생성물 없음**(탐색 전용) |
-| `02_train_mm_sagemaker` | `scripts/train_mm.py`를 SageMaker 학습 잡으로 실행 → S3에 **머지된 멀티모달** 모델 |
+| `02_train_mm_sagemaker` | `scripts/train_mm.py`를 SageMaker 학습 Job으로 실행 → S3에 **머지된 멀티모달** 모델 |
 | `03_deploy_mm_endpoint` | 이미지 입력을 허용하는 real-time endpoint(`gemma-mm-extraction-*`) + `samples/` 영수증 추론 |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제 |
 

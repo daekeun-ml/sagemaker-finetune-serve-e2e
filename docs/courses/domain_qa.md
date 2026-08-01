@@ -107,7 +107,7 @@ output: Tope
 |---|---|
 | `00_setup` | 자격증명·리전·role 확인, 의존성 설치 |
 | `01_data_and_synthetic` | dolly 시드 300건 + grounded 합성 → `data/train.jsonl`(`messages` 포맷) |
-| `02_train_sft_sagemaker` | `scripts/train.py`를 SageMaker 학습 잡으로 실행 → 머지된 모델 아티팩트(S3), `%store md_domain_qa` |
+| `02_train_sft_sagemaker` | `scripts/train.py`를 SageMaker 학습 Job으로 실행 → 머지된 모델 아티팩트(S3), `%store md_domain_qa` |
 | `02b_local_serve` | **(선택)** 로컬 vLLM으로 프리플라이트 — 클라우드 배포 전 30초 검증 |
 | `03_deploy_endpoint` | `gemma-domainqa-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_domain_qa` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
