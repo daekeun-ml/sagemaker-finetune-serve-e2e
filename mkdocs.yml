@@ -81,7 +81,14 @@ nav:
       - 04 SageMaker 추론: 04_sagemaker_inference.md
       - 05 서빙 컨테이너: 05_serving_containers.md
       - 06 Agentic loop: 06_agentic.md
-  - 실행 런북: RUN_E2E.md
+  # 트랙 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 트랙 번호 01→05.
+  - 트랙:
+      - 추출 → JSON: track_extraction.md
+      - 분류: track_classification.md
+      - 요약: track_summarization.md
+      - 도메인 QA: track_domain_qa.md
+      - 멀티모달 추출: track_multimodal.md
+  - 실행 runbook: RUN_E2E.md
 
 extra_css:
   - stylesheets/extra.css

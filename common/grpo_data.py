@@ -145,7 +145,7 @@ def from_synth(*, task_instruction: str, seed_texts: list[str], n: int,
                progress_cb: Callable[[int, int], None] | None = None) -> list[dict]:
     """Bedrock 합성으로 **새 분포의** prompt를 만든다(SFT 합성과 같은 파이프라인 재사용).
 
-    🔴 RL은 정답이 학습 입력이 아니지만, 이 킷의 reward는 프로그램적 채점이라 reference가 필요하다.
+    🔴 RL은 정답이 학습 입력이 아니지만, 이 kit의 reward는 프로그램적 채점이라 reference가 필요하다.
        (JSON 유효성 + 함수명/인자 일치, 라벨 정확 일치 등) 그래서 SFT 합성과 같은 (input, output)
        형태로 만들되, **학습 시에는 output이 reward 계산에만 쓰인다**(train_grpo.py `_to_grpo`).
 
@@ -204,7 +204,7 @@ def _is_failure(pred: Any, gold: str, kind: str) -> bool:
         return po.get("arguments") != go.get("arguments")
     if kind == "classification":
         return p.lower() != g.lower()          # 라벨 정확 일치
-    # 요약·QA 등 자유서술: 프로그램적 채점이 어려워 GRPO 대상이 아니다(이 킷은 제공하지 않음)
+    # 요약·QA 등 자유서술: 프로그램적 채점이 어려워 GRPO 대상이 아니다(이 kit은 제공하지 않음)
     raise ValueError(
         f"reward_kind={kind!r} 는 프로그램적 채점이 어려워 failures 수집을 지원하지 않습니다. "
         "GRPO는 추출·분류 트랙에만 제공됩니다.")

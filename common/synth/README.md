@@ -1,6 +1,6 @@
 # 합성 데이터 생성 — 경로 선택
 
-파인튜닝 데이터가 부족할 때 seed에 **grounded**된 합성 데이터를 만든다. 이 킷은 **기본 경로(무의존성)**를
+파인튜닝 데이터가 부족할 때 seed에 **grounded**된 합성 데이터를 만든다. 이 kit은 **기본 경로(무의존성)**를
 쓰고, 필요 시 **활발히 유지보수되는 오픈 라이브러리 대안**을 붙일 수 있게 한다.
 
 > 검증: synth-toolkit-recon 워크플로우(2026-07-19), GitHub/PyPI 실측 + 적대적 검증.
@@ -10,7 +10,7 @@
 
 ## ✅ 기본 경로 (권장) — `bedrock_synth.py`
 **boto3 Bedrock Converse + critique/refine 루프 (외부 SDG 라이브러리 0개).**
-- 우리 코드라 **라이브러리 노후화 리스크 없음** — production 킷의 기본값.
+- 우리 코드라 **라이브러리 노후화 리스크 없음** — production kit의 기본값.
 - IAM/VPC/Guardrails 등 AWS 네이티브 거버넌스를 그대로 사용.
 - 생성 → groundedness/relevance critique → 통과분만 채택 → PII/중복 필터.
 - 모델 ID는 `config.BEDROCK_CLAUDE_MODEL_ID`(env), 하드코딩 금지.
@@ -39,7 +39,7 @@ synth = bs.generate_grounded(
 - Bedrock은 **LiteLLM 경유**(`bedrock/...` 모델 문자열 + AWS 자격증명). native 커넥터는 아님.
 - `pip install bespokelabs-curator` (PyPI 0.1.29 @ 2026-07-13, 활발). Apache-2.0.
 - repo: github.com/bespokelabsai/curator
-- → 이 킷의 `common/llm_gateway.py`(LiteLLM)와 라우팅 규약 일치.
+- → 이 kit의 `common/llm_gateway.py`(LiteLLM)와 라우팅 규약 일치.
 
 ### 문서-그라운디드 QA 특화 (참고)
 - **meta-llama/synthetic-data-kit** — 문서(PDF/HTML 등)→QA/CoT 생성. 단 케이던스 둔화(2025-10 이후 정체),
@@ -52,5 +52,5 @@ synth = bs.generate_grounded(
 - **DataDreamer / fabricator**: 정체(dormant).
 - **distilabel**: 정체 — 사용 금지.
 
-> 대안 라이브러리를 쓰더라도 **grounded + critique 원칙**은 동일하게 적용하고, 출력은 이 킷의
+> 대안 라이브러리를 쓰더라도 **grounded + critique 원칙**은 동일하게 적용하고, 출력은 이 kit의
 > `messages` JSONL 포맷으로 변환해 `train.py`에 넣는다.

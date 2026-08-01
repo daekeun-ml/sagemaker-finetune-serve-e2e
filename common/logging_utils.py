@@ -21,7 +21,7 @@ import sys
 DEFAULT_FORMAT = "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-# 이 킷의 로거 네임스페이스 루트. common.* / gemma.* 모두 이 아래로 전파된다.
+# 이 kit의 로거 네임스페이스 루트. common.* / gemma.* 모두 이 아래로 전파된다.
 TOOLKIT_LOGGER = "gemma_e2e"
 
 # 시끄러운 서드파티 로거 (원치 않는 DEBUG 소음 억제)
@@ -42,7 +42,7 @@ def setup_logging(
 
     level: 문자열("INFO")/정수/None(=env LOG_LEVEL, 기본 INFO).
     force: True면 이미 구성됐어도 핸들러를 교체(노트북에서 레벨 바꿔 재호출 시).
-    반환: 이 킷의 루트 로거(gemma_e2e) — 필요하면 직접 써도 됨.
+    반환: 이 kit의 루트 로거(gemma_e2e) — 필요하면 직접 써도 됨.
     """
     global _CONFIGURED
     level = _resolve_level(level)
@@ -68,7 +68,7 @@ def setup_logging(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """킷 네임스페이스(gemma_e2e.<name>) 로거. 라이브러리 모듈이 __name__ 대신 써도 됨."""
+    """kit 네임스페이스(gemma_e2e.<name>) 로거. 라이브러리 모듈이 __name__ 대신 써도 됨."""
     return logging.getLogger(f"{TOOLKIT_LOGGER}.{name}")
 
 

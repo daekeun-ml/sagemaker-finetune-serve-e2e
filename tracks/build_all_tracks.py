@@ -65,7 +65,7 @@ SPECS = [
             "```\n"
             "→ 파싱 후: `input`=고객 메시지, `output`=`card_arrival`(라벨 이름 텍스트)\n\n"
             "🔴 **왜 원본 `PolyAI/banking77`이 아닌가**: 그 리포는 **스크립트 기반**(`banking77.py`)이라 "
-            "이 킷이 핀한 `datasets>=5.0.0`에서 `Dataset scripts are no longer supported` 로 **로드 자체가 실패**합니다"
+            "이 kit이 핀한 `datasets>=5.0.0`에서 `Dataset scripts are no longer supported` 로 **로드 자체가 실패**합니다"
             "(실측 2026-07-30). parquet 자동변환본도 없어 되살릴 수 없으므로, 내용이 동일한 parquet 미러를 씁니다.\n"
             "🔴 **셔플이 필수인 이유**: banking77의 train 스플릿은 **라벨 정렬 순서**입니다. 앞에서부터 뽑으면 "
             "300건에 클래스가 3개뿐이고 평가 held-out이 단일 라벨로 붕괴합니다(실측). "

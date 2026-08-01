@@ -5,7 +5,7 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 
 - **가이드 사이트** → https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/ (검색 가능한 문서)
 - **처음이라면** → [`docs/getting_started.md`](docs/getting_started.md) (설치 → 스모크 → 로컬 dry-run → 노트북)
-- **전체를 한 번에 돌린다면** → [`docs/RUN_E2E.md`](docs/RUN_E2E.md) (E2E 실행 런북)
+- **전체를 한 번에 돌린다면** → [`docs/RUN_E2E.md`](docs/RUN_E2E.md) (E2E 실행 runbook)
 
 ---
 
@@ -77,7 +77,7 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 | 평가 | held-out 세트로 endpoint를 직접 호출해 트랙별 지표 산출 (합성·학습셋 사용 금지) |
 | Agent | Strands Agent — reasoning은 Bedrock Claude, 파인튜닝한 SLM은 tool로 호출. AgentCore Runtime 배포까지 |
 
-기본 모델은 `google/gemma-4-E4B-it`(apache-2.0, ungated)입니다. `MODEL_SIZE` 환경변수로 `E4B` / `12B` / `26B-A4B`를 고르거나, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
+기본 모델은 `google/gemma-4-E4B-it`(apache-2.0, ungated)입니다. `MODEL_SIZE` 환경변수로 `E2B` / `E4B` / `12B` / `26B-A4B` / `31B`를 고르거나, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
 
 학습 스크립트(`scripts/train.py`)는 self-contained이며 **로컬 GPU `--dry_run`과 SageMaker 학습 잡에서 같은 파일**을 씁니다. 클라우드에 제출하기 전에 로컬에서 파이프라인을 먼저 검증할 수 있습니다.
 

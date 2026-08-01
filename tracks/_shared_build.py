@@ -266,7 +266,7 @@ def _c00(s: TrackSpec) -> list[dict]:
             "#    SDK 내부가 ~/.aws/config 의 다른 리전으로 폴백하지 않습니다(실측).\n"
             "os.environ['AWS_DEFAULT_REGION'] = os.environ['AWS_REGION']\n"
             "\n"
-            "# 모델 크기 — 'E4B'(기본, 단일 GPU) | '12B' | '26B-A4B'\n"
+            "# 모델 크기 — 'E2B' | 'E4B'(기본, 단일 GPU) | '12B' | '26B-A4B' | '31B'\n"
             "os.environ.setdefault('MODEL_SIZE', 'E4B')\n"
             "os.environ.setdefault('DRY_RUN', '1')   # 파이프라인 검증용. 실제 실행 시 '0'\n"
             "\n"
@@ -777,7 +777,7 @@ def _c02b(s: TrackSpec) -> list[dict]:
             "- **모델 파일**: 아래 §1이 자동으로 준비합니다(로컬 학습 결과 또는 S3 학습 산출물).\n\n"
             "🔴 **서버는 터미널에서, 호출은 노트북에서** 합니다. vLLM 서버는 Ctrl-C까지 계속 실행되므로 "
             "노트북 셀에 넣으면 그 셀이 끝나지 않아 커널이 멈춘 것처럼 보입니다.\n\n"
-            "> 이 킷의 클라우드 서빙 경로는 **vLLM(기본) / SGLang / DJL LMI** 셋인데 모두 vLLM 계열 엔진입니다. "
+            "> 이 kit의 클라우드 서빙 경로는 **vLLM(기본) / SGLang / DJL LMI** 셋인데 모두 vLLM 계열 엔진입니다. "
             "그래서 로컬 확인도 `vllm serve` 하나로 통일했습니다 — 여기서 뜨면 세 경로 모두 통과할 가능성이 높습니다."
         ),
         md(
@@ -1026,7 +1026,7 @@ def _c02_grpo(s: TrackSpec) -> list[dict]:
             "정석 RLHF 파이프라인은 **SFT → 정책최적화(GRPO/PPO)** 순서입니다. SFT로 형식·기본 능력을 갖춘 뒤 GRPO로 "
             "태스크 지표(추출=JSON 정확도, 분류=라벨 일치)를 직접 끌어올립니다. 이 트랙은 reward를 프로그램적으로 채점할 수 있어 GRPO에 적합합니다.",
             "base에서 바로 GRPO를 돌리면 형식조차 안 잡혀 rollout이 불안정합니다. SFT를 먼저 하면 GRPO가 안정적으로 수렴합니다. "
-            "(요약·자유서술은 reward가 애매해 이 킷은 추출·분류 트랙에만 GRPO를 제공합니다.)",
+            "(요약·자유서술은 reward가 애매해 이 kit은 추출·분류 트랙에만 GRPO를 제공합니다.)",
         ),
         code(SETUP_PATH),
         md(
@@ -1263,7 +1263,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "`SAGEMAKER_ENDPOINT`가 기본입니다. 아래 1-A/1-B는 모두 이 클라우드 배포 경로에 해당합니다.\n"
         ),
         md(
-            "이 킷은 gemma-4를 배포하기 전 검증할 때 SDK 로컬 모드(`IN_PROCESS`/`LOCAL_CONTAINER`)를 기본으로 쓰지 않습니다. "
+            "이 kit은 gemma-4를 배포하기 전 검증할 때 SDK 로컬 모드(`IN_PROCESS`/`LOCAL_CONTAINER`)를 기본으로 쓰지 않습니다. "
             "`IN_PROCESS`는 내부적으로 `transformers.pipeline`이나 `SentenceTransformer`로만 모델을 올리기 때문에 생성형 "
             "LLM인 gemma-4는 로드되지 않고, `LOCAL_CONTAINER`도 vLLM DLC에는 해당 분기가 없어 실행되지 않습니다.\n\n"
             "그래서 로컬 검증은 앞서 실행한 **`02b_local_serve`**(로컬 GPU에 `vllm serve`)로 하고, 클라우드 배포는 "
@@ -1285,7 +1285,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "KV-shared 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 만들지 않아 `save_pretrained` 시 그 텐서가 소실됩니다"
             "(E4B 실측 54개). vLLM은 전 레이어에 `k_norm`을 등록하므로 `weights not initialized` ValueError로 죽습니다"
             "([vLLM #44788](https://github.com/vllm-project/vllm/issues/44788)). "
-            "**이 킷의 `train.py`가 저장 직전에 그 텐서를 복원**하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) "
+            "**이 kit의 `train.py`가 저장 직전에 그 텐서를 복원**하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) "
             "지금은 E4B도 vLLM으로 정상 서빙됩니다. 즉 #44788은 \"E계열은 vLLM 불가\"가 아니라 "
             "\"transformers가 저장한 체크포인트가 vLLM 불가\"입니다. 상세: "
             "[`docs/05_serving_containers.md` 「E계열 KV-shared dead weight 복원」](../../docs/05_serving_containers.md#e계열-kv-shared-dead-weight-복원)"
@@ -1339,7 +1339,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "> **텍스트 전용 재-export 모델**(config `model_type=*_text`)은 그대로 텍스트 서빙됩니다. 재-export 안 한\n"
             ">  멀티모달 아티팩트를 텍스트로만 쓰려면 아래 `SM_VLLM_LIMIT_MM_PER_PROMPT` 주석을 해제하세요.\n\n"
             "🔴 **`MAX_NUM_SEQS`/`GPU_MEM_UTIL`을 낮춰 둔 이유** — 24GB GPU(L4)에서 vLLM 기본값은 여유가 거의 없습니다. "
-            "실측(이 킷 endpoint, vLLM 0.26.0, E4B bf16 14.23 GiB): KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. "
+            "실측(이 kit endpoint, vLLM 0.26.0, E4B bf16 14.23 GiB): KV 캐시를 배정한 뒤 남은 여유가 **0.47 GiB**뿐이었습니다. "
             "멀티모달 트랙(05)은 vision tower 때문에 가중치가 1 GiB 더 커서 **같은 설정으로 CUDA OOM이 나 배포가 `Failed`**했습니다.\n"
             "- `max_num_seqs`(기본 **256**)는 샘플러 logits 버퍼를 `256 × vocab 262,144 × 4B = 256 MiB`로 잡습니다. "
             "실습은 동시 요청이 1~2건이므로 **32**로 낮춰도 손실이 없고, 버퍼는 32 MiB로 줄어듭니다.\n"
@@ -1574,7 +1574,7 @@ def _c04(s: TrackSpec) -> list[dict]:
             "아래 셀의 `LANG`으로 **에이전트가 사용자에게 답하는 언어**를 고릅니다. 프롬프트 자체는 영어로 두고 "
             "`' Reply in {LANG}.'` 한 문장만 덧붙이는 방식이라, **번역본을 따로 관리할 필요가 없습니다** — "
             "`'Japanese'` 처럼 아무 언어나 넣어도 동작합니다.\n\n"
-            "🔴 **SLM tool의 출력은 바뀌지 않습니다.** SLM은 학습된 대로 동작하므로(이 킷의 시드는 영어 기반) "
+            "🔴 **SLM tool의 출력은 바뀌지 않습니다.** SLM은 학습된 대로 동작하므로(이 kit의 시드는 영어 기반) "
             "tool이 돌려주는 값은 그대로이고, 달라지는 것은 **Claude가 그 결과를 설명·요약하는 언어**입니다. "
             "즉 `LANG='Korean'`은 \"작업은 영어로 처리하고 설명만 한국어로 해 줘\"에 해당합니다."
         ),
@@ -2104,7 +2104,7 @@ def _c06(s: TrackSpec) -> list[dict]:
            "> 💡 참고: SageMaker SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`)는 "
            "**SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용입니다. gemma-4 커스텀 "
            "파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 지원되지 않으므로(실측: `DescribeHubContent ... does not exist`), "
-           "이 킷은 위의 **로컬 메트릭 평가**를 gemma-4의 평가 경로로 사용합니다."),
+           "이 kit은 위의 **로컬 메트릭 평가**를 gemma-4의 평가 경로로 사용합니다."),
     ]
 
 

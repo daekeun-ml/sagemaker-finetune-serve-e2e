@@ -55,7 +55,7 @@ litellm-provider = ["strands-agents[litellm]>=1.48.0"]
 # uv 전용 설정. 재현용 잠금은 uv.lock 로 관리.
 # 업그레이드:  uv lock --upgrade                      (전체 최신으로)
 #             uv lock --upgrade-package transformers  (특정 패키지만)
-package = false   # 애플리케이션/자산 킷 — 빌드 대상 패키지가 아님 (build-system 불필요)
+package = false   # 애플리케이션/자산 kit — 빌드 대상 패키지가 아님 (build-system 불필요)
 
 [dependency-groups]
 docs = [

@@ -1,5 +1,5 @@
 """
-common/config.py — 툴킷 전역 설정 (플레이스홀더 + 환경변수, 시크릿 하드코딩 금지)
+common/config.py — kit 전역 설정 (플레이스홀더 + 환경변수, 시크릿 하드코딩 금지)
 
 모든 노트북/스크립트가 여기서 설정을 읽는다. 값은 (1) 환경변수 → (2) 안전한 기본값 순.
 로컬 GPU dry-run과 SageMaker 실행 양쪽에서 동일하게 동작하도록 설계.
@@ -26,7 +26,7 @@ if not os.environ.get("HF_HOME"):
 
 
 # ---------------------------------------------------------------------------
-# 모델 — Gemma 4 프리셋 (크기 3단 분기: MODEL_SIZE env로 선택)
+# 모델 — Gemma 4 프리셋 (계열 5종 전체: MODEL_SIZE env로 선택)
 # ---------------------------------------------------------------------------
 # ⚠️ 사실 검증 2026-07-21 (HF raw config.json + AWS available_images 실측):
 #   - Gemma 4 전 사이즈 = apache-2.0 + UNGATED (토큰 불필요). 전부 멀티모달(vision; E2B/E4B/12B는 audio도).
@@ -35,8 +35,13 @@ if not os.environ.get("HF_HOME"):
 #   - "E" = effective params(PLE, MoE 아님). "A4B" = active 4B(MoE, 128 experts).
 #   - gemma-4 서빙엔 vLLM >= 0.19 필요. AWS 독립 vLLM DLC(vllm:0.25.1-...-sagemaker) 또는
 #     최신 DJL LMI(27.0.0=vLLM 0.23.1) 사용. 구 LMI 0.36.0은 불가. (common/dlc.py)
-#   - transformers: E계열/26B/31B >= 5.5.0, 12B(unified) >= 5.10.0. (scripts/requirements.txt로 설치)
+#   - transformers: E계열/26B/31B >= 5.5.0, 12B(unified) >= 5.10.1. (scripts/requirements.txt로 설치)
+#     실측(2026-08-01): models/gemma4/ 는 v5.4.0에 없고 v5.5.0에 처음 등장(404 → 200).
+#     gemma4_unified(12B)는 v5.9.0까지 없고 v5.10.1에서 등장 — 그래서 12B만 floor가 다릅니다.
 #   재배포/서빙 전 live 모델 페이지 + available_images 재확인.
+# ⚠️ 파라미터 수를 HF API로 읽을 때: `safetensors.total` 은 tie_word_embeddings=True인 모델에서
+#    embedding을 이중 계산합니다(31B 실측: total 32,682,372,656 vs 실제 31,273,088,876 — 1.4B 과대).
+#    `parameters.BF16` 또는 model.safetensors.index.json 의 metadata.total_parameters 를 쓰세요.
 # 🔴 인스턴스 선택 시 GPU뿐 아니라 '호스트 RAM'도 본다: QLoRA 학습은 GPU에 들어가지만, 학습 후 merge/재-export가
 #    base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목이다(초기 버전은 여기서 OOM으로 죽었음). train.py는 merge 전
 #    학습 모델을 해제하고 base를 CPU low_cpu_mem_usage로 로드해 사본을 최소화 → E4B 실측 peak RAM ≈ 17.5GB(2026-07).
@@ -51,13 +56,23 @@ if not os.environ.get("HF_HOME"):
 #   ⚠️ 따라서 #44788은 "E계열은 vLLM 불가"가 아니라 "transformers가 저장한 체크포인트가 vLLM 불가"입니다.
 #      원본 google/gemma-4-E4B-it 및 FP8 변형은 그 54개를 모두 갖고 있어 vLLM 0.25.1에서 정상 로드됩니다
 #      (safetensors 헤더 직접 확인 + L40S 실측 로드/생성).
-#   → 이 킷의 train.py/train_grpo.py는 저장 직전에 그 텐서를 base에서 복원합니다
+#   → 이 kit의 train.py/train_grpo.py는 저장 직전에 그 텐서를 base에서 복원합니다
 #     (_revive_kv_shared_from_base). 연산에 쓰이지 않는 dead weight라 정확도에 무해합니다.
 #     실측: 복원 전 665키 → vLLM 실패 / 복원 후 719키(원본과 동일) → vLLM 로드 OK,
 #     생성 결과가 transformers와 완전 일치('Paris' == 'Paris').
 #   → 서빙 엔진 선택지는 vllm(기본) / sglang / lmi 셋뿐입니다. 셋 다 연속 배칭 + OpenAI 호환이라
 #     호출 코드가 같습니다. 아래 SERVING_ENGINE 참조.
 GEMMA4_PRESETS: dict[str, dict] = {
+    "E2B": {  # effective 2.3B (on-disk 5.12B — PLE가 2.39B, 전체의 46.7%). 계열 최소. 스모크 테스트에 적합.
+        "model_id": "google/gemma-4-E2B-it",
+        "arch": "Gemma4ForConditionalGeneration", "model_type": "gemma4",
+        "train_instance": "ml.g5.2xlarge", "infer_instance": "ml.g5.2xlarge",
+        # 2.3B effective라 4bit까지 갈 필요가 없다. bf16 LoRA가 더 빠르고 품질 저하도 없다.
+        "use_qlora": False, "min_transformers": "5.5.0", "has_audio": True,
+        # num_kv_shared_layers=20 / 35층 → 레이어 15~34가 shared. E4B와 같은 dead-weight 소실이 발생하므로
+        # 저장 직전 복원이 필요하다(train.py의 _revive_kv_shared_from_base가 자동 처리).
+        "kv_shared": True, "servable_engine": "vllm",
+    },
     "E4B": {  # effective 4.5B (~8B w/ PLE embeddings). 단일 L4 24GB QLoRA 여유. merge peak RAM~17.5GB<32GB OK. 기본값.
         "model_id": "google/gemma-4-E4B-it",
         "arch": "Gemma4ForConditionalGeneration", "model_type": "gemma4",
@@ -70,7 +85,7 @@ GEMMA4_PRESETS: dict[str, dict] = {
         "model_id": "google/gemma-4-12B-it",
         "arch": "Gemma4UnifiedForConditionalGeneration", "model_type": "gemma4_unified",
         "train_instance": "ml.g5.12xlarge", "infer_instance": "ml.g5.12xlarge",
-        "use_qlora": True, "min_transformers": "5.10.0", "has_audio": True,
+        "use_qlora": True, "min_transformers": "5.10.1", "has_audio": True,
         "kv_shared": False, "servable_engine": "vllm",          # KV-sharing 없음 → vLLM DLC(연속배칭)
     },
     "26B-A4B": {  # MoE: total 25.2B / active 3.8B, 128 experts. audio 미지원(vision만).
@@ -80,8 +95,29 @@ GEMMA4_PRESETS: dict[str, dict] = {
         "use_qlora": True, "min_transformers": "5.5.0", "has_audio": False,
         "kv_shared": False, "servable_engine": "vllm",
     },
+    "31B": {  # 31.27B dense, 계열 최대. audio 미지원(vision만). KV-sharing 없음.
+        "model_id": "google/gemma-4-31B-it",
+        "arch": "Gemma4ForConditionalGeneration", "model_type": "gemma4",
+        # 🔴 g6e = L40S 44GiB. 4bit로도 base resident가 22GiB 카드를 넘길 위험이 있어 44GiB로 올린다.
+        #    실측 내역: quantizable linear 29.29B → NF4 14.6GB + double-quant 상수 0.46GB,
+        #    여기에 4bit로 내려가지 '않는' embed_tokens 1.41B(bf16 2.82GB)와 vision tower 0.58B(1.15GB)를
+        #    더해 base만 ≈19.1GB. activation/optimizer까지 얹으면 22GiB로는 sharding이 강제된다.
+        #    (params/2 = 15.5GB 어림은 embedding·vision tower가 양자화되지 않는 점을 놓친 값이다.)
+        #    호스트 RAM은 병목이 아니다: merge peak ≈68GB(bf16 62.5GB × E4B 실측 오버헤드 1.094배)로
+        #    g6e.12xlarge의 384GiB에 크게 여유가 있다.
+        "train_instance": "ml.g6e.12xlarge", "infer_instance": "ml.g6e.12xlarge",
+        "use_qlora": True, "min_transformers": "5.5.0", "has_audio": False,
+        "kv_shared": False, "servable_engine": "vllm",
+        # 🔴 31B만의 함정 — attention_k_eq_v=True: global attention 레이어(5,11,...,59 총 10개)는
+        #    V를 K로 재사용해 v_proj 모듈이 아예 없습니다(transformers v5.5.0 configuration_gemma4.py:
+        #    use_alternative_attention = attention_k_eq_v and not is_sliding → v_proj = None).
+        #    실측: v_proj가 60층 중 50층에만 존재. PEFT는 없는 모듈을 조용히 건너뛰므로 v_proj를
+        #    이름으로 나열하면 경고 없이 비대칭 adapter가 됩니다. 이 kit은 정규식 target을 쓰므로
+        #    (train.py의 lora_targets) 실제 존재하는 모듈만 매칭돼 문제가 없습니다.
+        "v_proj_sparse": True,
+    },
 }
-# 크기 선택: MODEL_SIZE env (E4B|12B|26B-A4B). 기본 E4B(단일 GPU 친화).
+# 크기 선택: MODEL_SIZE env (E2B|E4B|12B|26B-A4B|31B). 기본 E4B(단일 GPU 친화).
 MODEL_SIZE = os.environ.get("MODEL_SIZE", "E4B")
 if MODEL_SIZE not in GEMMA4_PRESETS:
     raise ValueError(f"MODEL_SIZE={MODEL_SIZE!r} invalid. Choose one of {list(GEMMA4_PRESETS)}")
@@ -106,7 +142,7 @@ if SERVING_ENGINE not in _VALID_ENGINES:
 # gated 모델(gemma-3/2/3n)을 당길 때만 필요. gemma-4 계열이면 비워도 됨.
 # 토큰 조회 순서: (1) env HF_TOKEN / HUGGING_FACE_HUB_TOKEN → (2) huggingface_hub 저장 토큰
 #   (`hf auth login`이 $HF_HOME/token 또는 ~/.cache/huggingface/token 에 저장한 것).
-# 이렇게 해야 `hf auth login`만 해도 킷이 토큰을 인식한다(env 재설정 불필요).
+# 이렇게 해야 `hf auth login`만 해도 kit이 토큰을 인식한다(env 재설정 불필요).
 # ⚠️ hf login을 특정 HF_HOME(예: ~/hf-cache)로 했다면, 노트북 프로세스에도 같은 HF_HOME이 설정돼 있어야
 #    huggingface_hub이 그 파일을 찾는다.
 def get_hf_token() -> str | None:
@@ -138,7 +174,7 @@ MODEL_IS_GATED = os.environ.get("MODEL_IS_GATED", "0") not in ("0", "", "false",
 def get_serving_hf_token() -> str | None:
     """서빙 컨테이너 env에 넣을 HF 토큰(없으면 None).
 
-    🔴 이 킷의 엔드포인트는 학습 산출 모델(S3 model_data)을 서빙하므로 HF에서 가중치를 당기지
+    🔴 이 kit의 엔드포인트는 학습 산출 모델(S3 model_data)을 서빙하므로 HF에서 가중치를 당기지
     않는다 → 서빙 env에 토큰이 필요 없다. 게다가 gemma-4는 ungated라 더더욱 불필요하다.
     토큰을 서빙 env에 실으면 SageMaker 리소스 메타데이터(describe_endpoint 등)에 평문으로
     남아 유출 위험이 있다. 따라서 gated 모델(MODEL_IS_GATED=1)일 때만 토큰을 반환한다.

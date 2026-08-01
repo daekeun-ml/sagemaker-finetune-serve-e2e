@@ -6,7 +6,7 @@ JumpStart엔 분류 전용 헤드가 없으므로 **instruction-based 텍스트�
 성공 기준: 주어진 문의를 올바른 intent 라벨로 분류 (accuracy/macro-F1).
 
 🔴 데이터셋 선택 (실측 2026-07-30):
-  원본 `PolyAI/banking77`은 **스크립트 기반**(banking77.py) 리포라서 이 킷이 핀한 datasets>=5.0.0에서
+  원본 `PolyAI/banking77`은 **스크립트 기반**(banking77.py) 리포라서 이 kit이 핀한 datasets>=5.0.0에서
   `RuntimeError: Dataset scripts are no longer supported, but found banking77.py`로 **로드 자체가 실패**한다.
   parquet 자동변환본(refs/convert/parquet)도 없어(HF dataset-viewer도 같은 에러) 되살릴 방법이 없다.
   → **`mteb/banking77`**(mit, parquet, 다운로드 15k, MTEB 조직 관리)을 기본으로 쓴다.

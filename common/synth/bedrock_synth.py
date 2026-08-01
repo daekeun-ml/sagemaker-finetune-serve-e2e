@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 from ..aws_utils import bedrock_converse
 
-# 라이브러리 로거: 핸들러 설정 안 함(앱이 setup_logging으로 구성). 킷 네임스페이스 하위.
+# 라이브러리 로거: 핸들러 설정 안 함(앱이 setup_logging으로 구성). kit 네임스페이스 하위.
 logger = logging.getLogger("gemma_e2e.synth")
 
 

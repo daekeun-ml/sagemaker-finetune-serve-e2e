@@ -30,7 +30,7 @@
 
 1. **근거 없는 자유 생성은 hallucination과 distribution drift를 학습셋에 주입합니다.** 그래서 생성을 seed 도메인·라벨공간에 묶고, LLM critique(groundedness·relevance)로 임계값 미달 예시를 폐기합니다 — [왜 자유 생성이 아니라 grounded인가](#왜-자유-생성이-아니라-grounded인가).
 2. **기본 경로는 무의존성입니다.** `generate_grounded()`는 생성 → PII/중복 필터 → critique → `messages` JSONL 순으로 동작하며 boto3만 씁니다 — [기본 경로 — 무의존성 bedrock_synth](#기본-경로--무의존성-bedrock_synth).
-3. **몇 개 생성할지는 USER가 결정합니다.** 기본값은 `config.NUM_SYNTHETIC`(200)이고 이 킷의 `.env`는 100으로 낮춰 둔 상태입니다 — [생성 건수 결정 — NUM_SYNTHETIC 기본값](#생성-건수-결정--num_synthetic-기본값).
+3. **몇 개 생성할지는 USER가 결정합니다.** 기본값은 `config.NUM_SYNTHETIC`(200)이고 이 kit의 `.env`는 100으로 낮춰 둔 상태입니다 — [생성 건수 결정 — NUM_SYNTHETIC 기본값](#생성-건수-결정--num_synthetic-기본값).
 4. **합성 데이터로는 평가하지 마세요.** 증강 이전 seed에서 held-out을 먼저 분리한 뒤 나머지만 증강합니다 — [held-out 규율 — 합성으로 평가 금지](#held-out-규율--합성으로-평가-금지).
 5. **라이브러리는 활발히 유지보수되는 것만 권장합니다.** Kiln(native Bedrock)과 Bespoke Curator(LiteLLM 경유)이고, distilabel은 배제합니다 — [라이브러리 대안](#라이브러리-대안).
 
@@ -56,7 +56,7 @@
 
 ### 자유 생성 vs grounded critique
 
-| 축 | 자유 생성 (free) | grounded + critique/refine (이 킷) |
+| 축 | 자유 생성 (free) | grounded + critique/refine (이 kit) |
 |---|---|---|
 | 근거 | 없음 (모델 사전지식) | seed 샘플의 도메인·엔티티·라벨공간 |
 | distribution drift | 큼 (seed 분포 이탈) | 억제 (seed 회전으로 다양성 확보) |
@@ -134,12 +134,12 @@ synth = bs.generate_grounded(
 
 두 가지 기본값은 Bedrock 호출을 실제로 돌려 보고 정해졌습니다.
 
-- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다(실측 2026-07-31). 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
-- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다(실측 2026-07-31 — 세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다). 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
+- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다. 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
+- **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다(세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다). 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
 
 ### 생성 지시와 채점 기준의 분리
 
-생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 실측 2026-07-31: 8건 생성 → 8건 기각).
+생성 난이도를 올리려고 제약("인자 2개 이상" 등)을 `task_instruction`에 섞으면, critique도 그 기준으로 채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**합니다(추출 트랙 실측: 8건 생성 → 8건 기각).
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
@@ -151,7 +151,7 @@ synth = bs.generate_grounded(
 
 ## 생성 건수 결정 — NUM_SYNTHETIC 기본값
 
-- `config.NUM_SYNTHETIC`의 기본값은 **200/트랙**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 킷의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 트랙(`03_summarization`)은 seed 문서가 커서 호출당 지연이 큽니다(실측 2026-07-31: seed 1건 중앙 1,651자 vs 추출 트랙 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
+- `config.NUM_SYNTHETIC`의 기본값은 **200/트랙**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 kit의 `.env`는 **100**으로 낮춰 둔 상태입니다 — 요약 트랙(`03_summarization`)은 seed 문서가 커서 호출당 지연이 큽니다(seed 1건 중앙 1,651자 vs 추출 트랙 475자 → 배치 프롬프트 약 10,900자). 잘림은 아니라 순수 지연입니다(출력 2,554 토큰 < `max_tokens` 4,500).
 - seed 샘플 수는 `config.NUM_SEED_SAMPLES`(기본 300)로 따로 잡습니다. 합성 건수와 seed 건수는 별개 값입니다.
 - **언제 늘리나요** — seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
 - **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
@@ -193,21 +193,21 @@ seed 전체
 
 기본 경로(`bedrock_synth.py`)만으로도 충분하지만, 오케스트레이션이나 대량 실행이 필요하다면 아래 대안을 붙일 수 있습니다. **버전·라이선스·유지보수 상태는 실행 전 재확인** 대상입니다.
 
-| 도구 | Bedrock 연동 | 상태 (GitHub/PyPI 실측 2026-07-19) | 라이선스 | 쓸 때 |
+| 도구 | Bedrock 연동 | 상태 (GitHub/PyPI 확인) | 라이선스 | 쓸 때 |
 |---|---|---|---|---|
-| **`bedrock_synth.py` (이 킷)** | boto3 native | 킷 코드 | 킷 코드 | 기본값. 의존성 0, AWS 거버넌스 |
+| **`bedrock_synth.py` (이 kit)** | boto3 native | kit 코드 | kit 코드 | 기본값. 의존성 0, AWS 거버넌스 |
 | **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원 — native (`ModelProviderName.amazon_bedrock`) | 가장 활발 (v1.0.4 @ 2026-07-16) | 확인 필요 — core lib MIT / repo 루트 커스텀 | GUI+오케스트레이션 원할 때 |
 | **[Bespoke Curator](https://github.com/bespokelabsai/curator)** | LiteLLM 경유 (`bedrock/...`) | 활발 (0.1.29 @ 2026-07-13) | Apache-2.0 | 코드-우선, 대량·구조화·캐싱 |
 | [distilabel](https://github.com/argilla-io/distilabel) | 해당 없음 | ❌ 정체 (마지막 v1.5.3 @ 2025-01-28, 2026 릴리스 0건) | 해당 없음 | ❌ 배제 — 사용 금지 |
 
 - **Kiln** — native Bedrock 연동을 코드 수준에서 확인한 유일한 도구입니다. repo는 `github.com/Kiln-AI/Kiln`이며 `pip install kiln-ai`로 설치합니다. **리포 루트 라이선스와 core lib 라이선스가 다르므로** 재배포 전에 반드시 확인하세요.
-- **Bespoke Curator** — native 커넥터는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repo는 `github.com/bespokelabsai/curator`입니다. 이 킷의 `common/llm_gateway.py`(LiteLLM)와 [Bedrock 라우팅 규약](https://docs.litellm.ai/docs/providers/bedrock)이 일치하므로 연결이 자연스럽습니다.
+- **Bespoke Curator** — native 커넥터는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repo는 `github.com/bespokelabsai/curator`입니다. 이 kit의 `common/llm_gateway.py`(LiteLLM)와 [Bedrock 라우팅 규약](https://docs.litellm.ai/docs/providers/bedrock)이 일치하므로 연결이 자연스럽습니다.
 - 참고로 배제한 것들도 남겨 둡니다. **meta-llama/synthetic-data-kit**은 문서→QA/CoT 생성에 특화되었으나 케이던스가 둔화되고(2025-10 이후) Bedrock이 미문서화입니다. **Augmentoolkit**은 커밋은 활발하나 config/CLI 중심이라 라이브러리성이 낮고 Bedrock 미문서화입니다. **DeepFabric**(구 promptwright)은 LiteLLM을 쓰지 않아 Bedrock 미지원, **NVIDIA NeMo Curator**는 활발하지만 Bedrock 소비 커넥터가 없습니다(자체 NIM/vLLM 엔드포인트 호스팅용). **DataDreamer / fabricator**는 정체 상태입니다.
-- 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 킷의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
+- 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 kit의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
 
 ??? question "오개념 — “유명한 distilabel을 왜 안 쓰나요?”"
-    유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01, 실측 2026-07-19)이라 프로덕션 의존성으로는 부적합합니다.
-    이 킷은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
+    유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01)이라 프로덕션 의존성으로는 부적합합니다.
+    이 kit은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
 
 ---
 
@@ -240,7 +240,7 @@ seed 전체
 ## 비용과 cleanup
 
 !!! danger "비용과 cleanup"
-    Bedrock은 [입력·출력 토큰 과금](https://aws.amazon.com/bedrock/pricing/)이고, 이 킷은 예시당 **생성 1회 + critique 1회**를 호출합니다. `NUM_SYNTHETIC`이 크고 seed chunk가 길수록 토큰이 선형으로 늘어납니다.
+    Bedrock은 [입력·출력 토큰 과금](https://aws.amazon.com/bedrock/pricing/)이고, 이 kit은 예시당 **생성 1회 + critique 1회**를 호출합니다. `NUM_SYNTHETIC`이 크고 seed chunk가 길수록 토큰이 선형으로 늘어납니다.
     대량 생성 전에 **소량으로 단가를 측정한 뒤 총량을 추정**하세요. 기각된 후보의 생성 토큰도 이미 과금된 상태입니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
@@ -252,6 +252,6 @@ seed 전체
 
 합성 생성 자체는 상시 리소스를 남기지 않습니다. 다만 같은 노트북 흐름의 endpoint와 학습 잡은 별개이므로 `99_cleanup.ipynb`로 정리하세요.
 
-**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. 킷 기본값은 `global.anthropic.claude-sonnet-5`(이 계정 `list_inference_profiles` 실측 2026-07)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
+**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. kit 기본값은 `global.anthropic.claude-sonnet-5`(이 계정 `list_inference_profiles` 확인값)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
 
 AWS 마케팅 수치("최대 N% 절감" 등)는 **AWS 주장**으로 표기하고 출처를 붙이세요(이 문서에서는 인용하지 않습니다).

@@ -44,7 +44,7 @@ agentcore create \
 
 AGENT_DIR="$OUT_DIR/$PROJECT_NAME/app/$AGENT_NAME"
 
-# --- 🔴 SLM tool 자동 이식: 킷 템플릿(main.py/load.py)을 스캐폴딩에 덮어써 손수 편집 불필요 ---
+# --- 🔴 SLM tool 자동 이식: kit 템플릿(main.py/load.py)을 스캐폴딩에 덮어써 손수 편집 불필요 ---
 TPL="$(dirname "$0")/templates"
 if [ -f "$TPL/main.py" ] && [ -d "$AGENT_DIR" ]; then
   cp "$TPL/main.py" "$AGENT_DIR/main.py"

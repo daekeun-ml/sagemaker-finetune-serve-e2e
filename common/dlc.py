@@ -235,7 +235,7 @@ def resolve_sglang_image(region: str) -> str | None:
 #   'lmi'    → DJL LMI      (AWS 관리형 컨테이너, 내부 백엔드 vLLM)
 # 셋 다 연속 배칭 + OpenAI 호환(messages)이라 호출 코드가 동일하다.
 # (resolve_hf_inference_image는 남겨두지만 서빙 엔진 선택지에는 없다 — HF Inference DLC는
-#  transformers 단건 서빙용이라 연속 배칭·스트리밍이 없어 이 킷의 서빙 경로에서 제외했다.)
+#  transformers 단건 서빙용이라 연속 배칭·스트리밍이 없어 이 kit의 서빙 경로에서 제외했다.)
 _SERVING_IMAGE_RESOLVERS = {
     "vllm": resolve_vllm_image,
     "sglang": resolve_sglang_image,

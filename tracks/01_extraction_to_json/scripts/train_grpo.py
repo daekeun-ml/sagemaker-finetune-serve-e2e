@@ -5,7 +5,7 @@ train_grpo.py — Gemma GRPO(+LoRA/QLoRA) 학습 스크립트 (self-contained)
 🔴 SFT(train.py)와의 차이:
   - SFT는 정답 completion을 '모방'. GRPO는 prompt당 여러 개를 생성해 **reward 함수**로 좋은 걸 강화.
   - 따라서 데이터는 {"prompt":[...user...], "reference":"<정답>"} 형태(정답은 reward 계산용).
-  - reward가 '프로그램적으로 명확한' 태스크에만 적합 → 이 킷은 **추출(JSON)·분류(라벨)** 트랙에만 GRPO 노트북 제공.
+  - reward가 '프로그램적으로 명확한' 태스크에만 적합 → 이 kit은 **추출(JSON)·분류(라벨)** 트랙에만 GRPO 노트북 제공.
   - GRPO는 prompt당 num_generations개 생성(rollout)이라 SFT보다 연산량이 크다(시간·GPU↑).
 
 멀티모달 base(gemma-4 전부·gemma-3 4b+) 처리는 train.py와 동일:

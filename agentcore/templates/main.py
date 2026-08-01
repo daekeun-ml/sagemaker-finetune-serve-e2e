@@ -1,5 +1,5 @@
 """
-main.py — AgentCore 에이전트 엔트리포인트 (이 킷용: Bedrock Claude reasoning + SLM endpoint tool).
+main.py — AgentCore 에이전트 엔트리포인트 (이 kit용: Bedrock Claude reasoning + SLM endpoint tool).
 
 create_agent.sh가 `agentcore create` 스캐폴딩 생성 후, 이 파일을 app/<agent>/main.py 로 복사한다.
 CLI 기본 스캐폴딩의 데모 tool(add_numbers)을, 파인튜닝 SLM(SageMaker endpoint)을 호출하는

@@ -1,8 +1,8 @@
-# 00 · 전체 지도 — 킷 구조와 실행 순서
+# 00 · 전체 지도 — kit 구조와 실행 순서
 
 !!! info "Scope"
-    이 킷을 처음 여는 ML 엔지니어 / 데이터 과학자. SageMaker·Bedrock을 몰라도 읽을 수 있습니다.
-    선행 조건: 없습니다. 이 문서가 킷의 **진입점(index)**입니다.
+    이 kit을 처음 여는 ML 엔지니어 / 데이터 과학자. SageMaker·Bedrock을 몰라도 읽을 수 있습니다.
+    선행 조건: 없습니다. 이 문서가 kit의 **진입점(index)**입니다.
     다루는 것: 무엇이 어디에 있고 어떤 순서로 도는지, 노트북 ↔ 문서 매핑, 모델·엔진 기본값, 비용과 정리.
     다루지 않는 것: 개념 상세(각 가이드 01~06으로 연결합니다).
 
@@ -17,26 +17,26 @@
 
 ## TL;DR
 
-**task → 오픈 시드 데이터 → grounded 합성 → SageMaker 학습(PyTorch DLC + TRL/PEFT) → real-time endpoint(vLLM DLC 기본) → agentic(Strands → AgentCore) → held-out 평가까지, 5개 독립 트랙이 얇은 `common/` 레이어를 공유하는 step-by-step 실습 킷입니다.**
+**task → 오픈 시드 데이터 → grounded 합성 → SageMaker 학습(PyTorch DLC + TRL/PEFT) → real-time endpoint(vLLM DLC 기본) → agentic(Strands → AgentCore) → held-out 평가까지, 5개 독립 트랙이 얇은 `common/` 레이어를 공유하는 step-by-step 실습 kit입니다.**
 
 정리하면 다음과 같습니다.
 
 1. **텍스트 트랙 파이프라인은 7단계**입니다. 노트북 `00→06` + `99_cleanup`이 그대로 각 단계에 대응합니다 — [E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계).
 2. **트랙은 5개**(추출→JSON / 분류 / 요약 / 도메인-QA / 멀티모달 추출)이고 서로 독립된 E2E입니다. 공통 로직만 분리했습니다 — [5개 독립 트랙과 공통 레이어](#5개-독립-트랙과-공통-레이어).
-3. **기본 모델은 `google/gemma-4-E4B-it`**(apache-2.0 · ungated · HF 토큰 불필요)이고, `MODEL_SIZE`로 `E4B` / `12B` / `26B-A4B`를 고릅니다 — [모델 선택](#모델-선택-gemma-4-프리셋-3종).
+3. **기본 모델은 `google/gemma-4-E4B-it`**(apache-2.0 · ungated · HF 토큰 불필요)이고, `MODEL_SIZE`로 `E2B` / `E4B` / `12B` / `26B-A4B` / `31B`를 고릅니다 — [모델 선택](#모델-선택-gemma-4-프리셋-5종).
 4. **학습은 PyTorch DLC + TRL/PEFT(JumpStart 아님), 서빙 기본은 vLLM DLC**이며 `SERVING_ENGINE`으로 `sglang`·`lmi`로 바꿀 수 있습니다 — [왜 이 구조인가](#왜-이-구조인가).
 5. **실행 규율은 `DRY_RUN=1` 먼저**입니다. [파이프라인을 dry-run으로 확인](#실행-방법과-dry_run-규율)한 뒤 실제 실행으로 넘어가고, 끝나면 반드시 정리하세요 — [비용과 cleanup](#비용과-cleanup).
 
 !!! tip "어디서부터 읽을까"
     - **바로 손을 대고 싶다면** → [시작하기](getting_started.md)(설치 → 스모크 → dry-run → 노트북).
-    - **순서대로 완주하려면** → [실행 런북](RUN_E2E.md)에 단계별 핸드오프·비용·체크리스트가 있습니다.
-    - **개념부터 잡으려면** → 배포/추론이 이 킷의 핵심이므로 [SageMaker 추론](04_sagemaker_inference.md)을 먼저 보세요. 학습은 [파인튜닝](03_finetuning.md), 데이터는 [합성 데이터](02_synthetic_data.md)입니다.
+    - **순서대로 완주하려면** → [실행 runbook](RUN_E2E.md)에 단계별 핸드오프·비용·체크리스트가 있습니다.
+    - **개념부터 잡으려면** → 배포/추론이 이 kit의 핵심이므로 [SageMaker 추론](04_sagemaker_inference.md)을 먼저 보세요. 학습은 [파인튜닝](03_finetuning.md), 데이터는 [합성 데이터](02_synthetic_data.md)입니다.
 
 ---
 
 ## 기존 Pain Point
 
-이 킷이 없을 때 실제로 겪는 것들입니다.
+이 kit이 없을 때 실제로 겪는 것들입니다.
 
 - "Gemma를 SageMaker에서 파인튜닝→서빙"하는 예제는 조각조각 흩어져 있고, **버전·이미지 태그가 스치듯 오래된 경우가 많습니다**. 그대로 복붙하면 컨테이너 resolve부터 실패합니다.
 - "AWS 예제는 죄다 DJL LMI를 쓰는데 vLLM이 제일 빠르다고 하고, 어떤 문서는 HF DLC를 쓴다"처럼 **컨테이너 선택지가 정리되지 않아** 무엇에 `model_data`를 물릴지 판단이 서지 않습니다.
@@ -44,26 +44,26 @@
 - Gemma 특유의 함정(chat template의 system role 거부, fp16 NaN, packing cross-contamination)을 모르고 시작하면 **조용히 망가진 학습**을 얻게 됩니다.
 - 합성 데이터를 teacher 그대로 만들고 **그걸로 평가**하면 성능을 과대평가하게 됩니다.
 
-이 킷은 위 함정을 코드 주석·노트북·본 문서에 오개념 노트로 박아 두어, 초심자가 밟지 않도록 돕습니다.
+이 kit은 위 함정을 코드 주석·노트북·본 문서에 오개념 노트로 박아 두어, 초심자가 밟지 않도록 돕습니다.
 
 ---
 
 ## 왜 이 구조인가
 
 !!! abstract "쉽게 말하면"
-    이 킷은 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
+    이 kit은 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
     부품(합성·학습·서빙·평가)은 `common/`에 한 번만 작성해 두고, 트랙은 데이터와 프롬프트만 갈아끼웁니다.
     멀티모달 트랙만 이미지 입력이라 구조가 조금 다릅니다.
 
 ### 인프라 비용은 TCO의 한 칸일 뿐입니다
 
-아래 축별 선택보다 한 층 위에 전제가 하나 있습니다 — **왜 관리형 티어인가**. 티어를 고를 때 사람들이 실제로 보는 축은 하나뿐입니다 — **시간당 단가**. 그리고 그 비교에서 관리형이 지는 것은 사실입니다. 이 킷이 쓰는 `ml.g6.2xlarge`를 SageMaker endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다(정확한 배율은 리전·시점에 따라 다르므로 [SageMaker AI 요금](https://aws.amazon.com/sagemaker-ai/pricing/)과 [EC2 온디맨드 요금](https://aws.amazon.com/ec2/pricing/on-demand/)에서 직접 비교하세요). 문제는 그 비교가 **총 소유비용(TCO) 중 인프라 비용 한 칸만** 놓고 이루어진다는 점입니다.
+아래 축별 선택보다 한 층 위에 전제가 하나 있습니다 — **왜 관리형 티어인가**. 티어를 고를 때 사람들이 실제로 보는 축은 하나뿐입니다 — **시간당 단가**. 그리고 그 비교에서 관리형이 지는 것은 사실입니다. 이 kit이 쓰는 `ml.g6.2xlarge`를 SageMaker endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다(정확한 배율은 리전·시점에 따라 다르므로 [SageMaker AI 요금](https://aws.amazon.com/sagemaker-ai/pricing/)과 [EC2 온디맨드 요금](https://aws.amazon.com/ec2/pricing/on-demand/)에서 직접 비교하세요). 문제는 그 비교가 **총 소유비용(TCO) 중 인프라 비용 한 칸만** 놓고 이루어진다는 점입니다.
 
 [![관리형 배포와 자체 배포의 총 소유비용 비교 도해. 왼쪽에 대표적 오해 세 가지("EC2나 온프렘으로 서빙하면 간단한데?", "그냥 vLLM/SGLang 띄우는 게 더 낫네!", "SageMaker AI 쓰려니까 EC2보다 인프라 비용이 비싼데?")와 TCO 관점의 반론(숙련된 팀·인력이 구성되지 않음, 유지보수 및 보안에 따른 숨겨진 시간과 비용)이 있고, 오른쪽 위에는 누적 막대 두 개가 있다. 관리형 배포(SageMaker AI) 막대는 짧고, 자체 배포(EC2/EKS) 막대는 훨씬 길며 인프라 비용·운영 비용·규정 준수 비용 세 구간으로 나뉜다. 오른쪽 아래 육각형 세 개는 판단해야 할 축을 비용(모델 호스팅 비용·운영 오버헤드·배포 및 관리해야 할 모델 수), 성능(지연 시간·처리량·가용성), 복잡성(엔지니어링 공수·모델 크기와 테스트와 업그레이드·페이로드 크기·추론 워크플로)으로 나눈다](images/why_sagemaker.png)](images/why_sagemaker.png)
 
 *자체 배포의 막대가 긴 이유는 단가가 아니라 칸 수입니다 — 인프라 비용 위에 운영 비용과 규정 준수 비용이 더 얹힙니다.*
 
-그림 왼쪽의 세 문장은 이 킷을 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다 — **빠진 두 칸을 채우고 다시 비교하세요.**
+그림 왼쪽의 세 문장은 이 kit을 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다 — **빠진 두 칸을 채우고 다시 비교하세요.**
 
 | 비용 칸 | 무엇이 들어가나 | 자체 배포(EC2/EKS)에서는 | 관리형(SageMaker AI)에서는 |
 |---|---|---|---|
@@ -71,10 +71,10 @@
 | **운영 비용** | GPU 드라이버·CUDA 업그레이드, `/ping` 상당의 health check와 로드밸런서 구성, 재시작·롤백, 관측 스택, 당직 | 전부 내 몫. 그리고 이것은 **인건비라서 청구서에 안 보입니다** | 컨트롤 플레인이 AWS 몫. 내가 쓰는 것은 `.env` 값과 노트북 몇 줄 |
 | **규정 준수 비용** | guest OS 패치 적용, 감사 증적, 격리·암호화 구성 | [공동 책임 모델](https://aws.amazon.com/compliance/shared-responsibility-model/) 기준으로 guest OS와 그 위의 소프트웨어 패치는 **고객 책임** | 호스트와 관리형 런타임은 AWS 책임. 내 몫은 이미지 태그를 올리는 것([운영 관점 비교](01_sagemaker_basics.md#운영-관점-비교)의 「보안 패치·규정 준수」 행) |
 
-그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 킷의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
+그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 kit의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
 
-- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**. 마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분하지만, 트랙마다 다른 모델이 붙기 시작하면(이 킷만 해도 추출·분류·요약·멀티모달 트랙이 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
-- **성능** — 지연 시간, 처리량, 가용성. 지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있지만(vLLM은 같은 vLLM입니다), **가용성**은 엔진이 주지 않습니다 — `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능이고(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다 — 이 킷은 실습이라 `initial_instance_count=1` 고정입니다), 모델을 교체할 때의 canary·롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
+- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**. 마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분하지만, 트랙마다 다른 모델이 붙기 시작하면(이 kit만 해도 추출·분류·요약·멀티모달 트랙이 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
+- **성능** — 지연 시간, 처리량, 가용성. 지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있지만(vLLM은 같은 vLLM입니다), **가용성**은 엔진이 주지 않습니다 — `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능이고(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다 — 이 kit은 실습이라 `initial_instance_count=1` 고정입니다), 모델을 교체할 때의 canary·롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
 - **복잡성** — 엔지니어링 공수, 모델 크기·테스트·업그레이드, **페이로드 크기**, 추론 워크플로. 페이로드 크기와 처리 시간이 커지면 Real-time이 아니라 Asynchronous나 Batch Transform이 답인데, 자체 배포에서는 그 세 가지를 각각 큐·워커·잡 러너로 내가 만들어야 합니다([추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)).
 
 ??? tip "그래도 자체 배포가 이기는 경우가 있습니다"
@@ -85,7 +85,7 @@
 
 ### 설계 축별 선택
 
-| 축 | 이 킷의 선택 | 대안 | 왜 이걸 골랐나 (조건부) |
+| 축 | 이 kit의 선택 | 대안 | 왜 이걸 골랐나 (조건부) |
 |---|---|---|---|
 | 학습 경로 | **PyTorch DLC + [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) + [PEFT](https://huggingface.co/docs/peft/index) LoRA/QLoRA** | JumpStart 원클릭 / HF DLC | 커스텀 chat template·LoRA 타깃·bf16 등을 **직접 제어**해야 Gemma가 제대로 학습됩니다. 베이스가 순수 PyTorch DLC라 `scripts/requirements.txt`로 최신 `transformers`를 컨테이너 안에서 맞출 수 있습니다. 세밀한 제어가 필요 없다면 JumpStart도 유효한 선택입니다. |
 | [추론 옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) | **SageMaker real-time endpoint** | Serverless / Async / Batch | 대화형 SLM은 상시 저지연이 필요하므로 real-time이 적합합니다. **Serverless는 GPU가 없어 LLM에 부적합합니다.** 배치성 작업이라면 Async/Batch를 고려하세요. |
@@ -140,8 +140,9 @@
  [99_cleanup]             endpoint·리소스 삭제 (과금 중단)
 ```
 
-- **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`). 리워드가 프로그램적으로 계산되는 **추출·분류 트랙에만** 있고, 요약·domain_qa에는 없습니다.
-- **(선택) `02b_local_serve`**: SageMaker 배포 전 로컬 vLLM으로 프리플라이트하는 단계로, 모든 텍스트 트랙에서 제공됩니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).
+- **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`).
+- **(선택) `02b_local_serve`**: SageMaker 배포 전 로컬 vLLM으로 프리플라이트합니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).
+- 위 두 노트북은 트랙마다 있고 없고가 갈립니다 — 어느 트랙에 붙는지는 [텍스트 트랙의 공통 노트북 세트](#텍스트-트랙의-공통-노트북-세트)에 있습니다.
 - **`04_evaluate`**: endpoint를 held-out 세트로 직접 호출해 트랙별 지표를 계산합니다. 로컬에서 돌기 때문에 빠르고 저렴합니다.
 
 !!! danger "합성·학습셋으로 평가하지 마세요"
@@ -168,19 +169,51 @@
 
 **텍스트 4개 트랙은 데이터셋과 프롬프트만 다르고 파이프라인은 동일합니다.** 그래서 공통 부품은 `common/`에 한 번만 두면 됩니다. 멀티모달 트랙(05)만 이미지 입력이라 노트북 세트가 다릅니다.
 
-| 트랙 디렉토리 | task | 시드 데이터셋 (라이선스) | 평가 메트릭 |
+아래 표는 **어느 트랙을 고를지** 정하는 데 필요한 것만 담았습니다. 주 지표를 고른 이유와 보조 지표, 시드 데이터셋의 함정은 각 트랙 문서에 있습니다 — 트랙 이름을 누르면 갑니다.
+
+| 트랙 | task | 시드 데이터셋 (라이선스) | 주 지표 |
 |---|---|---|---|
-| `tracks/01_extraction_to_json` | 텍스트 → 구조화 JSON (**플래그십**) | `glaiveai/glaive-function-calling-v2` (apache-2.0) | arg_f1 + valid_json_rate + name_accuracy |
-| `tracks/02_classification` | intent 분류 | `mteb/banking77` (mit) | macro-F1 + accuracy |
-| `tracks/03_summarization` | 문서 요약 | `FiscalNote/billsum` (cc0-1.0) | ROUGE-L + LLM-judge |
-| `tracks/04_domain_qa` | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) | LLM-judge + ROUGE-L |
-| `tracks/05_multimodal_extraction` | **이미지 → 구조화 JSON** (영수증, gemma-4 vision) | `naver-clova-ix/cord-v2` (cc-by-4.0) | valid_json_rate + field 정확도 |
+| [추출 → JSON](track_extraction.md) (**플래그십**) | 텍스트 → 구조화 JSON | `glaiveai/glaive-function-calling-v2` (apache-2.0) | `arg_f1` |
+| [분류](track_classification.md) | 은행 고객 문의 intent 77종 분류 | `mteb/banking77` (mit) | macro-F1 |
+| [요약](track_summarization.md) | 법안 원문 요약 | `FiscalNote/billsum` (cc0-1.0) | ROUGE-L |
+| [도메인 QA](track_domain_qa.md) | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) | LLM-judge |
+| [멀티모달 추출](track_multimodal.md) | **이미지** → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` (cc-by-4.0) | valid JSON + 필드 정확도 — **육안 대조**(`04_evaluate` 없음) |
 
-`mteb/banking77`은 원본 `PolyAI/banking77`이 스크립트 기반이라 `datasets>=5.0.0`에서 로드되지 않아 쓰는 parquet 미러입니다(실측 2026-07-30). 상세 근거는 `tracks/02_classification/track_data.py` 독스트링에 있습니다.
+지표가 트랙 선택을 가르는 지점이 하나 있습니다 — 추출·분류는 **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다. 요약·도메인 QA는 정답이 하나가 아니라 LLM-judge를 붙여야 하고(Bedrock 호출 과금), 같은 이유로 GRPO(`02a`)가 없습니다.
 
-**텍스트 트랙(01~04)**은 동일한 노트북 세트를 가집니다: `00_setup → 01_data_and_synthetic → 02_train_sft_sagemaker → (02a_train_grpo_sagemaker, 추출·분류만) → (02b_local_serve) → 03_deploy_endpoint → 04_evaluate → 05_agentic_strands → 06_agentcore_deploy → 99_cleanup`. 트랙별 특이값은 `tracks/*/track_data.py`(시드 로드 + 어댑터)와 `common/config.py`의 `TRACKS` 레지스트리에 정의되어 있습니다.
+디렉토리는 표 순서대로 `tracks/01_extraction_to_json` · `02_classification` · `03_summarization` · `04_domain_qa` · `05_multimodal_extraction`입니다.
 
-**멀티모달 트랙(05)**은 `00_setup → 01_data_explore → 02_train_mm_sagemaker → 03_deploy_mm_endpoint → 99_cleanup`입니다(합성 데이터 단계 없음). 학습은 `tracks/05_multimodal_extraction/scripts/train_mm.py`(`AutoModelForImageTextToText` + processor, vision tower 동결 + language LoRA)를 쓰고, 서빙은 이미지 입력을 받는 멀티모달 endpoint입니다.
+### 텍스트 트랙의 공통 노트북 세트
+
+트랙 01~04은 **항상 있는 노트북 8개**를 같은 순서로 갖습니다([E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계)의 7단계 + `99_cleanup`).
+
+```
+00_setup  →  01_data_and_synthetic  →  02_train_sft_sagemaker
+          →  03_deploy_endpoint     →  04_evaluate
+          →  05_agentic_strands     →  06_agentcore_deploy     →  99_cleanup
+```
+
+여기에 조건부 노트북이 두 개 더 붙습니다(무엇을 하는 단계인지는 위 [E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계)에 있습니다).
+
+- **`02a_train_grpo_sagemaker` — 추출·분류 트랙에만 있습니다.** 리워드를 프로그램으로 채점할 수 있는 두 트랙만 대상입니다([왜 추출·분류 트랙에만 GRPO가 있나](03_finetuning.md#왜-추출분류-트랙에만-grpo가-있나)). 그래서 이 두 트랙은 노트북이 10개, 요약·도메인 QA는 9개입니다.
+- **`02b_local_serve` — 4개 트랙 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
+
+따라서 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`이고, 노트북별 산출물은 [노트북 단계와 산출물](#노트북-단계와-산출물) 표에 있습니다.
+
+트랙별로 달라지는 값은 두 곳에만 있습니다.
+
+- `tracks/*/track_data.py` — 시드 데이터셋 로드와 `messages` 어댑터(원본 row → 학습 형태).
+- `common/config.py`의 `TRACKS` 레지스트리 — `seed_dataset`·`max_seq_length`·epoch 등 트랙 상수.
+
+### 학습 길이와 서빙 길이는 다른 값입니다
+
+트랙 페이지의 설정 표에 `max_seq_length`(학습)와 `serve_max_model_len`(서빙)이 따로 나오는 이유입니다. 학습은 "입력+정답"이 `max_seq_length`에 들어가도록 자르지만, 서빙은 "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다. 두 값을 하나로 묶으면 입력이 긴 트랙에서 `(프롬프트 + max_tokens) > 컨텍스트`가 되어 vLLM이 400(`context length exceeded`)으로 거부합니다(요약 트랙: 프롬프트 max 2,006 + 생성 256 > 2048).
+
+`TrackSpec.serve_max_model_len`을 지정하지 않은 트랙은 `tracks/_shared_build._serve_len()`이 `max_seq_length × 2`를 씁니다(입력만큼 생성 여유를 둔다는 뜻). 생성 상한 `gen_max_tokens`는 또 별개이며 트랙별 정답 길이 분포에서 정합니다 — 트랙별 값과 절단 확인법은 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+
+### 멀티모달 트랙의 다른 점
+
+[멀티모달 추출 트랙](track_multimodal.md)은 노트북이 5개뿐이고 합성·agentic 단계가 없습니다 — 단계 도해와 이유는 위의 [멀티모달 트랙 05의 별도 파이프라인](#멀티모달-트랙-05의-별도-파이프라인)에 있습니다.
 
 ### 공유되는 common 부품
 
@@ -203,19 +236,21 @@
 
 ---
 
-## 모델 선택 (gemma-4 프리셋 3종)
+## 모델 선택 (gemma-4 프리셋 5종)
 
-기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(실측 2026-07-21, HF raw `config.json`). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
+기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(HF raw `config.json` 확인). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
 
 | 프리셋 (`MODEL_SIZE`) | 모델 ID | 성격 | 프리셋 인스턴스 | transformers 요건 |
 |---|---|---|---|---|
+| `E2B` | `google/gemma-4-E2B-it` | effective 2.3B(on-disk 5.12B, PLE가 46.7%). KV-sharing 있음. 계열 최소라 스모크 테스트에 적합 | `ml.g5.2xlarge` | >= 5.5.0 |
 | **`E4B`** (기본) | `google/gemma-4-E4B-it` | effective 4.5B(PLE 포함 ~8B). KV-sharing 있음. 단일 L4 24GB QLoRA 여유 | `ml.g5.2xlarge` | >= 5.5.0 |
-| `12B` | `google/gemma-4-12B-it` | 11.95B dense, unified arch | `ml.g5.12xlarge` | >= 5.10.0 |
+| `12B` | `google/gemma-4-12B-it` | 11.95B dense, unified arch | `ml.g5.12xlarge` | >= 5.10.1 |
 | `26B-A4B` | `google/gemma-4-26B-A4B-it` | MoE total 25.2B / active 3.8B, 128 experts. audio 미지원(vision만) | `ml.g5.12xlarge` | >= 5.5.0 |
+| `31B` | `google/gemma-4-31B-it` | 31.27B dense, 계열 최대. audio 미지원(vision만) | `ml.g6e.12xlarge` | >= 5.5.0 |
 
-- `gemma-4-31B`는 **프리셋에 없습니다.** `MODEL_ID`로 직접 지정할 수는 있지만, 인스턴스 사이징과 `transformers` 요건은 직접 맞춰야 합니다.
-- 이 킷의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
-- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM은 약 17.5GB입니다(실측 2026-07).
+- **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S 44GiB)입니다.** 4bit로도 base가 22GiB 카드를 넘길 수 있어서입니다 — quantizable linear 29.29B는 NF4로 14.6GB(+double-quant 상수 0.46GB)까지 줄지만, `embed_tokens` 1.41B와 vision tower 0.58B는 4bit로 내려가지 않아 bf16으로 남아 base만 약 19.1GB가 됩니다. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다. `params/2` 어림값이 통하지 않는 지점입니다. 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
+- 이 kit의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
+- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM 실측값은 약 17.5GB입니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 재-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
@@ -231,7 +266,7 @@
 - LoRA는 텍스트 트랙에서 `target_modules="all-linear"` + `modules_to_save=["lm_head","embed_tokens"]`입니다. 멀티모달 학습은 vision/audio proj가 `ClippableLinear`라 매칭되면 크래시하므로 `language_model` 한정 regex를 씁니다.
 - `bf16`은 필수입니다(**fp16 금지** — Gemma에서 오버플로/NaN을 유발합니다). `attn=eager`가 안전 기본값입니다(soft-cap/sliding-window 정합성).
 - packing은 `flash_attention_2`일 때만 켜집니다. eager/sdpa에서는 **샘플 간 cross-contamination을 방지하기 위해 자동으로 꺼집니다**.
-- E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 2026-07-30: 54개). 그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). `train.py`는 저장 직전 그 텐서를 base에서 복원하며(복원 전 665키 → 복원 후 719키 = 원본과 동일), 연산에 쓰이지 않는 dead weight라 정확도에는 무해합니다.
+- E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 54개). 그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)). `train.py`는 저장 직전 그 텐서를 base에서 복원하며(복원 전 665키 → 복원 후 719키 = 원본과 동일), 연산에 쓰이지 않는 dead weight라 정확도에는 무해합니다.
 
 ---
 
@@ -248,7 +283,7 @@ uv pip install -r pyproject.toml     # 또는 재현 설치:  uv sync
 # 최신화:  uv lock --upgrade  /  uv lock --upgrade-package transformers
 ```
 
-pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전은 `>=` floor로만 고정되어 있으며(실측 2026-07: transformers 5.14.1 / trl 1.8.0 / peft 0.19.1 / datasets 5.0.0), **실행 전 재확인** 대상입니다. 컨테이너 안의 의존성은 별개 파일(`tracks/*/scripts/requirements.txt`, 실측 2026-07-31: transformers 5.14.1 / trl 1.9.0 / peft 0.19.1)이 담당합니다.
+pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전은 `>=` floor로만 고정되어 있고, floor 값 자체는 **실행 전 재확인** 대상입니다(현행 값은 `requirements.txt`에 있습니다). 컨테이너 안의 의존성은 별개 파일(`tracks/*/scripts/requirements.txt`)이 담당합니다.
 
 ### 환경변수 주입
 
@@ -258,7 +293,7 @@ pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전
 export AWS_REGION=us-west-2                              # config 기본값. 리전 재확인 후 사용
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
 export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # config 기본값. inference-profile prefix 필수
-export MODEL_SIZE=E4B                                    # E4B(기본) | 12B | 26B-A4B
+export MODEL_SIZE=E4B                                    # E2B | E4B(기본) | 12B | 26B-A4B | 31B
 export SERVING_ENGINE=vllm                               # vllm(기본) | sglang | lmi
 export DRY_RUN=1                                         # 먼저 파이프라인 검증, 실제 실행 시 0
 # gated 모델(gemma-3 계열)을 쓸 때만:  export MODEL_IS_GATED=1  +  hf auth login
@@ -275,7 +310,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 ??? question "오개념 — “로컬 `transformers`와 SageMaker가 같은 버전이겠지?”"
     **그렇지 않습니다.** 로컬 env의 `transformers`는 데이터 준비/dry-run용이고, **SageMaker 컨테이너 버전은 DLC 이미지 태그**가 결정합니다.
     컨테이너 안에서 상위 버전이 필요하면 `tracks/*/scripts/requirements.txt`가 이를 업그레이드합니다.
-    이 킷의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다 — baked-in `transformers`에 묶이지 않습니다.
+    이 kit의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다 — baked-in `transformers`에 묶이지 않습니다.
 
 ---
 
@@ -291,7 +326,9 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 | [04 SageMaker 추론](04_sagemaker_inference.md) `[CORE]` | 추론 4옵션, endpoint 3층 구조와 호출(sagemaker-runtime), 서빙 컨테이너·DLC 이미지 | `03_deploy_endpoint` | `common/aws_utils.py`, `common/dlc.py` |
 | [05 서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 | `03_deploy_endpoint`, `02b_local_serve` | `common/dlc.py`, `common/model_inspect.py` |
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
-| [실행 런북](RUN_E2E.md) | 단계별 핸드오프·비용 가드·완료 기준 | 전 단계 | — |
+| [실행 runbook](RUN_E2E.md) | 단계별 핸드오프·비용 가드·완료 기준 | 전 단계 | — |
+
+위 표의 가이드는 **주제별**(데이터·학습·배포·에이전트)이라 5개 트랙에 공통으로 적용됩니다. **트랙별**로 무엇이 다른지는 트랙 문서 5개가 따로 다루며, [5개 독립 트랙과 공통 레이어](#5개-독립-트랙과-공통-레이어)의 표에서 연결됩니다.
 
 평가는 별도 문서 없이 `common/eval_utils.py`와 각 트랙의 `04_evaluate` 노트북에 담겨 있습니다(held-out 평가, 트랙별 메트릭, LLM-judge).
 
@@ -314,29 +351,29 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 ## 자주 나오는 오개념
 
-앞에서 다루지 않은, 킷 전체를 볼 때 자주 나오는 착각들입니다.
+앞에서 다루지 않은, kit 전체를 볼 때 자주 나오는 착각들입니다.
 
-??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 킷은 왜 vLLM이 기본인가요?”"
+??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 kit은 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
-    LMI도 됩니다 — 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 킷이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회 2026-07-30). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK 폴백에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다 — 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
+    LMI도 됩니다 — 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 kit이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회 2026-07-30). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK 폴백에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다 — 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
     세 엔진 모두 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드는 바뀌지 않습니다**. 선택 기준은 [서빙 컨테이너](05_serving_containers.md)에 있습니다.
 
 컨테이너 이야기는 학습 쪽에서도 같은 형태로 반복됩니다.
 
 ??? question "오개념 — “학습은 HF DLC를 써야 하는 거 아닌가요?”"
-    **꼭 그렇지 않습니다.** 이 킷은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
+    **꼭 그렇지 않습니다.** 이 kit은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
     [HF DLC](https://huggingface.co/docs/sagemaker/index)의 baked-in `transformers`는 gemma-4에 필요한 버전보다 낮을 수 있는데, 베이스를 PyTorch DLC로 두면 컨테이너 안에서 최신으로 맞출 수 있습니다.
     학습 이미지는 **리전별 private ECR**(`763104351884.dkr.ecr.<region>...`)만 허용됩니다 — `public.ecr.aws` URI를 주면 `CreateTrainingJob`이 거부합니다.
 
 학습·서빙을 지나면 평가 단계에서 tier를 헷갈리게 됩니다.
 
 ??? question "오개념 — “SageMaker 관리형 evaluator로 채점하면 되지 않나요?”"
-    **이 킷의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
-    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다(실측 2026-07-31).
+    **이 kit의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
+    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다.
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다 — 빠르고 저렴하다는 부수 효과도 있습니다.
 
-마지막은 이 킷에서 가장 비싼 착각인 과금에 관한 것입니다.
+마지막은 이 kit에서 가장 비싼 착각인 과금에 관한 것입니다.
 
 ??? question "오개념 — “endpoint를 안 부르면 공짜겠지?”"
     **그렇지 않습니다.** real-time endpoint는 **호출 여부와 무관하게 provisioned 인스턴스가 시간당 과금**됩니다.
@@ -369,7 +406,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 ### 라이선스 요약
 
-- **Gemma 4는 apache-2.0 + ungated**로 마찰이 가장 적습니다 — 이 킷의 기본 경로입니다.
+- **Gemma 4는 apache-2.0 + ungated**로 마찰이 가장 적습니다 — 이 kit의 기본 경로입니다.
 - Gemma 3/2/3n은 **Gemma Terms + gated**입니다(HF 토큰·약관 수락 필요, 서빙 시 use-restriction 전파 의무) — 예: [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it).
 - 시드 데이터셋은 전부 permissive한 것만 선별했으나, share-alike(dolly의 cc-by-sa-3.0 등) 파생물은 주의하시기 바랍니다.
 - 재배포/서빙 전에 각 모델·데이터셋의 **live 라이선스 배너를 재확인**하세요.
