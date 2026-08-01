@@ -96,7 +96,7 @@
 
 ### 기술적 차이 3가지
 
-1. **서비스 경계를 코드로 분리했습니다.** SageMaker endpoint 호출은 `boto3 sagemaker-runtime.invoke_endpoint()`(스트리밍은 `invoke_endpoint_with_response_stream`), Bedrock 호출은 `boto3 bedrock-runtime.converse()`를 씁니다. 이 둘은 **별개 서비스·별개 클라이언트**입니다(`common/aws_utils.py`, 호출 스키마와 API 문서 링크는 [서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
+1. **서비스 경계를 코드로 분리했습니다.** SageMaker endpoint 호출은 `boto3 sagemaker-runtime.invoke_endpoint`(스트리밍은 `invoke_endpoint_with_response_stream`), Bedrock 호출은 `boto3 bedrock-runtime.converse`를 씁니다. 이 둘은 **별개 서비스·별개 클라이언트**입니다(`common/aws_utils.py`, 호출 스키마와 API 문서 링크는 [서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
 2. **DLC 이미지 URI를 env로 분리했습니다.** 태그는 자주 바뀌므로 코드에 박지 않고 완전 URI env(`DLC_IMAGE_URI` / `VLLM_IMAGE_URI` / `SGLANG_IMAGE_URI` / `LMI_IMAGE_URI`)를 최우선으로 읽고, 없으면 `DLC_REPOSITORY`+`DLC_TAG`나 SDK `image_uris.retrieve`로 폴백합니다(`common/dlc.py`). 현행 계정·리포지토리·태그 조합은 [deep-learning-containers의 available_images.md](https://github.com/aws/deep-learning-containers/blob/master/available_images.md)가 원본입니다. 로컬 `transformers`와 컨테이너 `transformers`도 서로 다르므로 구분합니다.
 3. **Gemma 함정 방어를 기본값으로 넣었습니다.** `attn=eager`를 안전 기본값으로 두고, `bf16`을 강제하며(**fp16 금지** — Gemma에서 NaN을 유발합니다), packing은 flash-attn이 아니면 자동으로 끕니다. 여기에 E2B/E4B는 저장 직전 KV-shared dead weight를 base에서 복원하고(`_revive_kv_shared_from_base`), 텍스트 트랙은 머지 후 language 서브모듈만 `*ForCausalLM`으로 재-export합니다 — 이 모두가 `tracks/*/scripts/train.py`에 내장되어 있습니다.
 
@@ -111,33 +111,33 @@
 
 ```
  task 정의
-   │
-   ▼
- [00_setup]      env·role·bucket·의존성 확인 (DRY_RUN 권장)
-   │
-   ▼
- [01_data_and_synthetic]  오픈 시드 로드 + grounded 합성(Bedrock Converse + critique/refine)
-   │                       └ common/synth/bedrock_synth.py  →  messages JSONL
-   ▼
- [02_train_sft_sagemaker]     PyTorch DLC + TRL SFTTrainer(LoRA/QLoRA)  ← JumpStart 아님
-   │                       └ tracks/*/scripts/train.py (로컬 dry-run ↔ SageMaker .fit() 겸용)
-   │
-   ├┈┈▶ (선택) [02a_train_grpo_sagemaker]  SFT→GRPO 정련(RLHF)  ← 추출·분류 트랙만
-   ├┈┈▶ (선택) [02b_local_serve]           배포 전 로컬 vLLM 프리플라이트
-   ▼
- [03_deploy_endpoint]     real-time endpoint (vLLM DLC 기본 · SGLang/DJL LMI 선택)
-   │                       └ 호출: sagemaker-runtime.invoke_endpoint (별개: Bedrock)
-   ▼
- [04_evaluate]            held-out 세트로 성공기준 수치화 (로컬·빠름·저렴)
-   │                       └ common/eval_utils.py
-   ▼
- [05_agentic_strands]     Strands Agent (reasoning=Bedrock Claude, tool=call_slm→endpoint)
-   │
-   ▼
- [06_agentcore_deploy]    AgentCore Runtime (ARM64, /invocations + /ping :8080)
-   │                       └ agentcore/app.py
-   ▼
- [99_cleanup]             endpoint·리소스 삭제 (과금 중단)
+ │
+ ▼
+ [00_setup] env·role·bucket·의존성 확인 (DRY_RUN 권장)
+ │
+ ▼
+ [01_data_and_synthetic] 오픈 시드 로드 + grounded 합성(Bedrock Converse + critique/refine)
+ │ └ common/synth/bedrock_synth.py → messages JSONL
+ ▼
+ [02_train_sft_sagemaker] PyTorch DLC + TRL SFTTrainer(LoRA/QLoRA) ← JumpStart 아님
+ │ └ tracks/*/scripts/train.py (로컬 dry-run ↔ SageMaker .fit 겸용)
+ │
+ ├┈┈▶ (선택) [02a_train_grpo_sagemaker] SFT→GRPO 정련(RLHF) ← 추출·분류 트랙만
+ ├┈┈▶ (선택) [02b_local_serve] 배포 전 로컬 vLLM 프리플라이트
+ ▼
+ [03_deploy_endpoint] real-time endpoint (vLLM DLC 기본 · SGLang/DJL LMI 선택)
+ │ └ 호출: sagemaker-runtime.invoke_endpoint (별개: Bedrock)
+ ▼
+ [04_evaluate] held-out 세트로 성공기준 수치화 (로컬·빠름·저렴)
+ │ └ common/eval_utils.py
+ ▼
+ [05_agentic_strands] Strands Agent (reasoning=Bedrock Claude, tool=call_slm→endpoint)
+ │
+ ▼
+ [06_agentcore_deploy] AgentCore Runtime (ARM64, /invocations + /ping :8080)
+ │ └ agentcore/app.py
+ ▼
+ [99_cleanup] endpoint·리소스 삭제 (과금 중단)
 ```
 
 - **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`).
@@ -188,7 +188,7 @@
 트랙 01~04은 **항상 있는 노트북 8개**를 같은 순서로 갖습니다([E2E 파이프라인](#e2e-파이프라인-텍스트-트랙-7단계)의 7단계 + `99_cleanup`).
 
 ```
-00_setup  →  01_data_and_synthetic  →  02_train_sft_sagemaker
+00_setup → 01_data_and_synthetic → 02_train_sft_sagemaker
           →  03_deploy_endpoint     →  04_evaluate
           →  05_agentic_strands     →  06_agentcore_deploy     →  99_cleanup
 ```
@@ -209,7 +209,7 @@
 
 트랙 페이지의 설정 표에 `max_seq_length`(학습)와 `serve_max_model_len`(서빙)이 따로 나오는 이유입니다. 학습은 "입력+정답"이 `max_seq_length`에 들어가도록 자르지만, 서빙은 "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다. 두 값을 하나로 묶으면 입력이 긴 트랙에서 `(프롬프트 + max_tokens) > 컨텍스트`가 되어 vLLM이 400(`context length exceeded`)으로 거부합니다(요약 트랙: 프롬프트 max 2,006 + 생성 256 > 2048).
 
-`TrackSpec.serve_max_model_len`을 지정하지 않은 트랙은 `tracks/_shared_build._serve_len()`이 `max_seq_length × 2`를 씁니다(입력만큼 생성 여유를 둔다는 뜻). 생성 상한 `gen_max_tokens`는 또 별개이며 트랙별 정답 길이 분포에서 정합니다 — 트랙별 값과 절단 확인법은 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+`TrackSpec.serve_max_model_len`을 지정하지 않은 트랙은 `tracks/_shared_build._serve_len`이 `max_seq_length × 2`를 씁니다(입력만큼 생성 여유를 둔다는 뜻). 생성 상한 `gen_max_tokens`는 또 별개이며 트랙별 정답 길이 분포에서 정합니다 — 트랙별 값과 절단 확인법은 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
 
 ### 멀티모달 트랙의 다른 점
 
@@ -238,7 +238,7 @@
 
 ## 모델 선택 (gemma-4 프리셋 5종)
 
-기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(실측 2026-07-21, HF raw `config.json`). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
+기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(HF raw `config.json`). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
 
 | 프리셋 (`MODEL_SIZE`) | 모델 ID | 성격 | 프리셋 인스턴스 | transformers 요건 |
 |---|---|---|---|---|
@@ -250,7 +250,7 @@
 
 - **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S, nominal 48GB · 가용 44GiB)입니다.** 4bit로도 base가 24GB 카드(L4·A10G, 가용 22GiB)를 넘길 수 있어서입니다 — quantizable linear 29.29B는 NF4로 14.6GB(+double-quant 상수 0.46GB)까지 줄지만, `embed_tokens` 1.41B와 vision tower 0.58B는 4bit로 내려가지 않아 bf16으로 남아 base만 약 19.1GB가 됩니다. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다. `params/2` 어림값이 통하지 않는 지점입니다. 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
 - 이 kit의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
-- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM 실측값은 약 17.5GB입니다(실측 2026-07).
+- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B의 peak RAM은 약 17.5GB입니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 재-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
@@ -277,10 +277,10 @@
 ### uv로 설치
 
 ```bash
-# uv 미설치 시:  curl -LsSf https://astral.sh/uv/install.sh | sh
+# uv 미설치 시: curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv && source .venv/bin/activate
-uv pip install -r pyproject.toml     # 또는 재현 설치:  uv sync
-# 최신화:  uv lock --upgrade  /  uv lock --upgrade-package transformers
+uv pip install -r pyproject.toml # 또는 재현 설치: uv sync
+# 최신화: uv lock --upgrade / uv lock --upgrade-package transformers
 ```
 
 pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전은 `>=` floor로만 고정되어 있고, floor 값 자체는 **실행 전 재확인** 대상입니다(현행 값은 `requirements.txt`에 있습니다). 컨테이너 안의 의존성은 별개 파일(`tracks/*/scripts/requirements.txt`)이 담당합니다.
@@ -290,18 +290,18 @@ pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전
 시크릿·계정 ID·절대경로는 하드코딩하지 않습니다. 리포의 `.env`는 **설정만 담기 때문에 커밋됩니다** — 개인 값은 `.env.local`(gitignore)에 두세요.
 
 ```bash
-export AWS_REGION=us-west-2                              # config 기본값. 리전 재확인 후 사용
+export AWS_REGION=us-west-2 # config 기본값. 리전 재확인 후 사용
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
-export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # config 기본값. inference-profile prefix 필수
-export MODEL_SIZE=E4B                                    # E2B | E4B(기본) | 12B | 26B-A4B | 31B
-export SERVING_ENGINE=vllm                               # vllm(기본) | sglang | lmi
-export DRY_RUN=1                                         # 먼저 파이프라인 검증, 실제 실행 시 0
-# gated 모델(gemma-3 계열)을 쓸 때만:  export MODEL_IS_GATED=1  +  hf auth login
+export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5 # config 기본값. inference-profile prefix 필수
+export MODEL_SIZE=E4B # E2B | E4B(기본) | 12B | 26B-A4B | 31B
+export SERVING_ENGINE=vllm # vllm(기본) | sglang | lmi
+export DRY_RUN=1 # 먼저 파이프라인 검증, 실제 실행 시 0
+# gated 모델(gemma-3 계열)을 쓸 때만: export MODEL_IS_GATED=1 + hf auth login
 ```
 
 `BEDROCK_CLAUDE_MODEL_ID`에 `global.`/`us.`/`eu.`/`apac.` prefix가 붙는 것은 Bedrock이 모델을 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 노출하기 때문입니다 — prefix 없는 raw 모델 ID를 넘기면 호출이 거부됩니다.
 
-`AWS_REGION` 기본값이 `us-west-2`(오레곤)인 이유는 GPU 용량 여유가 큰 편이기 때문입니다. `InsufficientInstanceCapacity`로 막히면 이 값만 바꿔 재시도하세요. HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다 — `config.get_hf_token()`이 env와 저장 토큰을 모두 읽습니다.
+`AWS_REGION` 기본값이 `us-west-2`(오레곤)인 이유는 GPU 용량 여유가 큰 편이기 때문입니다. `InsufficientInstanceCapacity`로 막히면 이 값만 바꿔 재시도하세요. HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다 — `config.get_hf_token`이 env와 저장 토큰을 모두 읽습니다.
 
 ### DRY_RUN 우선
 

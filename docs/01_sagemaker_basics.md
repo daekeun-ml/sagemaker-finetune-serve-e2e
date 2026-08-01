@@ -33,7 +33,7 @@
 
 SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같습니다.
 
-- "노트북에서 `trainer.train()`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**" — 로컬 커널이 아니라 SageMaker가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
+- "노트북에서 `trainer.train`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**" — 로컬 커널이 아니라 SageMaker가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
 - "학습 결과가 **어디로 갔는지** 모르겠습니다." — `/opt/ml/model`에 쓴 것만 S3로 올라갑니다. 다른 곳에 저장하면 잡이 끝날 때 인스턴스와 함께 사라집니다.
 - "잡 상태가 `Failed`도 아니고 **`Stopped`인데 에러 로그가 없습니다.**" — 시간 제한(`MaxRuntimeExceeded`)에 걸린 것이며, 학습이 성공했어도 산출물이 불완전할 수 있습니다.
 - "**테스트만 했는데 다음 날 청구서가 왔습니다.**" — Training Job과 Endpoint의 수명을 같다고 생각한 결과입니다. 전자는 자동으로 멈추지만 후자는 멈추지 않습니다.
@@ -54,7 +54,7 @@ SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같
 
 한 장으로 줄이면 Training Job은 **화살표 세 칸**입니다 — S3에 있는 입력, 잡이 도는 동안만 존재하는 계산 클러스터, 그리고 다시 S3로 나가는 출력.
 
-[![Training Job 해부도. 바깥에서 "Invoke API (예: CreateTrainingJob())" 화살표가 아래로 내려와 잡 하나를 나타내는 큰 박스로 들어가고, 박스 안에서는 왼쪽의 Job Inputs(예: S3 버킷 내 훈련 데이터)가 가운데의 Ephemeral Compute Cluster로, 거기서 다시 오른쪽의 Job Outputs(예: S3 버킷 내 모델 아티팩트)로 화살표를 따라 흐른다. 가운데 클러스터에는 "Job code and runtime as Docker container(s)"라는 설명이 붙어 있다](images/sm_job_anatomy.png)](images/sm_job_anatomy.png)
+[![Training Job 해부도. 바깥에서 "Invoke API (예: CreateTrainingJob)" 화살표가 아래로 내려와 잡 하나를 나타내는 큰 박스로 들어가고, 박스 안에서는 왼쪽의 Job Inputs(예: S3 버킷 내 훈련 데이터)가 가운데의 Ephemeral Compute Cluster로, 거기서 다시 오른쪽의 Job Outputs(예: S3 버킷 내 모델 아티팩트)로 화살표를 따라 흐른다. 가운데 클러스터에는 "Job code and runtime as Docker container(s)"라는 설명이 붙어 있다](images/sm_job_anatomy.png)](images/sm_job_anatomy.png)
 
 *가운데 칸의 이름이 그대로 결론입니다 — Ephemeral, 즉 잡과 함께 생겼다가 잡과 함께 사라지는 계산입니다.*
 
@@ -74,19 +74,19 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 그러면 SageMaker가 순서대로 다음을 합니다.
 
 ```
-1. 인스턴스 프로비저닝        (상태: Pending — GPU 용량을 기다리는 구간)
-2. 인스턴스 준비              (상태: Starting)
-3. S3 데이터를 컨테이너로 복사  (상태: Downloading) → /opt/ml/input/data/train
+1. 인스턴스 프로비저닝 (상태: Pending — GPU 용량을 기다리는 구간)
+2. 인스턴스 준비 (상태: Starting)
+3. S3 데이터를 컨테이너로 복사 (상태: Downloading) → /opt/ml/input/data/train
 4. 이미지 pull → entry_script 실행 (상태: Training — 여기서부터 CloudWatch 로그가 생김)
-5. /opt/ml/model 을 tar.gz로 압축해 S3 업로드   (상태: Uploading) ← 이것이 model_data
-6. 인스턴스 종료 + 과금 중지    (상태: Completed / Failed / Stopped)
+5. /opt/ml/model 을 tar.gz로 압축해 S3 업로드 (상태: Uploading) ← 이것이 model_data
+6. 인스턴스 종료 + 과금 중지 (상태: Completed / Failed / Stopped)
 ```
 
 [`DescribeTrainingJob`의 secondary status 정의](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_DescribeTrainingJob.html)를 보면 `Downloading`은 이미지가 아니라 **데이터**를 받는 구간입니다(`File` 입력 모드에서 S3 → ML 스토리지 볼륨). **이미지 다운로드에는 전용 상태가 없습니다** — 과거의 `DownloadingTrainingImage`는 [secondary status transition 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_SecondaryStatusTransition.html)에 "no longer supported"로 명시돼 있고, 지금은 `StatusMessage` 문구로만 드러납니다. 그리고 그 문서의 예시는 `"Downloading the training image"`를 **`SecondaryStatus = Training`**과 짝지어 보여 줍니다(`Starting` 구간의 예시 문구는 `"Starting the training job"`, `"Launching requested ML instances"`, `"Preparing the instances for training"`입니다). 위 순서도의 단계 구분은 이 예시를 따른 것이며, **AWS는 "status message는 바뀔 수 있으니 코드에 넣지 말라"고 명시**하므로 문구 자체로 분기하지 마세요. 5번 `Uploading`이 이 kit이 실제로 다친 구간입니다 — 뒤의 [시간 제한](#maxruntimeinseconds가-덮는-시간-창)을 보세요.
 
 여기서 초심자가 놓치기 쉬운 두 가지가 있습니다.
 
-- **내 코드는 로컬 커널이 아니라 격리된 컨테이너에서 돕니다.** 그래서 노트북 옆의 파일을 열 수 없고, 데이터를 미리 S3에 올려야 합니다(이 kit의 `02_train_sft_sagemaker`가 `upload_if_changed()`로 처리합니다). 같은 이유로 `train.py`는 `common/`을 import하지 않는 **self-contained** 파일이어야 합니다 — SageMaker가 컨테이너에 올리는 것은 `source_dir` 하나뿐입니다([train.py 상세](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-잡)).
+- **내 코드는 로컬 커널이 아니라 격리된 컨테이너에서 돕니다.** 그래서 노트북 옆의 파일을 열 수 없고, 데이터를 미리 S3에 올려야 합니다(이 kit의 `02_train_sft_sagemaker`가 `upload_if_changed`로 처리합니다). 같은 이유로 `train.py`는 `common/`을 import하지 않는 **self-contained** 파일이어야 합니다 — SageMaker가 컨테이너에 올리는 것은 `source_dir` 하나뿐입니다([train.py 상세](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-잡)).
 - **과금 대상 시간은 학습 시간보다 넓습니다.** AWS 문서 기준으로 **데이터 다운로드 시간**과 **모델 아티팩트 압축·업로드 시간**도 billable time에 포함됩니다. 즉 "학습 5분"이 "요금 5분"은 아닙니다.
 
 ### 실행 role이 매개하는 것 — S3와 ECR
@@ -101,9 +101,9 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 
 **이것이 권한 부족이 제출 시점이 아니라 잡 중간에 드러나는 이유입니다.** `CreateTrainingJob`은 role ARN의 형식과 내 `iam:PassRole`만 확인하고 잡을 받아들입니다 — 그림 오른쪽의 `s3:GetObject`·`s3:PutObject`·ECR pull은 클러스터가 뜬 **뒤에야** 시도되기 때문입니다. 그래서 권한이 모자라도 잡 접수는 정상으로 보이다가, 용량 대기(`Pending`)와 인스턴스 프로비저닝 요금을 다 치른 뒤 `Downloading`/`Training` 구간에서 `Failed`로 떨어집니다. 원인을 볼 수 있는 곳은 노트북 출력이 아니라 CloudWatch 로그입니다(runbook의 [자주 막히는 곳](RUN_E2E.md#e2e-흐름에서-자주-막히는-곳) "학습 잡이 시작 직후 실패" 행이 이 증상입니다).
 
-그림의 Permissions 목록에 x 표시가 함께 있는 것도 그대로 읽어야 합니다 — role이 **있다**는 것과 role에 **필요한 권한이 붙어 있다**는 것은 다릅니다. `resolve_sagemaker_role()`은 env → `get_execution_role()` → IAM 자동 탐지 → (opt-in) `AmazonSageMaker-DefaultRole` 생성 순으로 role을 찾는데, 3단계의 자동 탐지가 보는 것은 **`sagemaker.amazonaws.com`을 신뢰하는지**(즉 assume이 가능한지)뿐입니다. S3·ECR 권한이 실제로 붙어 있는지는 확인하지 않으므로, 자동으로 잡힌 role이라도 첫 완주 전에 정책을 한 번 열어 보세요. 반대로 4단계는 `AmazonSageMakerFullAccess`를 붙인 role을 만들기 때문에 기본이 opt-in(`SAGEMAKER_CREATE_DEFAULT_ROLE=1`)입니다 — 편의와 최소 권한이 정확히 반대 방향인 지점입니다.
+그림의 Permissions 목록에 x 표시가 함께 있는 것도 그대로 읽어야 합니다 — role이 **있다**는 것과 role에 **필요한 권한이 붙어 있다**는 것은 다릅니다. `resolve_sagemaker_role`은 env → `get_execution_role` → IAM 자동 탐지 → (opt-in) `AmazonSageMaker-DefaultRole` 생성 순으로 role을 찾는데, 3단계의 자동 탐지가 보는 것은 **`sagemaker.amazonaws.com`을 신뢰하는지**(즉 assume이 가능한지)뿐입니다. S3·ECR 권한이 실제로 붙어 있는지는 확인하지 않으므로, 자동으로 잡힌 role이라도 첫 완주 전에 정책을 한 번 열어 보세요. 반대로 4단계는 `AmazonSageMakerFullAccess`를 붙인 role을 만들기 때문에 기본이 opt-in(`SAGEMAKER_CREATE_DEFAULT_ROLE=1`)입니다 — 편의와 최소 권한이 정확히 반대 방향인 지점입니다.
 
-그림의 일반형과 이 kit의 값이 갈리는 곳은 두 군데입니다. 그림은 채널이 둘(training/test)이지만 이 kit은 `train` 채널 하나만 쓰므로 `s3:GetObject`가 필요한 prefix도 하나이고, `s3:PutObject` 대상인 `s3://bucket/path/to/model`은 이 kit에서 `S3_BUCKET`(비우면 `sess.default_bucket()`) 아래의 SDK 기본 출력 경로입니다. 가운데 박스의 라벨이 `Processing container`인 것도 그림이 잡 종류를 가리지 않는 일반형이기 때문이며, 학습 잡에서 그 자리에 뜨는 것은 training container입니다.
+그림의 일반형과 이 kit의 값이 갈리는 곳은 두 군데입니다. 그림은 채널이 둘(training/test)이지만 이 kit은 `train` 채널 하나만 쓰므로 `s3:GetObject`가 필요한 prefix도 하나이고, `s3:PutObject` 대상인 `s3://bucket/path/to/model`은 이 kit에서 `S3_BUCKET`(비우면 `sess.default_bucket`) 아래의 SDK 기본 출력 경로입니다. 가운데 박스의 라벨이 `Processing container`인 것도 그림이 잡 종류를 가리지 않는 일반형이기 때문이며, 학습 잡에서 그 자리에 뜨는 것은 training container입니다.
 
 ### 경로 계약 — 컨테이너 안의 정해진 경로
 
@@ -128,7 +128,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 ```python
 # tracks/01_extraction_to_json/scripts/train.py — 입력
 ch = os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train")
-for fn in sorted(os.listdir(ch)):          # 채널 디렉터리에서 첫 .jsonl
+for fn in sorted(os.listdir(ch)): # 채널 디렉터리에서 첫 .jsonl
     if fn.endswith(".jsonl"):
         return os.path.join(ch, fn)
 
@@ -151,15 +151,15 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 중요한 것은 **이 시계가 학습 코드만 재지 않는다**는 점입니다. 문서로 확인되는 사실은 세 가지입니다 — (1) `MaxRuntimeInSeconds`는 "잡이 중지되기까지 실행될 수 있는 최대 시간"이고, (2) 그 앞의 용량 대기(`Pending`)는 이 한도가 아니라 별도 파라미터인 `MaxPendingTimeInSeconds`가 덮으며, (3) [과금 시간](https://docs.aws.amazon.com/sagemaker/latest/dg/model-train-storage-env-var-summary.html)에는 데이터 다운로드와 아티팩트 압축·업로드가 포함됩니다.
 
 ```
-   Pending          |<-------------- MaxRuntimeInSeconds -------------->|
- (용량 대기 —        데이터 복사 → 이미지 pull → 학습 루프 → 머지/저장 → (아티팩트 업로드)
-  MaxPendingTime)                                       ↑
+ Pending |<-------------- MaxRuntimeInSeconds -------------->|
+ (용량 대기 — 데이터 복사 → 이미지 pull → 학습 루프 → 머지/저장 → (아티팩트 업로드)
+ MaxPendingTime) ↑
                               여기서 잘리면 "학습은 성공했는데 배포 불가"
 ```
 
 **아티팩트 업로드가 이 시간 창의 안인지 밖인지는 문서가 갈립니다.** 같은 API 문서가 "메트릭 발행과 **중지된 뒤의** 모델 아카이브·업로드까지 포함한 총 실행 시간 상한은 30일"이라고 적고 있어, 업로드를 `MaxRuntime` 컷오프 **밖**의 시간으로 기술합니다. AWS는 `TrainingStartTime`을 시계의 기점으로 명시하지도 않습니다. 다만 실무에 필요한 결론은 문서 해석과 무관합니다 — **학습 루프가 끝난 뒤의 후처리(머지·저장)는 확실히 이 창 안**이고, 이 kit은 바로 거기서 잘렸습니다(아래 실측). 한도는 학습 시간이 아니라 **후처리까지 포함해** 잡으세요.
 
-이 kit은 실제로 이 함정에 빠졌습니다. `stopping_condition`을 생략하면 SDK가 1시간을 자동으로 넣는데(SDK 3.16.0 실측 2026-07-31), 189/189 step을 전부 마친 잡이 **LoRA 머지 도중** 강제 종료되어 아티팩트에 어댑터와 체크포인트만 남았습니다. 상태는 `Failed`가 아니라 `Stopped`이고 `FailureReason`은 비어 있어서, CloudWatch 로그만 보면 정상 종료처럼 보입니다. 실측 타임라인과 대응은 [MaxRuntimeExceeded 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)에 정리돼 있습니다.
+이 kit은 실제로 이 함정에 빠졌습니다. `stopping_condition`을 생략하면 SDK가 1시간을 자동으로 넣는데(SDK 3.16.0 실측), 189/189 step을 전부 마친 잡이 **LoRA 머지 도중** 강제 종료되어 아티팩트에 어댑터와 체크포인트만 남았습니다. 상태는 `Failed`가 아니라 `Stopped`이고 `FailureReason`은 비어 있어서, CloudWatch 로그만 보면 정상 종료처럼 보입니다. 실측 타임라인과 대응은 [MaxRuntimeExceeded 함정](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)에 정리돼 있습니다.
 
 ??? tip "한도는 넉넉히, 규모는 작게"
     한도를 크게 잡아도 **추가 요금이 없습니다.** 잡이 정상 종료되면 그 시점에 과금이 멈추기 때문입니다. 비용을 줄이고 싶다면 한도가 아니라 **데이터 건수와 epoch**를 줄이세요.
@@ -171,7 +171,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
     이 kit이 기본으로 쓰지는 않지만, Training Job에는 문서화된 비용·복원력 옵션이 있습니다. 값과 동작은 **실행 전 재확인**하세요.
 
     - **[`MaxPendingTimeInSeconds`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)** — 용량을 기다리는 `Pending` 상태의 상한입니다. `MaxRuntimeInSeconds`와 **별개 파라미터**이며, API 유효 범위의 최솟값이 7,200초입니다. GPU 용량 대기로 잡이 무한정 걸려 있는 것을 막습니다.
-    - **[Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)** — `EnableManagedSpotTraining=True` + `MaxWaitTimeInSeconds`(≥ `MaxRuntimeInSeconds`)로 켭니다. 절감률은 AWS 문서끼리도 수치가 갈리므로(2026-08 확인: DG는 "최대 90%", `CreateTrainingJob` API는 "최대 80%") 절대값으로 약속하지 말고 **잡이 끝난 뒤 실측**하세요 — `(1 - BillableTimeInSeconds / TrainingTimeInSeconds) * 100`이 그 잡의 실제 절감률입니다. Spot은 중단될 수 있으므로 체크포인트를 남기는 것이 권장 구성인데, `/opt/ml/checkpoints`에 쓰는 것만으로는 부족하고 **`CheckpointConfig(S3Uri=...)`를 함께 지정**해야 S3로 동기화됩니다(지정하지 않으면 그냥 로컬 디스크라 인스턴스와 함께 사라집니다). 참고로 Spot과 warm pool은 함께 쓸 수 없습니다.
+ - **[Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)** — `EnableManagedSpotTraining=True` + `MaxWaitTimeInSeconds`(≥ `MaxRuntimeInSeconds`)로 켭니다. 절감률은 AWS 문서끼리도 수치가 갈리므로(2026-08 확인: DG는 "최대 90%", `CreateTrainingJob` API는 "최대 80%") 절대값으로 약속하지 말고 **잡이 끝난 뒤 실측**하세요 — `(1 - BillableTimeInSeconds / TrainingTimeInSeconds) * 100`이 그 잡의 실제 절감률입니다. Spot은 중단될 수 있으므로 체크포인트를 남기는 것이 권장 구성인데, `/opt/ml/checkpoints`에 쓰는 것만으로는 부족하고 **`CheckpointConfig(S3Uri=...)`를 함께 지정**해야 S3로 동기화됩니다(지정하지 않으면 그냥 로컬 디스크라 인스턴스와 함께 사라집니다). 참고로 Spot과 warm pool은 함께 쓸 수 없습니다.
     - **[Warm pool](https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html)** — `keep_alive_period_in_seconds`(잡당 최대 3,600초)를 켜면 잡이 끝난 뒤에도 인스턴스가 살아 있어 다음 잡의 프로비저닝을 건너뜁니다. **살아 있는 동안 계속 과금되는 리소스**이므로, "Training Job은 끝나면 과금이 멈춘다"는 원칙의 유일한 예외입니다.
     - **[`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)** — `InternalServerError`로 실패한 잡을 자동 재시도합니다(`MaximumRetryAttempts` 1~30). 단 `RetryStrategy`를 쓰면 `MaxRuntimeInSeconds`는 **개별 시도가 아니라 전체 시도 합계**에 적용됩니다.
     - **[`InfraCheckConfig`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)** — `EnableInfraCheck=True`로 켜면 학습 시작 전에 SageMaker가 인스턴스 하드웨어와 클러스터 네트워크 연결을 점검합니다(SDK v3에서는 `ModelTrainer.with_infra_check_config()`). 검증 깊이는 공개되지 않아 HyperPod의 deep health check만큼 상세하다고 보기는 어렵습니다.
@@ -347,7 +347,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 |---|---|---|
 | `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr)) |
 | `01_data_and_synthetic.ipynb` | 없음(로컬 `data/train.jsonl` 생성) | 학습 입력 준비 |
-| `02_train_sft_sagemaker.ipynb` | ✅ 생성 — **Training Job** (`ModelTrainer.train()`) | 데이터 S3 업로드 → 잡 제출 → `model_data` 확보 |
+| `02_train_sft_sagemaker.ipynb` | ✅ 생성 — **Training Job** (`ModelTrainer.train`) | 데이터 S3 업로드 → 잡 제출 → `model_data` 확보 |
 | `02a_train_grpo_sagemaker.ipynb` (선택) | ✅ 생성 — **Training Job** (SFT→GRPO 정련) | 추출·분류 트랙만 제공 |
 | `02b_local_serve.ipynb` (선택) | 없음(로컬 vLLM) | 배포 전 프리플라이트 |
 | `03_deploy_endpoint.ipynb` | ✅ 생성 — **Endpoint** (+ `EndpointConfig` + `Model`) | `model_data` → 상시 서버. **여기서 시간당 과금이 시작됩니다** |
@@ -357,7 +357,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 | `99_cleanup.ipynb` | **삭제** — Endpoint → EndpointConfig → Model | **과금 중지. 반드시 실행** |
 
 - Training Job을 만드는 노트북은 `02`(및 선택 `02a`)이고, **끝나면 인스턴스가 자동 해제**되므로 별도 정리가 필요 없습니다. 남는 것은 S3 아티팩트와 CloudWatch 로그(용량당 과금)입니다.
-- Endpoint를 만드는 노트북은 `03`이며, **삭제하는 노트북은 `99`뿐입니다.** 삭제 순서가 정해져 있고(Endpoint → EndpointConfig → Model), `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 만들기 때문에 `endpoint_name`만으로 지우면 Model이 조용히 남습니다(실측으로 확인한 동작입니다).
+- Endpoint를 만드는 노트북은 `03`이며, **삭제하는 노트북은 `99`뿐입니다.** 삭제 순서가 정해져 있고(Endpoint → EndpointConfig → Model), `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 만들기 때문에 `endpoint_name`만으로 지우면 Model이 조용히 남습니다.
 - 멀티모달 트랙(`tracks/05_multimodal_extraction/`)은 노트북 세트가 짧습니다 — Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`입니다.
 - 학습 스크립트는 `tracks/*/scripts/train.py` 하나로, 로컬 `--dry_run`과 SageMaker Training Job에서 **같은 파일**이 돕니다. 먼저 로컬에서 파이프라인을 검증하고 클라우드로 제출하는 것이 이 kit의 규율입니다([시작하기](getting_started.md)의 방식 B).
 
@@ -381,6 +381,6 @@ Endpoint의 생성과 삭제:
 
 공용 헬퍼:
 
-- `common/config.py` — `resolve_sagemaker_role()`이 env → `get_execution_role()` → IAM 자동 탐지 → (opt-in) DefaultRole 생성 순으로 실행 role을 해석
+- `common/config.py` — `resolve_sagemaker_role`이 env → `get_execution_role` → IAM 자동 탐지 → (opt-in) DefaultRole 생성 순으로 실행 role을 해석
 - `common/dlc.py` — 학습·서빙 DLC 이미지 URI 해석(`DLC_IMAGE_URI` 환경변수 오버라이드)
 - `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 변경분만 올리는 S3 업로드(`upload_if_changed`)

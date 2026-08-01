@@ -3,7 +3,7 @@
 !!! info "Scope"
     파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 "컨테이너를 무엇으로 골라야 할지" 막힌 분을 위한 문서입니다.
     선행 조건: `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가 S3에 있는 상태를 가정합니다.
-    다루는 것: 엔진과 컨테이너의 레이어 구분, 이미지 URI 해석, OOM·절단·스트리밍 실측 함정, speculative decoding, 비용과 정리.
+ 다루는 것: 엔진과 컨테이너의 레이어 구분, 이미지 URI 해석, OOM·절단·스트리밍 실측 함정, speculative decoding, 비용과 정리.
     다루지 않는 것: 학습 하이퍼파라미터(`03_finetuning.md`), 평가 지표, agentic 설계.
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
@@ -82,18 +82,18 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ SageMaker real-time endpoint (오토스케일·IAM·CloudWatch)        │  ← 인프라 레이어
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  서빙 컨테이너 (HTTP + /ping + /invocations + 배칭)        │  │  ← 컨테이너 레이어
-│  │  ┌───────────────┐  ┌───────────────┐  ┌──────────────┐ │  │
-│  │  │  DJL LMI      │  │  HF TGI       │  │ vLLM DLC /   │ │  │
-│  │  │ (AWS 관리)     │  │ (HF 관리)      │  │ BYOC         │ │  │
-│  │  │  ┌─────────┐  │  │  ┌─────────┐  │  │ ┌─────────┐  │ │  │
-│  │  │  │ vLLM /  │  │  │  │ 자체     │  │  │ │  vLLM   │  │ │  │  ← 엔진 레이어
-│  │  │  │ TRT-LLM │  │  │  │ 백엔드    │  │  │ │ (직접)   │  │ │  │
-│  │  │  └─────────┘  │  │  └─────────┘  │  │ └─────────┘  │ │  │
-│  │  └───────────────┘  └───────────────┘  └──────────────┘ │  │
-│  └────────────────────────────────────────────────────────┘  │
+│ SageMaker real-time endpoint (오토스케일·IAM·CloudWatch) │ ← 인프라 레이어
+│ ┌────────────────────────────────────────────────────────┐ │
+│ │ 서빙 컨테이너 (HTTP + /ping + /invocations + 배칭) │ │ ← 컨테이너 레이어
+│ │ ┌───────────────┐ ┌───────────────┐ ┌──────────────┐ │ │
+│ │ │ DJL LMI │ │ HF TGI │ │ vLLM DLC / │ │ │
+│ │ │ (AWS 관리) │ │ (HF 관리) │ │ BYOC │ │ │
+│ │ │ ┌─────────┐ │ │ ┌─────────┐ │ │ ┌─────────┐ │ │ │
+│ │ │ │ vLLM / │ │ │ │ 자체 │ │ │ │ vLLM │ │ │ │ ← 엔진 레이어
+│ │ │ │ TRT-LLM │ │ │ │ 백엔드 │ │ │ │ (직접) │ │ │ │
+│ │ │ └─────────┘ │ │ └─────────┘ │ │ └─────────┘ │ │ │
+│ │ └───────────────┘ └───────────────┘ └──────────────┘ │ │
+│ └────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
     ▲ 같은 endpoint 레이어. 컨테이너/엔진만 갈아끼우는 문제다.
 ```
@@ -124,14 +124,14 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 ### 기술적 차이 3가지
 
 1. **엔진 스위칭 지점**: LMI는 컨테이너를 바꾸지 않고 `OPTION_ROLLING_BATCH`(env)만으로 vLLM과 TRT-LLM을 오갈 수 있습니다.
-   반면 단독 vLLM은 엔진이 곧 컨테이너이므로 스위칭이라는 개념 자체가 없습니다. TGI는 자체 백엔드로 고정되어 있습니다.
+ 반면 단독 vLLM은 엔진이 곧 컨테이너이므로 스위칭이라는 개념 자체가 없습니다. TGI는 자체 백엔드로 고정되어 있습니다.
 2. **최신성과 안정성의 트레이드오프**: 단독 vLLM은 upstream 릴리스를 바로 당겨 쓸 수 있어 **최신 기능을 가장 빠르게** 반영합니다.
-   반면 LMI/TGI는 AWS나 HF가 특정 버전을 검증해 이미지로 굽기 때문에 **한 박자 늦지만 그만큼 검증되어** 있습니다.
+ 반면 LMI/TGI는 AWS나 HF가 특정 버전을 검증해 이미지로 굽기 때문에 **한 박자 늦지만 그만큼 검증되어** 있습니다.
 3. **SageMaker 규약을 누가 처리하는가**: 세 DLC 모두 `/ping`, `/invocations`, 모델 로딩이 **이미 구현**돼 있어
-   직접 맞출 것이 없습니다. vLLM은 [본체에 SageMaker용 라우터](https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/serve/sagemaker/api_router.py)가
-   들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의
-   [`sagemaker_entrypoint.sh`](https://github.com/aws/deep-learning-containers/blob/master/vllm/build_artifacts/sagemaker_entrypoint.sh)가
-   `SM_VLLM_*` env를 `--` CLI 플래그로 바꿔(`SM_VLLM_MAX_MODEL_LEN` → `--max-model-len`) 서버를 띄웁니다.
+ 직접 맞출 것이 없습니다. vLLM은 [본체에 SageMaker용 라우터](https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/serve/sagemaker/api_router.py)가
+ 들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의
+ [`sagemaker_entrypoint.sh`](https://github.com/aws/deep-learning-containers/blob/master/vllm/build_artifacts/sagemaker_entrypoint.sh)가
+ `SM_VLLM_*` env를 `--` CLI 플래그로 바꿔(`SM_VLLM_MAX_MODEL_LEN` → `--max-model-len`) 서버를 띄웁니다.
 
     !!! note "직접 맞춰야 하는 경우는 BYOC뿐입니다"
         vLLM을 **DLC가 아니라 직접 만든 이미지(BYOC)로** 올릴 때만 `/ping`·`/invocations`를 구현하거나
@@ -158,7 +158,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 이 표에서 실무상 가장 자주 물리는 값은 두 개입니다.
 
 - **기동 유예(기본 8분) · `/ping` 2초** — `did not pass the ping health check`로 끝나는 실패의 정체가 이것입니다. 원인은 두 갈래이고 처방이 다릅니다. 엔진이 **OOM으로 죽었다면** 유예를 늘려도 200은 안 나오므로 엔진 설정(`max_num_seqs` 등)을 고쳐야 하고([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)), 단순히 **가중치 로드가 8분보다 오래 걸리는 것**이라면 `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`를 올리는 것이 정답입니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 함께 — [배포 3단계](01_sagemaker_basics.md#컨테이너-계약--모델-아티팩트와-ping-health-check)). 위 LMI 표의 `option.model_loading_timeout` 기본값 1,800초(30분)도 이 8분 안에는 애초에 들어가지 않는 값이라, LMI로 큰 모델을 올릴 때는 두 값을 함께 올려야 합니다. 어느 쪽인지는 CloudWatch 로그에서만 구분됩니다(위 그림의 stdout/stderr 경로).
-- **`/invocations` 60초** — 생성 길이의 상한을 사실상 여기서 받습니다. 이 kit의 L4 실측 2026-07-31(약 40ms/토큰)에서 멀티모달 추출은 `max_tokens=768`에 **21.3초**, 요약은 512에 **16.2초**였으니 한도의 3분의 1 수준입니다([max_tokens 절단](#max_tokens-절단과-finish_reason)). 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
+- **`/invocations` 60초** — 생성 길이의 상한을 사실상 여기서 받습니다. 이 kit 실측(L4, 약 40ms/토큰)에서 멀티모달 추출은 `max_tokens=768`에 **21.3초**, 요약은 512에 **16.2초**였으니 한도의 3분의 1 수준입니다([max_tokens 절단](#max_tokens-절단과-finish_reason)). 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
 
 그림의 「컨테이너 예약 경로」 패널에 적힌 `/opt/ml` → `|---/model`은 도해용 장식이 아니라 이 kit이 실제로 넘기는 값입니다 — `dlc.serving_env(..., model_path='/opt/ml/model')`이 엔진별 키(`SM_VLLM_MODEL` / `SM_SGLANG_MODEL_PATH` / `HF_MODEL_ID`)로 넣어 주고, 학습 스크립트가 머지 모델을 `SM_MODEL_DIR=/opt/ml/model` 루트에 저장하기 때문에 엔진이 그 루트의 `config.json`으로 모델을 감지합니다. SGLang DLC는 `--model-path`를 생략하면 기본값이 `/opt/ml/model`, 포트 8080, 호스트 `0.0.0.0`입니다.
 
@@ -183,15 +183,15 @@ LMI든 vLLM DLC든 결국은 **ECR에 올라간 도커 이미지**입니다. AWS
 
 - **레지스트리 계정**: `763104351884` (대부분의 리전에서 공용으로 씁니다)
 - **URI 패턴**:
-  ```
-  763104351884.dkr.ecr.<region>.amazonaws.com/<repository>:<tag>
-  ```
+ ```
+ 763104351884.dkr.ecr.<region>.amazonaws.com/<repository>:<tag>
+ ```
 - **LMI 태그 형태(예시)**: `djl-inference:0.XX-lmiXX-cuXXX` 계열입니다. 정확한 `repository`/`tag`는 버전마다 다르므로 **[available_images 페이지](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 확인**한 뒤 env로 주입하세요.
 
 이미지를 해석하는 경로는 두 가지입니다.
 
 1. **SDK resolve**: [`image_uris.retrieve` API 문서](https://sagemaker.readthedocs.io/en/stable/api/generated/sagemaker.core.image_uris.html#sagemaker.core.image_uris.retrieve)대로 `image_uris.retrieve(framework="djl-lmi"/"vllm" 등, region, version=...)`를 호출하면 SDK가 계정·리전·태그를 조립해 줍니다.
-   다만 **SDK 버전에 매인 태그 목록**이라 최신보다 늦을 수 있습니다. SDK v3에서는 `sagemaker.core.image_uris.retrieve`이며, v2 경로(`sagemaker.image_uris`)는 폴백입니다.
+ 다만 **SDK 버전에 매인 태그 목록**이라 최신보다 늦을 수 있습니다. SDK v3에서는 `sagemaker.core.image_uris.retrieve`이며, v2 경로(`sagemaker.image_uris`)는 폴백입니다.
 2. **직접 지정**: 위 패턴으로 URI를 **직접** 만들고 env로 오버라이드하는 방식입니다. available_images가 갱신되어도 코드를 고치지 않고 태그만 교체하면 됩니다.
 
 **`image_uris.retrieve`에 넘기는 framework 문자열과 지원 `version` 값은 SDK 버전·시점마다 다르므로 실행 전 재확인이 필요합니다.** `common/dlc.py`의 기본 repository/tag 값은 `# TODO verify` 예시일 뿐이므로, available_images에서 현행 값을 확인해 env로 덮어쓰세요. 계정 ID와 URI 패턴은 하드코딩되어 있지만 이는 AWS 공개 레지스트리 값이라 시크릿이 아닙니다(반면 고객 계정 ID·role·bucket은 여전히 하드코딩하면 안 됩니다).
@@ -207,7 +207,7 @@ LMI든 vLLM DLC든 결국은 **ECR에 올라간 도커 이미지**입니다. AWS
 | `lmi` | `resolve_lmi_image` | `LMI_IMAGE_URI` | `LMI_VERSION` | retrieve |
 | (참고) HF Inference | `resolve_hf_inference_image` | `HF_INFER_IMAGE_URI` | `HF_INFER_TRANSFORMERS_VERSION` | retrieve |
 
-학습 이미지는 별도로 `resolve_training_image()`가 `DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → retrieve 순으로 해석하며, 범용 추론 helper인 `resolve_inference_image()`는 `INFER_DLC_IMAGE_URI` → `INFER_DLC_REPOSITORY`+`INFER_DLC_TAG` 순으로 봅니다.
+학습 이미지는 별도로 `resolve_training_image`가 `DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → retrieve 순으로 해석하며, 범용 추론 helper인 `resolve_inference_image`는 `INFER_DLC_IMAGE_URI` → `INFER_DLC_REPOSITORY`+`INFER_DLC_TAG` 순으로 봅니다.
 
 ```python
 # common/dlc.py (요지 — 범용 추론 이미지 해석)
@@ -240,21 +240,21 @@ LMI_IMAGE_URI=763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.36.0-
 ECR 실조회(763104351884, us-west-2, 2026-07-30) 당시의 최신 태그는 다음과 같았습니다. SGLang DLC만 우분투 버전이 다르므로(24.04) 태그를 손으로 조립할 때 주의하세요. LMI 태그는 **버전 축이 둘**이라는 점도 기억하세요 — 앞의 `0.36.0`은 djl-serving 버전이고, gemma-4 지원 여부를 가르는 것은 번들 vLLM을 결정하는 **`lmi27.0.0`** 쪽입니다.
 
 !!! danger "LMI는 완전 URI를 지워선 안 됩니다 — 폴백이 lmi26으로 떨어집니다"
-    `LMI_IMAGE_URI`를 주석 처리하면 `dlc.resolve_lmi_image()`가 `LMI_VERSION`(기본 `0.36.0`)으로 SDK의 `image_uris.retrieve(framework="djl-lmi", ...)`에 위임하고, **태그 조립은 SDK의 버전 표가** 합니다. 이 kit에 설치된 SDK의 `djl-lmi.json`은 `0.36.0 → 0.36.0-lmi26.0.0-cu130`으로 매핑하므로(실측 2026-08-01), 폴백으로 얻는 이미지는 **lmi26 = gemma-4를 로드하지 못하는 이미지**입니다. `0.36.0`이라는 djl-serving 키는 lmi 축을 고정해 주지 않습니다.
+    `LMI_IMAGE_URI`를 주석 처리하면 `dlc.resolve_lmi_image()`가 `LMI_VERSION`(기본 `0.36.0`)으로 SDK의 `image_uris.retrieve(framework="djl-lmi", ...)`에 위임하고, **태그 조립은 SDK의 버전 표가** 합니다. 이 kit에 설치된 SDK의 `djl-lmi.json`은 `0.36.0 → 0.36.0-lmi26.0.0-cu130`으로 매핑하므로, 폴백으로 얻는 이미지는 **lmi26 = gemma-4를 로드하지 못하는 이미지**입니다. `0.36.0`이라는 djl-serving 키는 lmi 축을 고정해 주지 않습니다.
     리전을 옮길 때 vLLM/SGLang 줄은 주석 처리해도 되지만(리전만 갈아 조립됩니다), **LMI는 `LMI_IMAGE_URI`를 그 리전의 `...-lmi27.0.0-...` 완전 URI로 다시 써 주세요.**
 
 ```
-vllm:0.25.1-gpu-py312-cu130-ubuntu22.04-sagemaker                  # push 2026-07-22
-sglang:0.5.15-gpu-py312-cu130-ubuntu24.04-sagemaker                # push 2026-07-23  (ubuntu24.04)
-djl-inference:0.36.0-lmi27.0.0-cu130-v1.1                          # push 2026-07-16  (LMI 27.0.0 = vLLM 0.23.1)
-# (HF Inference DLC는 서빙 선택지에서 제외 — 단건·스트리밍 불가. 필요 시 dlc.resolve_hf_inference_image())
+vllm:0.25.1-gpu-py312-cu130-ubuntu22.04-sagemaker # push 2026-07-22
+sglang:0.5.15-gpu-py312-cu130-ubuntu24.04-sagemaker # push 2026-07-23 (ubuntu24.04)
+djl-inference:0.36.0-lmi27.0.0-cu130-v1.1 # push 2026-07-16 (LMI 27.0.0 = vLLM 0.23.1)
+# (HF Inference DLC는 서빙 선택지에서 제외 — 단건·스트리밍 불가. 필요 시 dlc.resolve_hf_inference_image)
 ```
 
 태그는 자주 갱신되므로 배포 전 재확인하세요.
 
 ```bash
 aws ecr describe-images --registry-id 763104351884 --repository-name vllm --region <region> \
-  --query 'reverse(sort_by(imageDetails,&imagePushedAt))[:5].imageTags'
+ --query 'reverse(sort_by(imageDetails,&imagePushedAt))[:5].imageTags'
 ```
 
 리전을 옮길 때는 `AWS_REGION`과 위 URI의 리전을 함께 바꿉니다(이미지는 리전별 ECR에서만 pull됩니다). 리전을 자주 옮긴다면 vLLM·SGLang 줄을 **주석 처리**하세요 — 그러면 코드가 `AWS_REGION`으로 URI를 자동 조립합니다(`VLLM_DLC_VERSION` 등으로 버전만 지정). LMI 줄은 예외입니다(위 주의 참고 — 폴백이 lmi26으로 떨어집니다). 해석 결과는 `dlc.serving_image_table(region)`으로 **세 엔진**을 한 번에 확인할 수 있고, `03_deploy_endpoint` 노트북이 이를 출력합니다.
@@ -293,12 +293,12 @@ vLLM·SGLang DLC의 `sagemaker_entrypoint.sh`([aws/deep-learning-containers](htt
 ```python
 # 03_deploy_endpoint (요지) — 엔진 → 이미지 → env 순으로 해석
 from common import config, dlc
-ENGINE      = config.SERVING_ENGINE                            # vllm | sglang | lmi
+ENGINE = config.SERVING_ENGINE # vllm | sglang | lmi
 serve_image = dlc.resolve_serving_image(config.AWS_REGION, ENGINE)
-serve_env   = dlc.serving_env(ENGINE, max_model_len=4096,      # 엔진별 키로 자동 변환
+serve_env = dlc.serving_env(ENGINE, max_model_len=4096, # 엔진별 키로 자동 변환
                               max_num_seqs=32, gpu_memory_utilization='0.90',
                               hf_token=config.get_serving_hf_token())
-# LMI라면 serving_env()가 OPTION_ROLLING_BATCH=vllm 과 OPTION_TENSOR_PARALLEL_DEGREE='max'까지 채웁니다.
+# LMI라면 serving_env가 OPTION_ROLLING_BATCH=vllm 과 OPTION_TENSOR_PARALLEL_DEGREE='max'까지 채웁니다.
 ```
 
 정확한 `OPTION_*`/`SM_*` 키 이름과 기본값은 컨테이너 버전마다 다릅니다. 실행 전에 [LMI 구성 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-configuration.html)에서 현행 키(`OPTION_*` · `serving.properties`)를 확인하세요.
@@ -316,7 +316,7 @@ vLLM을 AWS DLC 없이 직접 쓰려면 다음 중 하나를 택합니다.
 - **BYOC** 방식으로, 컨테이너가 `/invocations`(추론)와 `/ping`(health)을 구현하도록 이미지를 직접 빌드합니다 — 규약은 [자체 추론 코드 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)에 정의돼 있습니다.
 - 배포할 때 완전 URI env(`VLLM_IMAGE_URI`)에 **본인이 빌드해 푸시한 vLLM 이미지 URI**를 넣으면 kit의 배포 코드를 그대로 재사용할 수 있습니다.
 
-호출은 컨테이너와 무관하게 동일합니다. `common/aws_utils.py`의 `invoke_sagemaker_chat()`이 OpenAI 호환 `messages` 스키마를, `invoke_sagemaker_endpoint()`가 `{"inputs","parameters"}` generation 스키마를 담당하고, 스트리밍은 `stream_sagemaker_chat()`(내부적으로 `invoke_endpoint_with_response_stream`)이 처리합니다.
+호출은 컨테이너와 무관하게 동일합니다. `common/aws_utils.py`의 `invoke_sagemaker_chat`이 OpenAI 호환 `messages` 스키마를, `invoke_sagemaker_endpoint`가 `{"inputs","parameters"}` generation 스키마를 담당하고, 스트리밍은 `stream_sagemaker_chat`(내부적으로 `invoke_endpoint_with_response_stream`)이 처리합니다.
 
 **서비스 경계에 주의하세요.** SageMaker endpoint 호출은 `sagemaker-runtime`으로, Bedrock Claude 호출은 `bedrock-runtime`(Converse)으로 하며 **별개 서비스이고 별개 클라이언트**입니다. 따라서 "endpoint를 Bedrock API로 호출"하는 것은 잘못된 방법입니다([서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)). `common/llm_gateway.py`는 LiteLLM으로 두 백엔드를 하나의 인터페이스로 묶지만, 내부적으로는 각자의 클라이언트를 씁니다.
 
@@ -326,7 +326,7 @@ vLLM을 AWS DLC 없이 직접 쓰려면 다음 중 하나를 택합니다.
 - **`03_deploy_endpoint`**가 바로 본 문서의 컨테이너 선택이 적용되는 지점입니다.
 - `04_evaluate`에서 held-out 평가로 성공기준을 수치화합니다.
 - `05_agentic_strands` / `06_agentcore_deploy`에서는 endpoint를 tool로 쓰는 agentic loop를 구성합니다
-  (Strands `BedrockModel`/`LiteLLMModel` → AgentCore Runtime, ARM64 `/invocations`+`/ping:8080`).
+ (Strands `BedrockModel`/`LiteLLMModel` → AgentCore Runtime, ARM64 `/invocations`+`/ping:8080`).
 - `99_cleanup`에서 **endpoint를 삭제해 과금을 중단**합니다.
 
 ---
@@ -341,20 +341,20 @@ SDK v3 `ModelBuilder`는 **같은 코드**를 3단계 대상에 배포할 수 �
 | `Mode.LOCAL_CONTAINER` | 로컬 Docker 컨테이너 | endpoint와 동일 컨테이너 재현 | 로컬 Docker + GPU |
 | `Mode.SAGEMAKER_ENDPOINT` | SageMaker(클라우드) | 실제 서빙(기본) | AWS 과금 |
 
-import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(SDK 3.16.0 실측 2026-07 — `sagemaker.serve`에 직접 `Mode`가 없습니다).
+import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(SDK 3.16.0 `sagemaker.serve`에 직접 `Mode`가 없습니다).
 
 ??? question "오개념 — “IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?”"
-    **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(SDK 3.16.0 소스 실측 2026-07: `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
+    **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(SDK 3.16.0 소스 `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
     gemma-4는 멀티모달(오디오 포함)이라 pipeline이 `AnyToAnyPipeline`으로 잡혀 `librosa` 등을 요구하고, 임베딩 모델도 아니라 `SentenceTransformer` 폴백도 실패합니다(`UnboundLocalError`).
     LLM을 IN_PROCESS로 띄우려면 `InferenceSpec`(load/invoke)을 직접 구현해야 하는데, 이는 vLLM 엔진을 손으로 재구현하는 셈이라 실익이 없습니다.
     부가: IN_PROCESS도 `ModelBuilder.__post_init__`이 `role_arn`을 해석하므로(IAM user면 `RoleValidationError`) 로컬 실행이라도 `role_arn=`을 넘겨야 합니다.
 
-`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측 2026-07)**. 근거는 다음과 같습니다.
+`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측)**. 근거는 다음과 같습니다.
 
-- **vLLM DLC + LOCAL_CONTAINER** — `image_uri`만 주면 passthrough라 `model_server=None`이 되고, LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs()`로 크래시합니다.
-- **DJL LMI + LOCAL_CONTAINER** — 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다). 다만 당시 실측에서는 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다. **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다** — 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다. 지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
-- docker-py 기본 타임아웃 60s는 큰 이미지에 부족하므로 `container_timeout_in_seconds`를 올립니다. 그래도 `deploy()`가 `ReadTimeout`을 내도 컨테이너는 백그라운드로 기동 중일 수 있어 `docker logs` / `curl :8080/invocations`로 직접 확인하세요.
-- 참고: **HF PyTorch Inference DLC + `model_server=MMS` + LOCAL_CONTAINER**는 E4B에서 성공했습니다(실측: 로드 + `/invocations` 응답 확인). 다만 이 kit은 transformers 단건 서빙 경로를 서빙 선택지에서 제외했습니다(연속 배칭·스트리밍 없음).
+- **vLLM DLC + LOCAL_CONTAINER** — `image_uri`만 주면 passthrough라 `model_server=None`이 되고, LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs`로 크래시합니다.
+- **DJL LMI + LOCAL_CONTAINER** — 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다). 다만 당시(2026-07) 실측에서는 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다. **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다** — 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다. 지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
+- docker-py 기본 타임아웃 60s는 큰 이미지에 부족하므로 `container_timeout_in_seconds`를 올립니다. 그래도 `deploy`가 `ReadTimeout`을 내도 컨테이너는 백그라운드로 기동 중일 수 있어 `docker logs` / `curl :8080/invocations`로 직접 확인하세요.
+- 참고: **HF PyTorch Inference DLC + `model_server=MMS` + LOCAL_CONTAINER**는 E4B에서 성공했습니다(로드 + `/invocations` 응답 확인). 다만 이 kit은 transformers 단건 서빙 경로를 서빙 선택지에서 제외했습니다(연속 배칭·스트리밍 없음).
 
 ### 결론 — 이 kit의 gemma-4 검증 경로
 
@@ -371,7 +371,7 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
 **무엇이 없어지나.** gemma-4 E계열은 뒤쪽 `num_kv_shared_layers`개 레이어가 앞 레이어의 KV를 재사용합니다
 (E4B: 42층 중 24~41의 18층). transformers는 그 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 **아예 만들지 않습니다**
 (`modeling_gemma4.py`: *"Layers sharing kv states don't need any weight matrices"*). 그래서 파인튜닝 후
-`save_pretrained`로 저장하면 원본에 있던 그 텐서가 **소실**됩니다 — 실측으로 정확히 **54개**
+`save_pretrained`로 저장하면 원본에 있던 그 텐서가 **소실**됩니다 — 실측 정확히 **54개**
 (18층 × `k_norm`/`k_proj`/`v_proj`).
 
 **왜 vLLM만 죽나.** vLLM `Gemma4Attention`은 `k_norm`을 **전 레이어에 등록**합니다(사용은 `if not
@@ -384,7 +384,7 @@ transformers는 자기가 안 만든 모듈이니 아무 문제가 없습니다 
 LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않습니다. 즉 base 값을 그대로 되살리는 것은
 **vLLM의 weight 검증만 통과시키는 목적**이며 출력에 영향이 없습니다.
 
-**이 kit의 처리.** `scripts/train.py`·`train_grpo.py`의 `_revive_kv_shared_from_base()`가 저장 직전에 base
+**이 kit의 처리.** `scripts/train.py`·`train_grpo.py`의 `_revive_kv_shared_from_base`가 저장 직전에 base
 체크포인트에서 그 54개를 읽어 `save_pretrained(state_dict=...)`로 함께 저장합니다. 모델 객체엔 해당 모듈이
 없으므로 **명시 `state_dict` 전달이 유일한 방법**입니다. `num_kv_shared_layers=0`인 12B/26B-A4B는 자동으로
 건너뜁니다(복원 0개).
@@ -396,7 +396,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 | 복원 전(`save_pretrained` 그대로) | 665 | ❌ 실패 — `weights not initialized ...k_norm` |
 | 복원 후(이 kit) | 719 = 원본과 동일 | ✅ 성공 — 로드 + 정상 생성 |
 
-**참고: vLLM issue [#44788](https://github.com/vllm-project/vllm/issues/44788)**(2026-07-30 기준 OPEN)은
+**참고: vLLM issue [#44788](https://github.com/vllm-project/vllm/issues/44788)**(OPEN 상태)은
 바로 이 현상입니다. 이슈 제목이 "Gemma 4 models with KV sharing"이라 "E계열은 vLLM 불가"로 읽히기 쉬우나,
 두 번째 코멘트가 `save_pretrained` 왕복 후에만 재현됨을 보여줍니다. 원본 체크포인트는 그 54개를 모두 갖고 있습니다
 (safetensors 헤더 직접 확인). FP8 변형(`leon-se/gemma-4-E4B-it-FP8-Dynamic`)도 원본 유래라 동일하게 정상입니다.
@@ -405,7 +405,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 
 ## 24GB GPU CUDA OOM — max_num_seqs 기본값
 
-**모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다(아래 수치는 vLLM 0.26.0 · `ml.g6.2xlarge` 실측 2026-07-31 — 엔진 버전이 바뀌면 배정값도 달라집니다). 이 kit은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
+**모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다(아래 수치는 vLLM 0.26.0 · `ml.g6.2xlarge` 엔진 버전이 바뀌면 배정값도 달라집니다). 이 kit은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
 
 ### 증상 — endpoint가 Failed
 
@@ -421,8 +421,8 @@ FailureReason: The primary container for production variant AllTraffic
 ```
 Available KV cache memory: 4.69 GiB
 torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB.
-  GPU 0 has a total capacity of 21.96 GiB of which 147.12 MiB is free.
-  ... flashinfer_sample -> top_k_mask_logits -> torch.empty_like(logits)
+ GPU 0 has a total capacity of 21.96 GiB of which 147.12 MiB is free.
+ ... flashinfer_sample -> top_k_mask_logits -> torch.empty_like(logits)
 ```
 
 ### 왜 하필 256 MiB인가
@@ -437,7 +437,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 
 ### 메모리 예산 — L4 22.9GB 실측
 
-`ml.g6.2xlarge`(L4 22.9GB) 기준 한도 = `21.96 × 0.92 = 20.21 GiB`입니다(아래 표는 vLLM 0.26.0 실측 2026-07-31 — 엔진 버전이 바뀌면 KV 배정값이 달라집니다).
+`ml.g6.2xlarge`(L4 22.9GB) 기준 한도 = `21.96 × 0.92 = 20.21 GiB`입니다(아래 표는 vLLM 0.26.0 엔진 버전이 바뀌면 KV 배정값이 달라집니다).
 
 | 항목 | 멀티모달(05) | 텍스트(02) |
 |---|---|---|
@@ -450,7 +450,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 - vLLM 자신도 로그에서 `--kv-cache-memory=3.76 GiB`를 권고합니다 → **KV를 4.69로 과대 배정한 것**입니다.
 
 ??? question "오개념 — “GPU 타입을 바꿔야 하나?”"
-    **아닙니다.** 로컬 L40S를 `gpu_memory_utilization=0.441`로 제한해 **L4와 같은 절대 예산(20.2 GiB)** 을 만든 뒤 실측한 결과입니다.
+ **아닙니다.** 로컬 L40S를 `gpu_memory_utilization=0.441`로 제한해 **L4와 같은 절대 예산(20.2 GiB)** 을 만든 뒤 실측한 결과입니다.
 
     | 설정 | 결과 |
     |---|---|
@@ -461,7 +461,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 
 ### 대응 — 엔진별 키는 serving_env가 관리
 
-같은 의미의 설정이 엔진마다 다른 키를 씁니다. SGLang 플래그는 [`server_args.py` 소스](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)에서, LMI 키와 vLLM pass-through 동작은 [LMI vLLM user guide](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/user_guides/vllm_user_guide.html)에서 확인했습니다.
+같은 의미의 설정이 엔진마다 다른 키를 씁니다(플래그명 실측). SGLang 플래그는 [`server_args.py` 소스](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)에서, LMI 키와 vLLM pass-through 동작은 [LMI vLLM user guide](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/user_guides/vllm_user_guide.html)에서 확인했습니다.
 
 | 엔진 | 동시 시퀀스 | 메모리 비율 |
 |---|---|---|
@@ -469,7 +469,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 | SGLang | `SM_SGLANG_MAX_RUNNING_REQUESTS=32` | `SM_SGLANG_MEM_FRACTION_STATIC=0.90` |
 | LMI | `OPTION_MAX_ROLLING_BATCH_SIZE=32` | `OPTION_GPU_MEMORY_UTILIZATION=0.90` |
 
-**키 이름을 직접 쓰지 마세요 — `dlc.serving_env()`가 한 곳에서 관리합니다.** 노트북마다 dict를 손으로 쓰면 값을 하나 바꿀 때 한 엔진을 빼먹습니다(실제로 이 kit에서 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발할 뻔했습니다). 그래서 "의미 → 엔진별 키" 매핑을 `common/dlc.py` 한 곳에 두고 노트북은 의미만 넘깁니다.
+**키 이름을 직접 쓰지 마세요 — `dlc.serving_env`가 한 곳에서 관리합니다.** 노트북마다 dict를 손으로 쓰면 값을 하나 바꿀 때 한 엔진을 빼먹습니다(실제로 이 kit에서 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발할 뻔했습니다). 그래서 "의미 → 엔진별 키" 매핑을 `common/dlc.py` 한 곳에 두고 노트북은 의미만 넘깁니다.
 
 ```python
 serve_env = dlc.serving_env(
@@ -485,14 +485,14 @@ serve_env = dlc.serving_env(
 세 엔진 중 무엇을 골라도 같은 호출로 알맞은 키가 나옵니다(LMI는 `OPTION_ROLLING_BATCH=vllm`과 `OPTION_TENSOR_PARALLEL_DEGREE='max'` 관용구까지 자동). 로컬 검증(`scripts/serve_local_vllm.sh`)도 같은 값을 기본으로 쓰며 `MAX_NUM_SEQS`/`GPU_MEM_UTIL` env로 덮어쓸 수 있습니다.
 
 !!! warning "버전에 기대지 마세요"
-    같은 절대 예산에서 vLLM 0.25.1은 KV를 3.36 GiB로, 0.26.0은 4.69 GiB로 잡았습니다(실측 2026-07-31).
+    같은 절대 예산에서 vLLM 0.25.1은 KV를 3.36 GiB로, 0.26.0은 4.69 GiB로 잡았습니다.
     컨테이너 태그를 올리면 여유가 사라질 수 있으므로 `max_num_seqs`·`gpu_memory_utilization`을 명시적으로 낮춰 둡니다.
 
 ---
 
 ## 응답 스트리밍 — vLLM 경로에서의 지원 여부
 
-**결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측으로 확인했습니다.
+**결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측에 확인했습니다.
 
 실측 조건은 요약 트랙 endpoint, vLLM 0.26.0, `ml.g6.2xlarge`, 입력 5,996자입니다.
 
@@ -508,22 +508,22 @@ serve_env = dlc.serving_env(
 가장 걸리기 쉬운 함정입니다. **청크 경계는 SSE 줄 경계와 일치하지 않습니다** — `PayloadPart` 하나가 JSON 중간에서 끊겨서 옵니다.
 
 ```
-b'...,"finish_reason":"length",...,"system_finger'      ← 여기서 끊김
-b'print":"vllm-0.26.0-67353da1"}\n\n'                   ← 나머지가 다음 청크
+b'...,"finish_reason":"length",...,"system_finger' ← 여기서 끊김
+b'print":"vllm-0.26.0-67353da1"}\n\n' ← 나머지가 다음 청크
 ```
 
-그래서 청크를 받는 즉시 `json.loads`하면 `JSONDecodeError`가 납니다. **버퍼에 모아 `\n\n`(SSE 이벤트 구분자) 단위로만 잘라 파싱**해야 합니다 — `common/aws_utils.stream_sagemaker_chat()`이 이 처리를 담당합니다.
+그래서 청크를 받는 즉시 `json.loads`하면 `JSONDecodeError`가 납니다. **버퍼에 모아 `\n\n`(SSE 이벤트 구분자) 단위로만 잘라 파싱**해야 합니다 — `common/aws_utils.stream_sagemaker_chat`이 이 처리를 담당합니다.
 
 ```python
 for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION):
     print(piece, end='', flush=True)
 ```
 
-노트북에서는 `display_utils.stream_inference()`가 `display_id`로 같은 출력 셀을 갱신해 제자리에서 흘려 보여 줍니다.
+노트북에서는 `display_utils.stream_inference`가 `display_id`로 같은 출력 셀을 갱신해 제자리에서 흘려 보여 줍니다.
 
 ### 태스크별로 켜고 끄기
 
-- **켤 만한 것**: 요약·도메인 QA 같은 긴 자유서술 → 이 kit은 두 트랙에서 `STREAM = True`가 기본입니다(`_stream_default()`가 `eval_kind`로 판정).
+- **켤 만한 것**: 요약·도메인 QA 같은 긴 자유서술 → 이 kit은 두 트랙에서 `STREAM = True`가 기본입니다(`_stream_default`가 `eval_kind`로 판정).
 - **끄는 게 맞는 것**: 추출(JSON)·분류(라벨) → 응답이 **완성돼야 파싱/사용 가능**하고 애초에 짧습니다. agentic tool도 완성값을 반환해야 Claude가 소비합니다. → `STREAM = False` 기본.
 
 ### 스트리밍이 개선하지 않는 것
@@ -538,7 +538,7 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 ### max_tokens 절단과 finish_reason
 
-응답이 짧게 끝났을 때 **모델이 요약을 잘한 것인지 잘린 것인지 구분하려면 `finish_reason`을 보세요.** `length`면 잘린 것이고, `stop`이면 모델이 스스로 끝낸 것입니다. 아래는 요약 트랙 endpoint(입력 5,996자) 실측값입니다.
+응답이 짧게 끝났을 때 **모델이 요약을 잘한 것인지 잘린 것인지 구분하려면 `finish_reason`을 보세요.** `length`면 잘린 것이고, `stop`이면 모델이 스스로 끝낸 것입니다. 아래는 요약 트랙 endpoint(입력 5,996자)에서 2026-07-31에 실측한 값입니다.
 
 | `max_tokens` | `finish_reason` | `completion_tokens` | 응답 길이 |
 |---|---|---|---|
@@ -549,7 +549,7 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 256으로는 요약이 **문장 중간에서 끊겼고**, 에러도 경고도 나지 않았습니다. 512부터 모델이 스스로 종료합니다. 놓치기 쉬운 이유는 세 가지입니다.
 
 - **예외가 없습니다.** 잘린 응답도 정상 200 응답이라 코드가 그냥 통과합니다.
-- 노트북이 `print(pred[:400])` 처럼 출력까지 자르면 **이중으로 가려집니다** — 이 kit이 실제로 그랬습니다(응답 1,262자 중 400자만 표시). 그래서 `common/display_utils.show_inference()`로 전체를 렌더링하도록 바꿨습니다.
+- 노트북이 `print(pred[:400])` 처럼 출력까지 자르면 **이중으로 가려집니다** — 이 kit이 실제로 그랬습니다(응답 1,262자 중 400자만 표시). 그래서 `common/display_utils.show_inference`로 전체를 렌더링하도록 바꿨습니다.
 - 평가 지표에서는 더 위험합니다 — 정답이 `max_tokens`보다 길면 예측이 구조적으로 잘려 **ROUGE/정확도가 실제보다 낮게** 나옵니다(모델 탓이 아닌데 모델을 의심하게 됩니다).
 
 대응으로 트랙별 `gen_max_tokens`(spec)를 정답 길이 분포에서 정하고, 배포·평가·에이전트 셀이 **모두 같은 값**을 쓰게 했습니다.
@@ -564,8 +564,8 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 확인 방법은 다음과 같습니다.
 
 ```python
-r = client.invoke_endpoint(...)          # OpenAI 호환 응답
-ch = json.loads(r['Body'].read())['choices'][0]
+r = client.invoke_endpoint(...) # OpenAI 호환 응답
+ch = json.loads(r['Body'].read)['choices'][0]
 assert ch['finish_reason'] != 'length', '응답이 잘렸습니다 — max_tokens를 올리세요'
 ```
 
@@ -577,10 +577,10 @@ assert ch['finish_reason'] != 'length', '응답이 잘렸습니다 — max_token
 (A) by inserting ``and'' at the end of paragraph (6)
 ```
 
-문제가 된 holdout의 입력에는 **백틱이 79개** 있었습니다. 입력 미리보기를 `<sub>...</sub>`로 넣었더니 그 안의 텍스트가 **마크다운으로 해석**되면서 인라인 코드스팬이 열리고, 뒤따르는 `**PREDICTION**` 블록까지 삼켜 버렸습니다. `html.escape()`로는 막을 수 없습니다 — `<`, `>`, `&`만 변환하고 **백틱·`*`·`_`는 그대로 통과**시킵니다.
+문제가 된 holdout의 입력에는 **백틱이 79개** 있었습니다. 입력 미리보기를 `<sub>...</sub>`로 넣었더니 그 안의 텍스트가 **마크다운으로 해석**되면서 인라인 코드스팬이 열리고, 뒤따르는 `**PREDICTION**` 블록까지 삼켜 버렸습니다. `html.escape`로는 막을 수 없습니다 — `<`, `>`, `&`만 변환하고 **백틱·`*`·`_`는 그대로 통과**시킵니다.
 
 ```python
-html.escape("``and''")   # → "``and''"   (그대로!)
+html.escape("``and''") # → "``and''" (그대로!)
 ```
 
 대응은 사용자 데이터를 노트북 마크다운에 넣을 때 **`<pre>`로 감싸는 것**입니다(그 안은 마크다운이 비활성). `common/display_utils.py`가 입력 미리보기·전문·평문 예측 모두 이 방식으로 렌더합니다. 같은 이유로 **평문 예측을 `> 인용문`으로 감싸는 것도 위험합니다** — 요약이 원문의 \`\`인용'' 같은 구식 인용부호를 그대로 옮기거나 `>`를 포함하면 깨집니다. JSON 예측만 코드펜스를 쓰고(그건 `json.dumps` 출력이라 안전), 평문은 `<pre>`로 둡니다.
@@ -597,7 +597,7 @@ html.escape("``and''")   # → "``and''"   (그대로!)
 | endpoint 추론 | 21.0초 | 29% |
 | PNG 인코딩 + base64 | 0.35초 | <1% |
 
-**원인 1 — `streaming=True`가 매번 다시 받습니다(50초).** `load_dataset(..., streaming=True)`는 **로컬 디스크에 캐시하지 않습니다.** cord-v2는 이미지가 parquet에 내장돼 있어 **첫 row 하나를 꺼내는 데 23초**가 걸리고, 셀을 다시 실행하면 **또** 그만큼 듭니다(재호출 24초).
+**원인 1 — `streaming=True`가 매번 다시 받습니다(50초).** `load_dataset(..., streaming=True)`는 **로컬 디스크에 캐시하지 않습니다.** cord-v2는 이미지가 parquet에 내장돼 있어 **첫 row 하나를 꺼내는 데 23초**가 걸리고, 셀을 다시 실행하면 **또** 그만큼 듭니다(재호출 24초, 실측).
 
 | 방식 | 첫 실행 | 재실행 |
 |---|---|---|
@@ -606,7 +606,7 @@ html.escape("``and''")   # → "``and''"   (그대로!)
 
 노트북은 같은 셀을 여러 번 돌리므로 **split 슬라이스가 맞습니다.** 첫 회 36초는 캐시를 만드는 일회성 비용입니다 → 실측 결과 셀 전체가 **73초 → 22초**가 됐습니다(시드 로드 1.1초). 반대로 **학습 컨테이너**처럼 "한 번만 읽고 버리는" 환경에서는 streaming이 맞습니다(디스크·시간 절약). 캐시가 재사용되는지로 판단하세요.
 
-**더 나은 방법 — 검증용 이미지는 리포에 둡니다.** 배포 스모크는 이미지 1~2장이면 충분한데, 그걸 위해 매번 데이터셋을 건드릴 이유가 없습니다. `tracks/05_multimodal_extraction/samples/`에 영수증 2장 + 정답 JSON(`ground_truth.json`)을 넣고 `track_data.load_sample_receipts()`로 읽습니다(**0.03초**). cord-v2는 CC BY 4.0이라 출처 표기 시 재배포가 가능합니다.
+**더 나은 방법 — 검증용 이미지는 리포에 둡니다.** 배포 스모크는 이미지 1~2장이면 충분한데, 그걸 위해 매번 데이터셋을 건드릴 이유가 없습니다. `tracks/05_multimodal_extraction/samples/`에 영수증 2장 + 정답 JSON(`ground_truth.json`)을 넣고 `track_data.load_sample_receipts`로 읽습니다(**0.03초**). cord-v2는 CC BY 4.0이라 출처 표기 시 재배포가 가능합니다.
 
 샘플을 고를 때도 **생성 토큰 수를 봤습니다** — 원본 `train[0]`은 메뉴가 22개(592토큰)라 추론만 24초입니다. 메뉴 3개(80토큰)인 것을 기본으로 두니 **추론 5.3초**가 됐습니다.
 
@@ -649,7 +649,7 @@ However, you requested 512 output tokens and your prompt contains at least
 **그런데 요약 엔드포인트의 `max_model_len`은 4096입니다** — 2049는 문제될 값이 아닙니다. 에러 메시지에 붙어 오는 CloudWatch 링크가 결정적 단서였습니다.
 
 ```
-.../Endpoints/gemma-mm-extraction-vllm-1785498368   ← 멀티모달 엔드포인트!
+.../Endpoints/gemma-mm-extraction-vllm-1785498368 ← 멀티모달 엔드포인트!
 ```
 
 `%store`는 IPython의 **전역** 저장소로, 트랙·커널·리전을 넘어 값이 유지됩니다. 멀티모달 트랙(`max_model_len=2048`)을 배포한 뒤 요약 노트북을 열면 `%store -r endpoint_name`이 **멀티모달 엔드포인트 이름**을 복구해 옵니다.
@@ -664,15 +664,15 @@ However, you requested 512 output tokens and your prompt contains at least
 ```python
 # 저장 (배포 직후)
 ep_summarization = endpoint_name
-%store endpoint_name          # 하위호환용 전역
-%store ep_summarization       # 트랙 전용 — 충돌 불가
+%store endpoint_name # 하위호환용 전역
+%store ep_summarization # 트랙 전용 — 충돌 불가
 
 # 복구
 %store -r ep_summarization
 %store -r endpoint_name
-endpoint_name = globals().get('ep_summarization') or globals().get('endpoint_name')
+endpoint_name = globals.get('ep_summarization') or globals.get('endpoint_name')
 assert endpoint_name, 'endpoint_name 이 없습니다 — 03의 배포 셀을 먼저 실행하세요.'
-print('사용할 endpoint:', endpoint_name)     # 무엇을 부르는지 항상 눈에 보이게
+print('사용할 endpoint:', endpoint_name) # 무엇을 부르는지 항상 눈에 보이게
 ```
 
 키가 `ep_extraction` / `ep_classification` / `ep_summarization` / `ep_domain_qa` / `ep_mm_extraction`로 갈리므로 **여러 트랙을 병행해도 섞이지 않습니다.** 실제 커널에서 전역을 멀티모달로 오염시킨 뒤 요약 복구를 실행해 올바른 엔드포인트가 선택됨을 확인했습니다. 같은 이유로 `train_path`는 `%store`를 **아예 쓰지 않고** 트랙 로컬 파일(`data/train.jsonl`)을 직접 씁니다. `%store`에 담아야 할 값은 "이 트랙 것"임을 이름에 새기세요.
@@ -713,15 +713,15 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 반드시 있어야 하며, `parallel_drafting`은 그 목적에 맞게 학습된 head를 추가로 요구합니다.
 
 - **AWS가 공개한 P-EAGLE head**: 2026-07 기준 GPT-OSS-120B/20B, Qwen3-Coder-30B 뿐이고 **Gemma용은 공개돼 있지 않습니다**
-  (JumpStart의 Gemma-4-31B-IT용 head는 배포 시 내부 번들되는 아티팩트로 공개 다운로드 대상이 아닙니다). 이 로스터는 AWS가 언제든 늘릴 수 있으므로 재확인 대상입니다.
+ (JumpStart의 Gemma-4-31B-IT용 head는 배포 시 내부 번들되는 아티팩트로 공개 다운로드 대상이 아닙니다). 이 로스터는 AWS가 언제든 늘릴 수 있으므로 재확인 대상입니다.
 - **커뮤니티 Gemma EAGLE3 head**는 존재합니다 — 예: `RedHatAI/gemma-4-31B-it-speculator.eagle3`,
-  `BCCard/MoAI-gemma-4-12B-it-speculator.eagle3`, `planethunter98/eagle3-head-gemma3-12b-it`(모두 실행 전 model card로 검증).
-  다만 이들은 **base/instruct 모델용**입니다.
+ `BCCard/MoAI-gemma-4-12B-it-speculator.eagle3`, `planethunter98/eagle3-head-gemma3-12b-it`(모두 실행 전 model card로 검증).
+ 다만 이들은 **base/instruct 모델용**입니다.
 - **이 kit은 Gemma를 fine-tune합니다.** EAGLE3 head는 target의 hidden-state에 맞춰 학습되므로, base용 head를
-  fine-tuned 모델에 그대로 쓰면 acceptance rate가 떨어질 수 있습니다. 따라서 (a) 커뮤니티 head를 쓰되 반드시
-  자체 벤치마크로 acceptance rate를 실측하거나, (b) 자신의 fine-tuned Gemma에 맞는 EAGLE3 head를 직접 학습해야 합니다.
+ fine-tuned 모델에 그대로 쓰면 acceptance rate가 떨어질 수 있습니다. 따라서 (a) 커뮤니티 head를 쓰되 반드시
+ 자체 벤치마크로 acceptance rate를 실측하거나, (b) 자신의 fine-tuned Gemma에 맞는 EAGLE3 head를 직접 학습해야 합니다.
 
-**이 kit에서의 위치**: `03_deploy_endpoint`는 speculative decoding을 **설정하지 않습니다**(`dlc.serving_env()`가 내보내는 키에 speculative 항목이 없습니다). 위 head 요건 때문에 기본값을 비활성으로 둔 것이며, 쓰려면 head를 확보해 정합성을 검증한 뒤 `serve_env`에 `SM_VLLM_SPECULATIVE_CONFIG`(LMI는 `OPTION_SPECULATIVE_CONFIG`)를 직접 추가하세요.
+**이 kit에서의 위치**: `03_deploy_endpoint`는 speculative decoding을 **설정하지 않습니다**(`dlc.serving_env`가 내보내는 키에 speculative 항목이 없습니다). 위 head 요건 때문에 기본값을 비활성으로 둔 것이며, 쓰려면 head를 확보해 정합성을 검증한 뒤 `serve_env`에 `SM_VLLM_SPECULATIVE_CONFIG`(LMI는 `OPTION_SPECULATIVE_CONFIG`)를 직접 추가하세요.
 
 ---
 
@@ -773,7 +773,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
     실습이 끝나면 반드시 `99_cleanup`(또는 `predictor.delete_endpoint()`)을 실행하세요.
     1-A(vLLM/SGLang)와 1-B(LMI)를 **둘 다** 돌리면 endpoint가 두 개가 되어 과금이 중복됩니다 — 하나만 실행하세요.
 
-배포하거나 호출한 직후에 `common/aws_utils.cw_links()`가 CloudWatch/콘솔 다이렉트 링크를 출력해 주므로, 로그를 보면서 컨테이너 기동·OOM·백엔드 로딩 상태를 확인할 수 있습니다.
+배포하거나 호출한 직후에 `common/aws_utils.cw_links`가 CloudWatch/콘솔 다이렉트 링크를 출력해 주므로, 로그를 보면서 컨테이너 기동·OOM·백엔드 로딩 상태를 확인할 수 있습니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|

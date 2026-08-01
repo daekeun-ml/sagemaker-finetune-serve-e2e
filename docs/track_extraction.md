@@ -12,7 +12,7 @@
 - `tracks/01_extraction_to_json/scripts/train.py` · `train_grpo.py` — SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
 - `tracks/01_extraction_to_json/*.ipynb` — 이 트랙의 노트북 10개
 - `common/config.py` — `TRACKS['extraction']` 레지스트리 항목(시드 데이터셋, `max_seq_length=2048`)
-- `common/eval_utils.py` — `eval_extraction()`(valid_json_rate · name_accuracy · arg_f1)
+- `common/eval_utils.py` — `eval_extraction`(valid_json_rate · name_accuracy · arg_f1)
 - `tracks/01_extraction_to_json/_build_notebooks.py` — 이 트랙의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
@@ -23,7 +23,7 @@
     "사용자가 한 말"과 "쓸 수 있는 함수 목록(JSON 스키마)"을 함께 주면, 모델이 **어느 함수를 어떤 인자로 부를지**를 JSON 한 덩어리로만 답하게 만듭니다.
     설명 문장은 쓰지 않습니다 — 코드가 그대로 `json.loads()` 할 수 있는 출력이 목표입니다.
 
-시드 원본 row는 멀티턴 대화 텍스트지만, `track_data._parse_glaive_row()`가 이를 학습용 한 쌍으로 접습니다. 아래는 실제 학습 JSONL(`data/train.jsonl`)에 들어가는 형태입니다.
+시드 원본 row는 멀티턴 대화 텍스트지만, `track_data._parse_glaive_row`가 이를 학습용 한 쌍으로 접습니다. 아래는 실제 학습 JSONL(`data/train.jsonl`)에 들어가는 형태입니다.
 
 **입력**(`SYSTEM_PROMPT` + 사용자 발화 + `[Available tools]` 스키마)
 
@@ -52,10 +52,10 @@ You are a helpful assistant with access to the following functions. Use them if 
 {"name": "calculate_bmi", "arguments": {"weight": 70, "height": 1.75}}
 ```
 
-`to_messages()`가 이 쌍을 `[{"role":"user"}, {"role":"assistant"}]`로 만들 때 `SYSTEM_PROMPT`를 **첫 user 턴에 합칩니다**(fold). Gemma instruct chat template이 system role을 거부하기 때문입니다 — 근거는 [chat template과 system fold](03_finetuning.md#chat-template과-system-fold)에 있습니다.
+`to_messages`가 이 쌍을 `[{"role":"user"}, {"role":"assistant"}]`로 만들 때 `SYSTEM_PROMPT`를 **첫 user 턴에 합칩니다**(fold). Gemma instruct chat template이 system role을 거부하기 때문입니다 — 근거는 [chat template과 system fold](03_finetuning.md#chat-template과-system-fold)에 있습니다.
 
 !!! warning "학습과 같은 형태로 물어야 학습 효과가 보입니다"
-    같은 파인튜닝 모델에 같은 질문("What's the weather in Busan tomorrow?")을 세 가지로 물은 실측 결과입니다(`02b_local_serve.ipynb`의 3-D 셀).
+ 같은 파인튜닝 모델에 같은 질문("What's the weather in Busan tomorrow?")을 세 가지로 물은 실측 결과입니다(`02b_local_serve.ipynb`의 3-D 셀).
 
     | 프롬프트 구성 | 응답 |
     |---|---|
@@ -71,11 +71,11 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 [`glaiveai/glaive-function-calling-v2`](https://huggingface.co/datasets/glaiveai/glaive-function-calling-v2)(apache-2.0, ungated)를 씁니다. 토큰 없이 로드되고, 라이선스 전파 부담이 없어 파생 모델 배포가 자유롭습니다(`04_domain_qa`의 dolly는 cc-by-sa-3.0으로 share-alike 의무가 있습니다 — [라이선스 요약](00_overview.md#라이선스-요약)).
 
-원본 스키마는 `system`(사용 가능한 함수 JSON 스키마) + `chat`(멀티턴 텍스트, assistant가 `<functioncall> {json}` 방출) 두 컬럼입니다. `_parse_glaive_row()`는 정규식으로 **첫 USER 발화**와 **첫 `<functioncall>` JSON**만 뽑고, `system`의 스키마 힌트를 `[Available tools]` 헤더와 함께 입력에 붙입니다. 파싱이나 `json.loads`가 실패한 row는 `None`으로 버려지므로 `load_seed_examples(n)`은 **성공한 것만 n개** 채워 돌려줍니다.
+원본 스키마는 `system`(사용 가능한 함수 JSON 스키마) + `chat`(멀티턴 텍스트, assistant가 `<functioncall> {json}` 방출) 두 컬럼입니다. `_parse_glaive_row`는 정규식으로 **첫 USER 발화**와 **첫 `<functioncall>` JSON**만 뽑고, `system`의 스키마 힌트를 `[Available tools]` 헤더와 함께 입력에 붙입니다. 파싱이나 `json.loads`가 실패한 row는 `None`으로 버려지므로 `load_seed_examples(n)`은 **성공한 것만 n개** 채워 돌려줍니다.
 
 !!! warning "인자 없는 함수가 대다수입니다"
     이 시드는 `{"arguments": {}}`처럼 **인자가 비어 있는 호출**이 많습니다 — `common/grpo_data.py`가 쓰는 glaive 뒷부분 구간에서 94%입니다. SFT에는 문제가 없지만, GRPO에서는 채점이 사실상 "함수명 맞았나"로 축소되어 rollout이 전부 만점이 되고 학습 신호가 사라집니다.
-    그래서 `02a`의 기본 prompt 소스(`synth`)는 생성 프롬프트에 난이도 제약을 걸어 **인자 2개 이상**을 강제합니다(제약 적용 후 실측: 인자 없음 0건 / 평균 인자 2.1개). 자세한 근거는 [RL prompt 소스 3가지](03_finetuning.md#rl-prompt-소스-3가지)에 있습니다.
+ 그래서 `02a`의 기본 prompt 소스(`synth`)는 생성 프롬프트에 난이도 제약을 걸어 **인자 2개 이상**을 강제합니다(제약 적용 후 실측: 인자 없음 0건 / 평균 인자 2.1개). 자세한 근거는 [RL prompt 소스 3가지](03_finetuning.md#rl-prompt-소스-3가지)에 있습니다.
 
 시드는 300건(`config.NUM_SEED_SAMPLES`)만 앞에서 잘라 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, 이 리포의 `.env`는 100). 시드 1건의 길이는 요약 트랙(중앙 1,651자)보다 짧아 약 475자이므로 합성 호출 지연이 작습니다([생성 건수 결정](02_synthetic_data.md#생성-건수-결정--num_synthetic-기본값) 참고).
 
@@ -83,7 +83,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 ## 성공 기준
 
-채점은 `common/eval_utils.eval_extraction()` 한 함수로 끝납니다. 모델 호출도 LLM-judge도 필요 없는 **순수 파이썬 채점**이라 재현성이 높고 비용이 0입니다.
+채점은 `common/eval_utils.eval_extraction` 한 함수로 끝납니다. 모델 호출도 LLM-judge도 필요 없는 **순수 파이썬 채점**이라 재현성이 높고 비용이 0입니다.
 
 | 지표 | 정의 | 역할 |
 |---|---|---|
@@ -92,14 +92,14 @@ You are a helpful assistant with access to the following functions. Use them if 
 | **`arg_f1`** | `(키, 정규화된 값)` 쌍 집합의 micro precision/recall F1 | **주 지표**(단 아래 경고 참고) |
 | `exact_match` | 함수명 + 인자 집합이 완전히 일치 | 가장 엄격한 참고치 |
 
-**왜 `arg_f1`이 이 태스크에 맞나** — 인자가 3개인 호출에서 2개를 맞혔다면 그것은 완전 실패가 아닙니다. `exact_match`만 보면 이 차이가 지워지고, `valid_json_rate`만 보면 "JSON 형식은 맞지만 값이 다 틀린" 모델이 만점을 받습니다. `arg_f1`은 인자 단위 부분 점수를 주면서, 없는 인자를 만들어내면 precision으로, 빠뜨리면 recall로 벌점을 줍니다. 값 비교 전에 `_norm_val()`이 dict/list를 정렬 직렬화하고 `1.0`을 `1`로 맞추므로 표현 차이 때문에 틀리지 않습니다.
+**왜 `arg_f1`이 이 태스크에 맞나** — 인자가 3개인 호출에서 2개를 맞혔다면 그것은 완전 실패가 아닙니다. `exact_match`만 보면 이 차이가 지워지고, `valid_json_rate`만 보면 "JSON 형식은 맞지만 값이 다 틀린" 모델이 만점을 받습니다. `arg_f1`은 인자 단위 부분 점수를 주면서, 없는 인자를 만들어내면 precision으로, 빠뜨리면 recall로 벌점을 줍니다. 값 비교 전에 `_norm_val`이 dict/list를 정렬 직렬화하고 `1.0`을 `1`로 맞추므로 표현 차이 때문에 틀리지 않습니다.
 
-파싱이 실패하면 `eval_extraction()`은 예측 인자 집합을 공집합으로 두므로, **정답에 인자가 있는 건에서는** 그 인자 전부가 false negative가 되어 `arg_f1`이 떨어집니다.
+파싱이 실패하면 `eval_extraction`은 예측 인자 집합을 공집합으로 두므로, **정답에 인자가 있는 건에서는** 그 인자 전부가 false negative가 되어 `arg_f1`이 떨어집니다.
 
 !!! warning "이 시드의 held-out에서는 arg_f1 단독으로 판단하면 안 됩니다"
     위 문장이 성립하려면 정답에 인자가 있어야 합니다. 그런데 held-out 구간(시드 인덱스 300~349, `N_EVAL=50`)의 정답은 **50건 중 46건이 `{"arguments": {}}`**입니다(위 [시드 데이터셋](#시드-데이터셋) 절의 "인자 없음 94%"와 같은 원인). `gold_args`가 공집합이면 `fn += len(gold_args - pred_args)`가 0을 더하므로, 그 46건은 파싱이 완전히 깨져도 `arg_f1`에 **아무 벌점도 남기지 않습니다.**
 
-    실측으로 확인한 최악의 경우입니다 — 인자가 빈 46건에는 산문(`"Sure! I can help with that."`)을, 인자가 있는 4건에는 완벽한 JSON을 내는 가짜 모델을 채점하면:
+ 실측으로 확인한 최악의 경우입니다 — 인자가 빈 46건에는 산문(`"Sure! I can help with that."`)을, 인자가 있는 4건에는 완벽한 JSON을 내는 가짜 모델을 채점하면:
 
     ```text
     {'n': 50, 'valid_json_rate': 0.08, 'name_accuracy': 0.08, 'arg_f1': 1.0, 'exact_match': 0.08}
@@ -150,7 +150,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 | `serve_max_model_len` | **미지정 → 4096** | spec에 값이 없어 `max_seq_length × 2`가 됩니다([학습 길이와 서빙 길이](00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
 | `gen_max_tokens` | **256** | 정답 JSON은 짧습니다. 길이가 문제되는 트랙과의 대조는 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다 |
 | `grpo_reward_kind` | `extraction` | 유효 JSON 0.3 + 함수명 일치 0.3 + 인자 F1 0.4(`train_grpo.py`의 `reward_extraction`) |
-| `eval_kind` | `extraction` | `eval_extraction()` 경로 선택 |
+| `eval_kind` | `extraction` | `eval_extraction` 경로 선택 |
 | `endpoint_prefix` | `gemma-extraction` | `%store` 오염을 피하는 트랙 전용 키(`ep_extraction`)와 cleanup 필터에 함께 쓰입니다 |
 | 스트리밍 기본값 | `False` | JSON은 완성돼야 파싱이 되고 애초에 짧아 토큰을 흘려도 체감 이득이 없습니다 |
 

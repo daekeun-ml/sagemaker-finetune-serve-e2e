@@ -11,7 +11,7 @@
 - `tracks/04_domain_qa/track_data.py` — 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/04_domain_qa/*.ipynb` — 이 트랙의 노트북 9개
 - `common/config.py` — `TRACKS['domain_qa']` 레지스트리(시드 데이터셋, `max_seq_length=1024`)
-- `common/eval_utils.py` — `eval_rouge()` + `llm_judge()`
+- `common/eval_utils.py` — `eval_rouge` + `llm_judge`
 - `tracks/build_all_tracks.py` — 이 트랙의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
@@ -21,24 +21,24 @@
 !!! abstract "쉽게 말하면"
     "이 문서 읽고 내 질문에 답해 줘"를 잘하는 모델을 만드는 트랙입니다. 정답 형태가 JSON도 라벨도 아니고 **자유로운 문장**이라, 채점도 문자열 비교가 아니라 심사(judge)로 합니다.
 
-입력은 **instruction 하나**이고, 참고할 문서가 있으면 그 뒤에 `[Context]` 헤더로 붙습니다. 출력은 답변 텍스트 그대로입니다. `track_data.py`의 `_compose_input()`이 만드는 표면형은 정확히 이렇습니다.
+입력은 **instruction 하나**이고, 참고할 문서가 있으면 그 뒤에 `[Context]` 헤더로 붙습니다. 출력은 답변 텍스트 그대로입니다. `track_data.py`의 `_compose_input`이 만드는 표면형은 정확히 이렇습니다.
 
 원본 row (dolly 첫 번째 예시, 실측):
 
 ```text
 instruction: When did Virgin Australia start operating?
-context:     Virgin Australia, the trading name of Virgin Australia Airlines Pty Ltd, is an
+context: Virgin Australia, the trading name of Virgin Australia Airlines Pty Ltd, is an
              Australian-based airline. ... It commenced services on 31 August 2000 as Virgin Blue,
              with two aircraft on a single route. ...
-response:    Virgin Australia commenced services on 31 August 2000 as Virgin Blue, with two
+response: Virgin Australia commenced services on 31 August 2000 as Virgin Blue, with two
              aircraft on a single route.
-category:    closed_qa
+category: closed_qa
 ```
 
-어댑터를 통과한 뒤 (`load_seed_examples()` 반환값):
+어댑터를 통과한 뒤 (`load_seed_examples` 반환값):
 
 ```text
-input:  When did Virgin Australia start operating?
+input: When did Virgin Australia start operating?
 
         [Context]
         Virgin Australia, the trading name of Virgin Australia Airlines Pty Ltd, is an Australian-based
@@ -51,11 +51,11 @@ output: Virgin Australia commenced services on 31 August 2000 as Virgin Blue, wi
 `context`가 빈 문자열인 row는 헤더 없이 instruction만 `input`이 됩니다 — 실제로 다음과 같은 짧은 예시가 그대로 학습셋에 들어갑니다.
 
 ```text
-input:  Which is a species of fish? Tope or Rope
+input: Which is a species of fish? Tope or Rope
 output: Tope
 ```
 
-학습 시점에는 `to_messages()`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다 — Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](03_finetuning.md#chat-template과-system-fold)).
+학습 시점에는 `to_messages`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다 — Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](03_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오개념 — “context가 있으니 RAG 트랙 아닌가요?”"
     아닙니다. 이 트랙은 **검색 단계가 없습니다.** context는 데이터셋이 이미 붙여 준 문단이고, 모델이 배우는 것은 "주어진 문단에 근거해 답하기"입니다. 검색기를 붙이는 것은 이 트랙 위에 얹는 별도 작업이며, 이 kit의 노트북에는 포함되지 않았습니다.
@@ -90,8 +90,8 @@ output: Tope
 
 주 지표는 **Bedrock LLM-judge**이고, ROUGE-L은 보조 proxy입니다.
 
-- **LLM-judge (primary)** — `eval_utils.llm_judge()`가 Bedrock Converse로 `correctness` · `helpfulness` · `groundedness`를 각 1~5점으로 채점합니다. judge 모델은 `config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)이고, `temperature=0.0` · STRICT JSON 출력으로 고정합니다. 비용 때문에 held-out **앞 20건만** 채점합니다.
-- **ROUGE-L (보조)** — `eval_utils.eval_rouge()`가 held-out 전량에 대해 rouge1/rouge2/rougeL F-measure 평균을 냅니다.
+- **LLM-judge (primary)** — `eval_utils.llm_judge`가 Bedrock Converse로 `correctness` · `helpfulness` · `groundedness`를 각 1~5점으로 채점합니다. judge 모델은 `config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)이고, `temperature=0.0` · STRICT JSON 출력으로 고정합니다. 비용 때문에 held-out **앞 20건만** 채점합니다.
+- **ROUGE-L (보조)** — `eval_utils.eval_rouge`가 held-out 전량에 대해 rouge1/rouge2/rougeL F-measure 평균을 냅니다.
 
 **왜 judge가 주 지표인가**: 이 트랙의 정답은 자유형 문장입니다. "31 August 2000"과 "August 31, 2000"은 같은 정답인데 exact-match는 0점을 주고, ROUGE-L도 표현이 다르면 정답을 오답처럼 깎습니다. 반대로 원문 단어만 잔뜩 베껴 온 무의미한 답이 ROUGE는 높게 나옵니다. 그래서 정확성·유용성·근거성을 각각 보는 judge를 주 지표로 두고, ROUGE-L은 "judge 호출 없이도 회귀를 감지하는 값싼 센서"로만 씁니다.
 
@@ -124,7 +124,7 @@ output: Tope
 
 ## 트랙별 설정값
 
-다른 트랙과 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`이고, 길이 근거는 시드 150건을 gemma-4 E4B 토크나이저로 실측한 분포(2026-07-30)입니다.
+다른 트랙과 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`이고, 길이 근거는 시드 150건을 gemma-4 E4B 토크나이저로 실측한 분포입니다.
 
 | 설정 | 이 트랙 | 다른 텍스트 트랙 | 근거 |
 |---|---|---|---|
@@ -132,7 +132,7 @@ output: Tope
 | `serve_max_model_len` | **2048** | 요약 4096 / 추출·분류는 미지정(= `max_seq_length × 2`) | 추론 프롬프트 median 58 / p90 291 / max 1,140 → 프롬프트 1,140 + 생성 512에 여유(1024로 두면 1건이 초과) — 두 값을 분리하는 이유는 [학습 길이와 서빙 길이](00_overview.md#학습-길이와-서빙-길이는-다른-값입니다) |
 | `gen_max_tokens` | **512** | 요약 512 / 추출·분류 256 | 정답 median 39 / p90 218 / **max 1,781**. 256으로 두면 정답 13건(150건 중 **8.7%**)이 잘려 ROUGE와 judge 점수가 구조적으로 과소 측정됩니다 |
 | `grpo_reward_kind` | (빈 문자열) | 추출·분류만 값 있음 | 프로그램적 reward 불가 → `02a` 노트북이 생성되지 않습니다 |
-| `eval_kind` | `domain_qa` | 분류 `classification` | `04_evaluate`가 `llm_judge()` + `eval_rouge()`를 부르고, 실시간 추론 셀의 **스트리밍이 기본 on**이 됩니다 |
+| `eval_kind` | `domain_qa` | 분류 `classification` | `04_evaluate`가 `llm_judge` + `eval_rouge`를 부르고, 실시간 추론 셀의 **스트리밍이 기본 on**이 됩니다 |
 | `endpoint_prefix` | `gemma-domainqa` | 분류 `gemma-classification` | 학습 잡·endpoint 이름과 `%store` 키(`ep_domain_qa`·`md_domain_qa`)의 접두어 |
 | `multimodal` | `False` | 05만 `True` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 트랙은 `01_data_and_synthetic`을 씁니다 |
 
