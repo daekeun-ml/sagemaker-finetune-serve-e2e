@@ -1,10 +1,17 @@
 # 01 · SageMaker 기초 — Training Job과 Endpoint
 
 !!! info "Scope"
-    Python은 쓰고 Jupyter도 써 봤지만 **SageMaker는 처음**인 ML 엔지니어를 위한 문서입니다. AWS 인프라 지식은 필요 없습니다.
-    선행 조건: 없습니다. [시작하기](getting_started.md)로 설치를 마쳤다면 [실행 runbook](RUN_E2E.md)으로 넘어가기 전에 이 문서를 읽으시면 노트북이 무엇을 하고 있는지 보입니다.
-    다루는 것: **Training Job**과 **Endpoint** 두 가지 개념, 실행 role, 컨테이너 경로 규약, 시간 제한, 그리고 HyperPod / EC2 / on-prem과의 차이.
-    다루지 않는 것: SageMaker의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등)은 의도적으로 생략합니다. 추론 옵션 상세는 [SageMaker 추론](04_sagemaker_inference.md), 학습 상세는 [파인튜닝](03_finetuning.md)이 다룹니다.
+    Python은 쓰고 Jupyter도 써 봤지만 **SageMaker는 처음**인 ML 엔지니어를 위한 문서입니다.
+    AWS 인프라 지식은 필요 없습니다.
+
+    - **선행 조건** — 없습니다. [시작하기](getting_started.md)로 설치를 마쳤다면
+      [실행 runbook](RUN_E2E.md)으로 넘어가기 전에 이 문서를 읽으면
+      노트북이 무엇을 하고 있는지 보입니다
+    - **여기서 다루는 것** — **Training Job**과 **Endpoint** 두 가지 개념 · 실행 role ·
+      컨테이너 경로 규약 · 시간 제한 · HyperPod / EC2 / on-prem과의 차이
+    - **여기서 다루지 않는 것** — SageMaker의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등).
+      추론 옵션 상세는 [SageMaker 추론](04_sagemaker_inference.md),
+      학습 상세는 [파인튜닝](03_finetuning.md)
 
 이 문서는 두 개념만 확실히 잡는 것을 목표로 합니다 — **학습은 Job, 서빙은 endpoint**.
 

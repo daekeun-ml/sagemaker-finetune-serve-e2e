@@ -1,9 +1,16 @@
 # 06 · Agentic Loop — 파인튜닝 SLM(tool) + Bedrock Claude(reasoning)
 
 !!! info "Scope"
-    이 kit으로 Gemma SLM을 학습(`02_train_sft_sagemaker`)·배포(`03_deploy_endpoint`)해 **real-time endpoint를 이미 가진 분**이 대상입니다. Strands/AgentCore는 처음이어도 괜찮습니다.
-    다루는 것: SLM endpoint를 tool로 노출하는 방법, Bedrock Claude를 reasoning으로 붙이는 방법, AgentCore Runtime 배포 규약.
-    다루지 않는 것: 학습·데이터 합성([파인튜닝](03_finetuning.md)·[합성 데이터](02_synthetic_data.md)), 서빙 컨테이너 선택([서빙 컨테이너 선택](05_serving_containers.md)).
+    파인튜닝한 Gemma SLM을 tool로 쓰고 reasoning은 Bedrock Claude에 맡기는
+    agentic loop를 만들려는 분을 위한 가이드입니다.
+
+    - **선행 조건** — 학습(`02_train_sft_sagemaker`)·배포(`03_deploy_endpoint`)를 마쳐
+      **real-time endpoint를 이미 가진 상태**. Strands/AgentCore는 처음이어도 괜찮습니다
+    - **여기서 다루는 것** — SLM endpoint를 tool로 노출하는 방법 · Bedrock Claude를
+      reasoning으로 붙이는 방법 · AgentCore Runtime 배포 규약
+    - **여기서 다루지 않는 것** — 학습은 [파인튜닝](03_finetuning.md), 데이터 합성은
+      [합성 데이터](02_synthetic_data.md), 컨테이너 선택은
+      [서빙 컨테이너](05_serving_containers.md)
 
 이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다.
 

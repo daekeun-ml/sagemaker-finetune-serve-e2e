@@ -1,10 +1,15 @@
 # 05 · 서빙 컨테이너 선택 — DJL LMI vs 단독 vLLM vs HF TGI
 
 !!! info "Scope"
-    파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 "컨테이너를 무엇으로 골라야 할지" 막힌 분을 위한 문서입니다.
-    선행 조건: `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가 S3에 있는 상태를 가정합니다.
-    다루는 것: 엔진과 컨테이너의 레이어 구분, 이미지 URI 해석, OOM·절단·스트리밍 실측 함정, speculative decoding, 비용과 정리.
-    다루지 않는 것: 학습 하이퍼파라미터(`03_finetuning.md`), 평가 지표, agentic 설계.
+    파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 “컨테이너를 무엇으로 골라야 할지”
+    막힌 분을 위한 문서입니다.
+
+    - **선행 조건** — `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가
+      S3에 있는 상태
+    - **여기서 다루는 것** — 엔진과 컨테이너의 레이어 구분 · 이미지 URI 해석 ·
+      OOM·절단·스트리밍 실측 함정 · speculative decoding · 비용과 정리
+    - **여기서 다루지 않는 것** — 학습 하이퍼파라미터는 [파인튜닝](03_finetuning.md),
+      평가 지표와 agentic 설계
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
 

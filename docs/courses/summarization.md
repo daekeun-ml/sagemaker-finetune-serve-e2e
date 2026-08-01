@@ -1,10 +1,17 @@
 # 요약 코스 — 미국 법안 원문 → 사람이 읽을 요약
 
 !!! info "Scope"
-    긴 문서 하나를 넣으면 짧은 요약이 나오는 SLM을 만들고 싶은 분을 위한 **태스크별 실습 코스**(데이터 준비 → 학습 → 배포 → 평가 → 정리를 한 태스크로 완주하는 단위) 소개입니다(`tracks/03_summarization`).
-    선행 조건은 AWS 자격증명과 SageMaker 실행 role뿐입니다(`00_setup`이 확인합니다). SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)를 먼저 읽으세요.
-    다루는 것은 이 코스의 task 정의·시드 데이터셋·성공 기준·노트북 구성·코스별 설정값입니다. 학습 방식 자체는 [파인튜닝](../03_finetuning.md), 배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는 [실행 runbook](../RUN_E2E.md)이 담당하므로 여기서 반복하지 않습니다.
-    **다루지 않는 것**: 대화체 요약(회의록·상담 로그)은 시드를 바꿔야 하고(아래 시드 절 참고), 자유서술 답변은 [도메인 QA 코스](domain_qa.md)입니다.
+    긴 문서 하나를 넣으면 짧은 요약이 나오는 SLM을 만들고 싶은 분을 위한
+    코스입니다(`tracks/03_summarization`).
+
+    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+      SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
+    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+      배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
+      [실행 runbook](../RUN_E2E.md)
+    - **다른 코스** — 자유서술 답변은 [도메인 QA](domain_qa.md).
+      대화체 요약(회의록·상담 로그)은 시드를 바꿔야 합니다(아래 시드 절 참고)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 

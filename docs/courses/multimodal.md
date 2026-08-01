@@ -1,10 +1,18 @@
 # 멀티모달 추출 코스 — 영수증 사진에서 필드를 JSON으로
 
 !!! info "Scope"
-    **이미지를 입력으로 받는** 모델을 만들려는 분을 위한 **태스크별 실습 코스**(데이터 준비 → 학습 → 배포 → 검증 → 정리를 한 태스크로 완주하는 단위) 소개입니다(`tracks/05_multimodal_extraction`). "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
-    선행 조건은 AWS 자격증명과 SageMaker 실행 role뿐입니다(`00_setup`이 확인합니다). SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)를 먼저 읽으세요.
-    다루는 것은 이 코스의 task 정의·시드 데이터셋·성공 기준·노트북 구성·코스별 설정값입니다. 학습 방식 자체는 [파인튜닝](../03_finetuning.md), 배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은 [서빙 컨테이너](../05_serving_containers.md)가 담당하므로 여기서 반복하지 않습니다.
-    **다루지 않는 것**: 이 코스에는 합성 데이터 단계와 agentic 단계가 없습니다 — 그 두 단계를 찾아왔다면 텍스트 코스(01~04) 쪽이고, 텍스트에서 JSON을 뽑는 문제는 [추출 코스](extraction.md)입니다.
+    **이미지를 입력으로 받는** 모델을 만들려는 분을 위한
+    코스입니다(`tracks/05_multimodal_extraction`).
+    "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
+
+    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+      SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
+    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+      배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은
+      [서빙 컨테이너](../05_serving_containers.md)
+    - **이 코스에 없는 단계** — 합성 데이터·agentic 단계. 그 두 단계는 텍스트 코스(01~04)에 있습니다
+    - **다른 코스** — 텍스트에서 JSON을 뽑는 문제는 [추출](extraction.md)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 

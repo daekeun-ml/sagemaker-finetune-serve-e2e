@@ -1,8 +1,10 @@
 # SDK V3 학습 — ModelTrainer로 학습 Job 제출하기
 
 !!! info "Scope"
-    V3에서 **학습 Job을 제출하는 방법**만 다룹니다. V2와의 전체 차이와 마이그레이션 함정은 [SDK V3 개요](index.md), 배포는 [SDK V3 배포](serving.md)에 있습니다.
-    LoRA 설계·하이퍼파라미터 같은 학습 내용 자체는 [파인튜닝](../03_finetuning.md)이 담당합니다.
+    V3에서 **학습 Job을 제출하는 방법**만 다룹니다.
+    V2와의 전체 차이와 마이그레이션 함정은 [SDK V3 개요](index.md),
+    배포는 [SDK V3 배포](serving.md), LoRA 설계·하이퍼파라미터 같은 학습 내용 자체는
+    [파인튜닝](../03_finetuning.md)에 있습니다.
 
 ## ModelTrainer로 학습 Job 제출
 

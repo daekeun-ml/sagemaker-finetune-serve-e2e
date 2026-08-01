@@ -1,9 +1,13 @@
 # 02 · Grounded 합성 데이터 — seed에 근거하고 critique로 걸러내기
 
 !!! info "Scope"
-    파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다. Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
-    선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 태스크별 실습 코스의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
-    다루는 것은 grounded 생성·critique 게이트·held-out 규율·라이브러리 대안이고, 학습 자체는 [파인튜닝](03_finetuning.md)이 다룹니다.
+    파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다.
+    Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
+
+    - **선행 조건** — 없습니다. 이 문서에 대응하는 노트북이 각 코스의 첫 단계
+      (`01_data_and_synthetic.ipynb`)입니다
+    - **여기서 다루는 것** — grounded 생성 · critique 게이트 · held-out 규율 · 라이브러리 대안
+    - **여기서 다루지 않는 것** — 학습 자체는 [파인튜닝](03_finetuning.md)
 
 이 문서와 관련된 리포지토리 파일:
 

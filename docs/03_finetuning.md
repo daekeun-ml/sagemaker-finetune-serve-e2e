@@ -1,9 +1,18 @@
 # 03 · 파인튜닝 접근법 — DLC + 커스텀 train.py(TRL SFTTrainer · PEFT LoRA/QLoRA)
 
 !!! info "Scope"
-    SageMaker에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다. HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 Job·DLC·LoRA 관용구는 처음이어도 괜찮습니다.
-    선행 조건은 각 태스크별 실습 코스의 `01_data_and_synthetic.ipynb`까지 실행해 `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태입니다. Training Job이 무엇이고 `/opt/ml/*` 경로 규약이 왜 있는지가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
-    다루는 것은 학습 경로 선택·Gemma 관용구·LoRA/QLoRA·머지/re-export·`MaxRuntimeExceeded` 함정·SFT→GRPO 데이터 규율이고, endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md)이, 합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)가 다룹니다.
+    SageMaker에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다.
+    HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 Job·DLC·LoRA 관용구는
+    처음이어도 괜찮습니다.
+
+    - **선행 조건** — 각 코스의 `01_data_and_synthetic.ipynb`까지 실행해
+      `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태.
+      Training Job이 무엇이고 `/opt/ml/*` 경로 규약이 왜 있는지가 낯설면
+      [SageMaker 기초](01_sagemaker_basics.md)부터
+    - **여기서 다루는 것** — 학습 경로 선택 · Gemma 관용구 · LoRA/QLoRA · 머지/re-export ·
+      `MaxRuntimeExceeded` 함정 · SFT→GRPO 데이터 규율
+    - **여기서 다루지 않는 것** — endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md),
+      합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)
 
 이 문서와 관련된 리포지토리 파일:
 

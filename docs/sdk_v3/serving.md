@@ -1,8 +1,9 @@
 # SDK V3 배포 — ModelBuilder와 endpoint
 
 !!! info "Scope"
-    V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다. V2와의 전체 차이는 [SDK V3 개요](index.md), 학습 Job 제출은 [SDK V3 학습](training.md)에 있습니다.
-    서빙 엔진(vLLM/SGLang/LMI) 선택은 [서빙 컨테이너](../05_serving_containers.md)가 담당합니다.
+    V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다.
+    V2와의 전체 차이는 [SDK V3 개요](index.md), 학습 Job 제출은 [SDK V3 학습](training.md),
+    서빙 엔진(vLLM/SGLang/LMI) 선택은 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
 
 ## ModelBuilder로 배포
 

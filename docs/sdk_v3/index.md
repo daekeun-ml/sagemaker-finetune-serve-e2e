@@ -1,9 +1,18 @@
 # SageMaker Python SDK V3 — V2에서 무엇이 바뀌었나
 
 !!! info "Scope"
-    **V2에 익숙한 분**(`HuggingFace` estimator · `estimator.fit()` · `predictor.predict()`로 SageMaker를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources` 같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다. 선행 조건은 없습니다.
-    다루는 것: V2 → V3 심볼 매핑, 두 레이어(`sagemaker.core` vs `sagemaker.train`/`sagemaker.serve`) 구조, 학습·배포·호출·정리 4가지 대표 용법, V2 코드를 옮길 때 걸리는 함정.
-    다루지 않는 것: 학습 하이퍼파라미터·LoRA 설계([파인튜닝](../03_finetuning.md)), endpoint 구조와 서빙 엔진([SageMaker 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md)), Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다).
+    **V2에 익숙한 분**(`HuggingFace` estimator · `estimator.fit()` · `predictor.predict()`로
+    SageMaker를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources`
+    같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다.
+
+    - **선행 조건** — 없습니다
+    - **여기서 다루는 것** — V2 → V3 심볼 매핑 ·
+      두 레이어(`sagemaker.core` vs `sagemaker.train`/`sagemaker.serve`) 구조 ·
+      학습·배포·호출·정리 4가지 대표 용법 · V2 코드를 옮길 때 걸리는 함정
+    - **여기서 다루지 않는 것** — 학습 하이퍼파라미터·LoRA 설계는
+      [파인튜닝](../03_finetuning.md), endpoint 구조와 서빙 엔진은
+      [SageMaker 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md),
+      Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다)
 
 이 문서의 동작은 모두 **SDK 3.16.0 설치본에서 실측**한 것이고, 이름·의도는 [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)와 [V3 문서](https://sagemaker.readthedocs.io/en/stable/)를 기준으로 적었습니다. 둘이 어긋나는 지점은 그 자리에서 따로 표시했습니다.
 
