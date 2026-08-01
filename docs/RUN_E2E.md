@@ -2,7 +2,7 @@
 
 !!! info "읽는 사람과 범위"
     파이프라인을 **클라우드에서 한 번에 완주**하려는 사람. 어떤 순서로, 무엇을 준비하고, 각 단계가 무엇을 다음으로 넘기고, 얼마가 들고, 무엇을 확인하고 넘어가는지를 한 곳에 모았습니다.
-    선행 조건: AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스. 설치 절차와 스모크/로컬 dry-run은 [GETTING_STARTED.md](getting_started.md)가 다룹니다.
+    선행 조건: AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스. 설치 절차와 스모크/로컬 dry-run은 [시작하기](getting_started.md)가 다룹니다.
     Training Job·Endpoint 같은 개념이 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으시면 각 단계가 무엇을 만드는지 보입니다.
     다루지 않는 것: 개념 배경(각 주제 가이드), 학습 하이퍼파라미터 튜닝, 컨테이너 내부 구조.
 
@@ -118,7 +118,7 @@
 
 한 번만 하면 되는 준비입니다.
 
-- [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [GETTING_STARTED.md](getting_started.md)). 코어 의존성은 실측 최신 floor로 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1`). SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
+- [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)). 코어 의존성은 실측 최신 floor로 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1`). SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
 - [ ] **AWS 자격증명** — `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
 - [ ] **SageMaker 실행 role** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다. Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role()`이 `get_execution_role()`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다.
 - [ ] **Bedrock 모델 액세스** — 콘솔에서 사용할 Claude 모델의 액세스를 활성화하고, AWS가 [cross-region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 문서화하는 **inference-profile ID**(`us.`/`eu.`/`apac.`/`global.` 접두사 필수)를 확보해 `BEDROCK_CLAUDE_MODEL_ID`에 설정합니다. 기본값은 `global.anthropic.claude-sonnet-5`입니다.
@@ -166,7 +166,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 
 - **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 트랙 지연 때문에 100으로 낮춰 두었습니다(실측: 요약 시드 1건 중앙 1,651자 vs 추출 475자 → 배치 프롬프트 약 10,900자. 출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없고 순수 지연입니다). 합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
 - **③ 학습** — 학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다. 태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요. 첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분·3분). `stopping_condition`은 **반드시 명시**하세요 — 생략하면 SDK 기본 1시간이 붙습니다([StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)의 API 기본값 1일과는 다릅니다).
-- **④ 배포** — 기본 경로는 **[vLLM](https://github.com/vllm-project/vllm) DLC(`SERVING_ENGINE=vllm`)** 이고, [`sglang`](https://github.com/sgl-project/sglang)(같은 셀에서 처리) 또는 `lmi`([DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html), `OPTION_*` env)로 전환할 수 있습니다. 셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다. **한 번에 하나만** 배포하세요(둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다). endpoint 기동에는 5~15분이 걸립니다. 선택 기준과 메모리 예산은 [서빙 컨테이너 선택](05_serving_containers.md)에, 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)과 [InvokeEndpoint API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html)(파라미터·payload 한도)에 있습니다.
+- **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다. 셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다. **한 번에 하나만** 배포하세요(둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다). endpoint 기동에는 5~15분이 걸립니다. 세 엔진의 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine)에, 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측)에, 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마)에 있습니다.
 - **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다. `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
 - **⑥/⑦ agentic** — endpoint(`sagemaker-runtime`)와 Bedrock(`bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), SageMaker와 **별개 서비스**)이 **이중으로 과금**됩니다. AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포--agentcore-runtime)).
 - **⑧ 정리** — 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다. 그러지 않으면 계속 과금됩니다.
@@ -175,9 +175,13 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
     합성 데이터나 학습셋으로 평가하면 점수가 조용히 부풀려집니다 — teacher 모델을 얼마나 모방했는지를 재는 데 그칩니다.
     `04_evaluate`는 반드시 **합성 증강 이전의 시드에서 결정론적으로 분리한 held-out**만 사용합니다. 규율의 배경은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다.
 
+위 단계들의 근거를 원본 소스에서 확인하려면 다음을 보세요.
+
 ??? info "더 읽을 거리"
     - [aws/deep-learning-containers](https://github.com/aws/deep-learning-containers) — 학습·서빙 DLC의 Dockerfile과 `sagemaker_entrypoint.sh`(env → CLI 플래그 변환 규칙)를 소스에서 확인할 때.
     - [SageMaker 모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) — 이 런북이 ④에서 real-time을 고르는 배경(4옵션 정의와 과금 모델).
+    - [InvokeEndpoint API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html) — ④ 이후 호출에 걸리는 파라미터·payload 한도의 원문.
+    - ④에서 고르는 세 엔진의 저장소·문서: [vLLM](https://github.com/vllm-project/vllm) · [SGLang](https://github.com/sgl-project/sglang) · [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html). 지원 모델·플래그는 문서보다 저장소가 빠릅니다.
 
 ---
 
@@ -218,8 +222,8 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 | gated 모델 다운로드 401 | HF 약관 미수락 또는 토큰 없음 → `MODEL_IS_GATED=1` + `HF_TOKEN`(또는 `hf auth login`), 아니면 ungated `google/gemma-4-E4B-it`을 쓰세요 |
 | Bedrock `converse` 400 | 모델 ID가 base(접두사 없음)이거나 액세스 미승인 → inference-profile ID(`us.`/`global.` 등) 사용 + 콘솔에서 액세스 활성화 |
 | endpoint invoke 응답이 반복되거나 저품질 | raw 텍스트를 보내 chat template이 빠졌습니다 → `messages` 스키마로 보내 **서버가 template을 적용**하게 하세요(`aws_utils.invoke_sagemaker_chat`) |
-| 응답이 중간에 끊김 | `max_tokens` 부족 → `finish_reason`을 확인하세요([서빙 컨테이너 선택](05_serving_containers.md)) |
-| speculative decoding이 켜지지 않음 | 이 킷 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고** 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([서빙 컨테이너 선택](05_serving_containers.md)) |
+| 응답이 중간에 끊김 | `max_tokens` 부족 → `finish_reason`을 확인하세요([max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)) |
+| speculative decoding이 켜지지 않음 | 이 킷 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고** 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([Speculative decoding (EAGLE3 / P-EAGLE)](05_serving_containers.md#speculative-decoding-eagle3--p-eagle)) |
 | `litellm` import 오류 | 코어에 미포함(sagemaker와 `importlib-metadata` 충돌) → 별도 환경에 설치 |
 | 비용이 계속 나감 | endpoint 또는 AgentCore Runtime 미삭제 → `99_cleanup` 실행 + 콘솔에서 확인 |
 

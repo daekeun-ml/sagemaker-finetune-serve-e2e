@@ -58,6 +58,8 @@ markdown_extensions:
       slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.tasklist:      # RUN_E2E.md의 `- [ ]` 체크리스트를 실제 체크박스로 렌더
+      custom_checkbox: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -70,15 +72,16 @@ markdown_extensions:
 nav:
   - 홈: index.md
   - 시작하기: getting_started.md
-  - SageMaker 기초: 01_sagemaker_basics.md
+  # 아래 가이드는 파일명 번호 = 읽는 순서입니다(00 지도 → 01 개념 → 02~06 파이프라인).
+  - 가이드:
+      - 00 전체 지도: 00_overview.md
+      - 01 SageMaker 기초: 01_sagemaker_basics.md
+      - 02 합성 데이터: 02_synthetic_data.md
+      - 03 파인튜닝: 03_finetuning.md
+      - 04 SageMaker 추론: 04_sagemaker_inference.md
+      - 05 서빙 컨테이너: 05_serving_containers.md
+      - 06 Agentic loop: 06_agentic.md
   - 실행 런북: RUN_E2E.md
-  - 전체 지도: 00_overview.md
-  - 파이프라인 순서로 읽기:
-      - 합성 데이터: 02_synthetic_data.md
-      - 파인튜닝: 03_finetuning.md
-      - SageMaker 추론: 04_sagemaker_inference.md
-      - 서빙 컨테이너: 05_serving_containers.md
-      - Agentic loop: 06_agentic.md
 
 extra_css:
   - stylesheets/extra.css

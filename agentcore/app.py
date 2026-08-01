@@ -42,7 +42,11 @@ def extract_structured_json(text: str) -> str:
     payload = {
         "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                      {"role": "user", "content": text}],
-        "max_new_tokens": 256, "temperature": 0.1,
+        # 🔴 messages 스키마의 생성 한도 키는 max_tokens (OpenAI 호환).
+        #    max_new_tokens는 {"inputs","parameters"} 스키마 쪽 이름이라 vLLM/SGLang/LMI가 무시한다
+        #    → 한도가 걸리지 않는다. common/aws_utils.invoke_sagemaker_chat()과 같은 키를 쓴다.
+        #    256은 추출·분류 트랙 값(요약·도메인 QA는 512).
+        "max_tokens": 256, "temperature": 0.1,
     }
     resp = rt.invoke_endpoint(
         EndpointName=ENDPOINT_NAME,

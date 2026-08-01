@@ -12,24 +12,20 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 
 ## 가이드
 
-**먼저 읽을 것**
+파일명 번호가 곧 읽는 순서입니다. 처음이라면 위에서부터, 특정 단계만 필요하면 해당 항목으로 가세요.
 
-| 문서 | 다루는 내용 |
-|---|---|
-| [시작하기](getting_started.md) | 설치, 스모크 테스트, 로컬 dry-run, 노트북 진입 |
-| [SageMaker 기초](01_sagemaker_basics.md) | SageMaker가 처음이라면 여기부터 — Training Job vs Endpoint, 경로 계약, 수명과 과금 |
-| [실행 런북](RUN_E2E.md) | E2E 완주 — 단계별 핸드오프, 비용, 체크리스트 |
-| [전체 지도](00_overview.md) | 킷 구조, 노트북 ↔ 문서 매핑 |
-
-**파이프라인 순서로 읽을 것** — 노트북 실행 순서와 같습니다.
-
-| 단계 | 문서 | 다루는 내용 |
+| 문서 | 단계 | 다루는 내용 |
 |---|---|---|
-| ① 데이터 | [합성 데이터](02_synthetic_data.md) | Bedrock Converse grounded 생성, critique/refine, held-out 규율 |
-| ② 학습 | [파인튜닝](03_finetuning.md) | DLC + TRL/PEFT, Gemma 관용구, LoRA vs QLoRA, `MaxRuntimeExceeded` 함정 |
-| ③ 배포 | [SageMaker 추론](04_sagemaker_inference.md) | real-time / serverless / async / batch 네 옵션과 선택 기준 |
-| ③ 배포 | [서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 |
-| ④ 활용 | [Agentic loop](06_agentic.md) | Strands Agent — reasoning은 Claude, SLM은 tool로 |
+| [시작하기](getting_started.md) | 설치 | 스모크 테스트, 로컬 dry-run, 노트북 진입 |
+| [00 전체 지도](00_overview.md) | 지도 | 킷 구조, 노트북 ↔ 문서 매핑 |
+| [01 SageMaker 기초](01_sagemaker_basics.md) | 개념 | Training Job vs Endpoint, 경로 계약, 수명과 과금 |
+| [02 합성 데이터](02_synthetic_data.md) | 데이터 | Bedrock Converse grounded 생성, critique/refine, held-out 규율 |
+| [03 파인튜닝](03_finetuning.md) | 학습 | PyTorch DLC + TRL/PEFT, LoRA vs QLoRA, `MaxRuntimeExceeded` 함정 |
+| [04 SageMaker 추론](04_sagemaker_inference.md) | 배포 | real-time / serverless / async / batch 네 옵션과 선택 기준 |
+| [05 서빙 컨테이너](05_serving_containers.md) | 배포 | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 |
+| [06 Agentic loop](06_agentic.md) | 활용 | Strands Agent — reasoning은 Claude, SLM은 tool로 |
+| [실행 런북](RUN_E2E.md) | 완주 | 단계별 핸드오프, 비용 가드, 체크리스트 |
+
 
 ## 파이프라인
 
@@ -57,10 +53,12 @@ Gemma 4를 Amazon SageMaker에서 **파인튜닝 → 서빙 → 평가 → agent
 | `04_domain_qa` | 도메인 QA / instruction | `databricks/databricks-dolly-15k` |
 | `05_multimodal_extraction` | 이미지 → 구조화 JSON (영수증) | `naver-clova-ix/cord-v2` |
 
-노트북과 학습 스크립트는 [GitHub 리포지토리](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치와 실행 방법은 리포의 `README.md`와 `GETTING_STARTED.md`를 참고하세요.
+노트북과 학습 스크립트는 [GitHub 리포지토리](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치와 실행 방법은 [시작하기](getting_started.md)와 [실행 런북](RUN_E2E.md)에 있습니다.
 
 !!! warning "비용"
     real-time endpoint는 **삭제할 때까지 시간당 과금**됩니다. 실습을 마치면 각 트랙의 `99_cleanup.ipynb`를 반드시 실행하세요.
+
+버전 정보에 대해서도 같은 규율이 필요합니다.
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK 버전·리전 가용성은 빠르게 바뀝니다. 문서의 서술은 특정 시점 기준이므로 **실행 직전에 각 소스에서 재확인**하세요. 확인처는 각 문서의 해당 절에 인라인으로 링크되어 있습니다.

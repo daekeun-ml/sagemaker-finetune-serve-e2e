@@ -9,7 +9,7 @@
 
 - `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 트랙 정의(`TRACKS`), HF 토큰 조회
 - `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)
-- `common/gemma_format.py` — 트랙별 raw row를 표준 `messages`로 변환, system fold 폴백
+- `common/gemma_format.py` — 트랙별 raw row를 표준 `messages`로 변환, 수동 호출용 `fold_system_into_user` 헬퍼
 - `common/grpo_data.py` — GRPO prompt 소스 준비(`holdout`/`synth`/`failures`)
 - `tracks/*/scripts/train.py` — SFT 학습 스크립트(LoRA/QLoRA, 머지, 텍스트 재-export)
 - `tracks/*/scripts/train_grpo.py` — GRPO 정련 스크립트(프로그램적 reward, 추출·분류 트랙)
@@ -69,7 +69,7 @@
 | 진입 난이도 | 낮음 | 중간(대신 투명·이식성) |
 | 언제 고르나 | 표준 레시피로 충분·빠른 baseline | 커스텀 로직 또는 최신 모델이 필요할 때 |
 
-SDK 버전도 함께 확인하세요. [SageMaker Python SDK 문서](https://sagemaker.readthedocs.io/en/stable/) 기준으로 **sagemaker SDK v3에서는 v2의 `HuggingFace`/`Estimator` 클래스가 제거**되어, 학습은 `ModelTrainer`(+`SourceCode`/`Compute`/`InputData`/`StoppingCondition`)로 정의합니다. 이 킷은 SDK 3.16.0에서 실측했습니다.
+SDK 버전도 함께 확인하세요. [SageMaker Python SDK V3 개요](https://sagemaker.readthedocs.io/en/stable/#migration-from-v2)는 v3가 "Estimator·Model·Predictor 같은 legacy 인터페이스를 `ModelTrainer`/`ModelBuilder`로 대체한다"고 명시합니다. `HuggingFace` estimator는 그 `Estimator` 계열의 프레임워크 서브클래스였으므로 **함께 제거**되어, 학습은 `ModelTrainer`(+`SourceCode`/`Compute`/`InputData`/`StoppingCondition`)로 정의합니다. 이 킷은 SDK 3.16.0에서 실측했습니다(`HuggingFace` import 부재는 설치본에서 직접 확인).
 
 ### 기술적 차이 3가지
 
@@ -92,7 +92,7 @@ SDK 버전도 함께 확인하세요. [SageMaker Python SDK 문서](https://sage
 ```
   데이터(JSONL)                train.py 처리                      결과
   {"messages":[...]}  ─► apply_chat_template (SFTTrainer 자동)  ─► 올바른 -it 포맷
-       (system?)      ─► 템플릿이 거부하면 첫 user턴에 fold      ─► 템플릿 에러 없음
+       (system?)      ─► 데이터 준비 때 첫 user턴에 fold(수동)  ─► 템플릿 에러 없음
                       ─► LoRA: language_model 한정(멀티모달)     ─► vision proj 미터치
                       ─► bf16 + eager + packing(조건부 off)      ─► NaN·오염 없음
                       ─► 머지 → 텍스트 arch로 재-export          ─► vLLM이 그대로 로드
@@ -100,26 +100,38 @@ SDK 버전도 함께 확인하세요. [SageMaker Python SDK 문서](https://sage
 
 ### chat template과 system fold
 
-- [Gemma 공식 문서](https://ai.google.dev/gemma/docs)가 설명하듯 Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 [TRL `SFTTrainer`](https://huggingface.co/docs/trl)가 **자동으로 `apply_chat_template`을 적용**합니다. `<start_of_turn>` 같은 마커를 **손으로 조립하지 마세요**. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
-- Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 날 수 있습니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있으므로 이 킷은 판단을 `apply_chat_template`에 맡기고, 실패 시 **첫 `user` 턴 맨 앞에 접어 넣는 폴백**(`common/gemma_format.py`의 `fold_system_into_user`)을 둡니다. 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 이 형태로 만들어 두는 것이 가장 안전합니다.
+- Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 템플릿이 실제로 뱉는 `<start_of_turn>`/`<end_of_turn>` 마커 구조는 [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/core/prompt-structure)가 원본입니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 [TRL의 dataset formats 문서](https://huggingface.co/docs/trl/en/dataset_formats)대로 `SFTTrainer`가 **자동으로 `apply_chat_template`을 적용**합니다. 그러니 마커를 **손으로 조립하지 마세요**. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
+- **system role은 실행 전 재확인 대상입니다.** Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 납니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있지만, **자동 복구는 없습니다** — `common/gemma_format.py`의 `render_prompt`는 `apply_chat_template`을 그대로 호출할 뿐 try/except 재시도를 하지 않습니다. 폴백 함수(`fold_system_into_user`)는 제공되지만 **호출은 사용자 몫**입니다.
+- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker 학습 잡 안에서** 터집니다 — 용량 대기 + DLC pull + GPU 과금을 다 치른 뒤입니다.
 
 ??? question "오개념 — “system 프롬프트를 messages에 그냥 넣으면 되지 않나요?”"
-    될 때도 있고 안 될 때도 있습니다. 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 에러가 납니다.
-    `common/gemma_format.py`의 `build_messages`는 system을 받아 두고, `render_prompt`가 실패하면 `fold_system_into_user`로 첫 user 턴에 병합해 재시도합니다. 학습 데이터는 처음부터 fold된 형태로 만들어 두세요.
+    될 때도 있고 안 될 때도 있고, **실패하면 킷이 대신 고쳐 주지 않습니다.** 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 에러가 납니다.
+    `common/gemma_format.py`의 `build_messages`는 system을 그대로 담아 주고, `render_prompt`는 `apply_chat_template`을 바로 호출합니다(자동 재시도 없음). `fold_system_into_user`는 **직접 불러야 하는** 폴백 함수입니다.
+    학습 데이터는 처음부터 fold된 형태로 만들어 두세요.
 
 ### LoRA target — 멀티모달은 language_model만
 
 ```python
 # 텍스트 전용 base
-lora_targets = "all-linear"
-modules_to_save = ["lm_head", "embed_tokens"]        # 특수토큰 학습
+LoraConfig(
+    r=16, lora_alpha=16, lora_dropout=0.05, bias="none",   # train.py 기본값(--lora_r/--lora_alpha/--lora_dropout)
+    task_type="CAUSAL_LM",
+    target_modules="all-linear",
+    modules_to_save=["lm_head", "embed_tokens"],           # 특수토큰 학습
+)
 
-# 멀티모달 base (gemma-4 전 사이즈 · gemma-3 4b+)
-lora_targets = r".*language_model\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
-modules_to_save = None
+# 멀티모달 base (gemma-4 전 사이즈 · gemma-3 4b+) — 위에서 두 인자만 교체
+LoraConfig(
+    r=16, lora_alpha=16, lora_dropout=0.05, bias="none",
+    task_type="CAUSAL_LM",
+    target_modules=r".*language_model\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$",
+    modules_to_save=None,
+)
 ```
 
-- 텍스트 전용 base라면 [PEFT `LoraConfig`](https://huggingface.co/docs/peft)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
+`r`/`lora_alpha`/`lora_dropout`은 `train.py`의 CLI 인자 기본값이고 노트북도 같은 값(`'lora_r': 16, 'lora_alpha': 16, 'lora_dropout': 0.05`)을 제출합니다. **`r=16`·`alpha=16`(스케일 `alpha/r = 1.0`)이 출발점**이며, 어댑터 용량을 늘리려면 `r`을 32/64로 올리고 보통 `alpha`도 같은 비율로 함께 올립니다. `bias="none"`과 `task_type="CAUSAL_LM"`은 고정입니다.
+
+- 텍스트 전용 base라면 [PEFT `LoraConfig` API 문서](https://huggingface.co/docs/peft/en/package_reference/lora)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다. language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다 — `ValueError: Target module ... is not supported`(실측 2026-07). 이름 리스트나 `all-linear`를 주면 vision/audio까지 매칭돼 크래시합니다.
 - 그래서 멀티모달에서는 **정규식으로 `language_model` 경로만 한정**합니다. 실측: language의 `nn.Linear` 258개만 매칭(ClippableLinear 0개), `get_peft_model` 성공, `lora_A` 516개 부착. 멀티모달에서는 embed/lm_head를 `modules_to_save`로 두면 vision 임베딩까지 얽힐 수 있어 생략합니다(순수 텍스트 LoRA).
 
@@ -141,7 +153,7 @@ packing은 여러 짧은 샘플을 한 시퀀스로 이어 붙여 throughput을 
 
 ### boolean 하이퍼파라미터 — str2bool
 
-- SageMaker는 **모든 하이퍼파라미터를 `--key value`로 직렬화**해 entry script에 넘깁니다(SDK v3의 `hyperparameters_to_cli_args`). 즉 `use_qlora=True`가 `--use_qlora True`로 전달됩니다. 흔히 쓰는 `action="store_true"`는 값을 받지 않으므로 이때 **크래시**합니다.
+- SageMaker는 **모든 하이퍼파라미터를 `--key value`로 직렬화**해 entry script에 넘깁니다 — SDK v3의 [`hyperparameters_to_cli_args`](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-train/src/sagemaker/train/container_drivers/common/utils.py) 소스가 그 변환을 하는 자리입니다. 즉 `use_qlora=True`가 `--use_qlora True`로 전달됩니다. 흔히 쓰는 `action="store_true"`는 값을 받지 않으므로 이때 **크래시**합니다.
 - 해결책은 `type=_str2bool, nargs="?", const=True`입니다. 이렇게 하면 로컬의 bare-flag(`--dry_run`)와 SageMaker의 `--use_qlora True`를 **양쪽 모두** 받을 수 있습니다.
 
 ```python
@@ -218,7 +230,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 - 이 킷의 `.env`는 `TRAIN_INSTANCE_TYPE=ml.g6.2xlarge`로 프리셋을 덮어씁니다 — `ml.g5.2xlarge`의 용량 대기가 길어서입니다. `InsufficientInstanceCapacity`로 막히면 `AWS_REGION`이나 인스턴스 타입만 바꿔 재시도하세요.
 - **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지·재-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다). `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다 — E4B 실측 peak RAM 약 **17.5GB**. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
 - 정확한 GPU 메모리·인스턴스 스펙·리전 가용성은 **실행 전 SageMaker 인스턴스 문서에서 재확인**하세요.
-- 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`와 체크포인트 설정을 함께 씁니다. 절감 폭은 리전·수급에 따라 달라지므로 절대값으로 약속하지 마세요.
+- 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`를 쓰되, **`StoppingCondition(max_wait_time_in_seconds=...)`와 체크포인트 설정을 반드시 함께** 넘기세요. `max_wait_time_in_seconds`는 "Spot 용량 대기 시간 + 실행 시간"의 상한이고 **`max_runtime_in_seconds`보다 크거나 같아야** 합니다(SDK 3.16.0 `MaxWaitTimeInSeconds` 계약). 빠뜨리면 `CreateTrainingJob`이 `ValidationException`으로 거부합니다 — 이 킷 코드에는 이 값이 설정돼 있지 않으므로(SDK 기본 `None`) spot을 켤 때 직접 추가해야 합니다. 절감 폭은 리전·수급에 따라 달라지므로 절대값으로 약속하지 마세요.
 
 ### merge_adapter — 서빙 단순화
 
@@ -296,7 +308,7 @@ trainer = ModelTrainer(
 
 - 토큰 조회 순서는 (1) env `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` → (2) `hf auth login`이 저장한 파일 토큰(`$HF_HOME/token`)입니다(`common/config.py`의 `get_hf_token()`). `hf auth login`만 해도 킷이 토큰을 인식하므로 **env에 시크릿을 넣지 않는 쪽을 권장**합니다. ungated 모델에는 토큰을 넣지 않아도 되고, 넣어도 무해합니다.
 - 서빙 쪽은 다릅니다. 이 킷의 endpoint는 학습 산출 모델(S3 `model_data`)을 서빙하므로 HF에서 가중치를 당기지 않습니다. 토큰을 서빙 env에 실으면 `describe_endpoint` 같은 리소스 메타데이터에 평문으로 남으므로, `get_serving_hf_token()`은 **`MODEL_IS_GATED=1`일 때만** 토큰을 반환합니다.
-- **라이선스 전파** — Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다. gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 [모델 카드](https://huggingface.co/google)의 라이선스 배너를 다시 확인하세요.
+- **라이선스 전파** — Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다. gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 쓰려는 모델의 카드에서 라이선스 배너를 다시 확인하세요 — 옵션 경로라면 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it), 기본 경로라면 [`gemma-4-E4B-it` 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)입니다.
 - 시드 데이터셋은 전부 permissive한 것으로 골랐습니다: glaive-function-calling-v2(apache-2.0), `mteb/banking77`(mit, parquet 미러), billsum(cc0-1.0), databricks-dolly-15k(cc-by-sa-3.0), cord-v2(cc-by-4.0). 세부는 `common/config.py`의 `TRACKS`를 참조하세요. `PolyAI/banking77` 원본은 스크립트 기반이라 `datasets>=5.0.0`에서 로드되지 않아 parquet 미러로 바꿨습니다(실측 2026-07-30).
 
 ??? question "오개념 — “gemma-4가 ungated니까 큰 걸 쓰면 되지 않나요?”"
@@ -309,7 +321,7 @@ trainer = ModelTrainer(
 
 !!! abstract "쉽게 말하면"
     SFT는 (입력, 정답) 쌍으로 정답을 모방하고, GRPO는 **prompt만** 받아 스스로 생성한 뒤 reward로 채점합니다.
-    같은 데이터를 쓰면 누출이고, 더 나쁘게는 **학습이 아예 안 됩니다.** `02a_train_grpo_sagemaker`를 실행하기 전에 이 절을 읽으세요.
+    같은 데이터를 쓰면 누출이고, 더 나쁘게는 **학습이 아예 안 됩니다.** `02a_train_grpo_sagemaker`를 실행하기 전에 [advantage ≈ 0 문제](#왜-학습이-안-되는가--advantage--0)와 [RL prompt 소스 3가지](#rl-prompt-소스-3가지)를 읽으세요.
 
 ### 왜 학습이 안 되는가 — advantage ≈ 0
 
@@ -352,7 +364,7 @@ def _to_grpo(example):
 - **`synth`가 기본인 이유** — `holdout`은 무료지만 같은 분포라 advantage가 잘 생기지 않습니다. `synth`는 생성 프롬프트에 **난이도 제약**을 걸어 어려운 예시를 만듭니다. 추출 트랙 실측: 제약 없이 합성하면 8건 전부 인자 0개였는데(시드 분포가 인자 없는 함수 94%), 제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다. 제약은 **생성 프롬프트에만** 넣습니다 — critique에도 넣으면 시드와 다르다며 전부 기각합니다(실측 8/8 기각).
 - **`synth`의 함정** — SFT 합성과 **같은 시드**를 주면 분포가 또 겹칩니다. 노트북은 `NUM_SEED_SAMPLES` 이후 구간의 시드만 넘겨 이를 피합니다. RL은 정답이 학습 입력이 아니므로 prompt 생성이 SFT 합성보다 쉽고 싸지만, 이 킷의 reward는 프로그램적 채점이라 reference가 필요해 (input, output) 형태로 만듭니다.
 - **`failures`** — 실무에서 가장 효율적인 경로입니다. reward 신호가 강한 구간에만 집중합니다. 실패가 0건이면 GRPO로 얻을 것이 적다는 뜻이므로(좋은 신호) `N_EVAL`을 키워 더 어려운 케이스를 찾으세요.
-- **`holdout`** — 추가 비용 없이 파이프라인을 끝까지 볼 수 있게 하는 값입니다. 누출은 막지만, 학습 후 reward가 거의 변하지 않으면 위 advantage 문제로 보고 다른 소스로 옮기세요.
+- **`holdout`** — 추가 비용 없이 파이프라인을 끝까지 볼 수 있게 하는 값입니다. 누출은 막지만, 학습 후 reward가 거의 변하지 않으면 [advantage ≈ 0 문제](#왜-학습이-안-되는가--advantage--0)로 보고 다른 소스로 옮기세요.
 
 프로덕션에서는 하나가 더 있습니다 — **실제 트래픽 로그**. 분포가 진짜라서 가장 가치 있지만 공개 데이터로 재현할 수 없어 이 킷에는 넣지 않았습니다. held-out 분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)을 참고하세요.
 
@@ -424,4 +436,4 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 | CloudWatch 학습 로그 | 저장 용량당 누적 과금 | 로그 그룹 보존 기간 설정 |
 | Bedrock (GRPO `synth` prompt 생성) | 입력·출력 토큰당 과금 | 상시 리소스 없음. `N_GRPO`로 총량 제어 |
 
-managed spot(`Compute(enable_managed_spot_training=True)`)을 쓰면 학습 비용을 줄일 수 있습니다(체크포인트 설정 필요). 다만 절감 수치는 리전·수급에 따라 다르므로 절대값으로 약속하지 마세요.
+managed spot(`Compute(enable_managed_spot_training=True)`)을 쓰면 학습 비용을 줄일 수 있습니다. 단 **`StoppingCondition(max_wait_time_in_seconds=...)`(>= `max_runtime_in_seconds`)와 체크포인트 설정이 필수**입니다 — 빠뜨리면 잡 생성이 `ValidationException`으로 거부됩니다([인스턴스 사이징](#인스턴스-사이징--gpu와-호스트-ram) 참고). 절감 수치는 리전·수급에 따라 다르므로 절대값으로 약속하지 마세요.

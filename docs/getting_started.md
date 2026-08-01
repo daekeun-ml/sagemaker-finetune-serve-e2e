@@ -14,8 +14,8 @@
 | 방식 | 무엇 | GPU/AWS 필요? | 언제 |
 |---|---|---|---|
 | **A. 스모크 테스트** | 순수 로직 검증(데이터 어댑터·포맷터·메트릭) | ❌ 아무것도 불필요 | 코드가 멀쩡한지 5초 확인 |
-| **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량·짧게 실제 학습 | ✅ GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
-| **C. SageMaker E2E** | 노트북으로 클라우드 학습→배포→agentic | ✅ AWS 계정 + 과금 | 진짜 파인튜닝·서빙 |
+| **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량·짧게 실제 학습 | ✅ 필요 — GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
+| **C. SageMaker E2E** | 노트북으로 클라우드 학습→배포→agentic | ✅ 필요 — AWS 계정 + 과금 | 진짜 파인튜닝·서빙 |
 
 **초심자 추천 순서: A → B → C** (아래에서 그대로 따라 하면 됩니다.)
 
@@ -178,17 +178,16 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 
 ## 더 알아보기
 
-문서는 파이프라인 순서로 정리돼 있습니다. 개념부터 보려면 위에서, 특정 단계만 필요하면 해당 항목으로 가세요.
+문서는 파일명 번호가 곧 읽는 순서입니다. 처음이라면 00부터 차례로, 특정 단계만 필요하면 해당 항목으로 가세요.
 
-- [`01_sagemaker_basics.md`](01_sagemaker_basics.md) — SageMaker가 처음이라면 방식 C 전에 읽기 권장. Training Job vs Endpoint, 경로 계약, 수명과 과금
-- [`02_synthetic_data.md`](02_synthetic_data.md) — 데이터 준비. grounded 합성과 critique/refine
-- [`03_finetuning.md`](03_finetuning.md) — 학습. PyTorch DLC + TRL LoRA/QLoRA
-- [`04_sagemaker_inference.md`](04_sagemaker_inference.md) — 배포. 추론 4옵션과 endpoint 선택 기준
-- [`05_serving_containers.md`](05_serving_containers.md) — 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
-- [`06_agentic.md`](06_agentic.md) — 활용. Strands + Bedrock Claude, AgentCore 배포
-
-- [`00_overview.md`](00_overview.md) — 전체 지도. 노트북과 문서 매핑
-- [`RUN_E2E.md`](RUN_E2E.md) — E2E 완주 런북. 단계별 핸드오프와 비용
+- [전체 지도](00_overview.md) — 전체 지도. 노트북과 문서 매핑
+- [SageMaker 기초](01_sagemaker_basics.md) — 개념. Training Job vs Endpoint, 경로 계약, 수명과 과금 (방식 C 전에 읽기 권장)
+- [합성 데이터](02_synthetic_data.md) — 데이터 준비. grounded 합성과 critique/refine
+- [파인튜닝](03_finetuning.md) — 학습. PyTorch DLC + TRL LoRA/QLoRA
+- [SageMaker 추론](04_sagemaker_inference.md) — 배포. 추론 4옵션과 endpoint 선택 기준
+- [서빙 컨테이너](05_serving_containers.md) — 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
+- [Agentic loop](06_agentic.md) — 활용. Strands + Bedrock Claude, AgentCore 배포
+- [실행 런북](RUN_E2E.md) — E2E 완주 런북. 단계별 핸드오프와 비용 가드
 
 ---
 

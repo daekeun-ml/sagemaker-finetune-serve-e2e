@@ -68,7 +68,7 @@
 
 ### 기술적 차이 3가지
 
-1. **서비스 경계를 코드로 분리했습니다.** SageMaker endpoint 호출은 `boto3 sagemaker-runtime.`[`invoke_endpoint()`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html)(스트리밍은 [`invoke_endpoint_with_response_stream`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpointWithResponseStream.html)), Bedrock 호출은 `boto3 bedrock-runtime.converse()`를 씁니다. 이 둘은 **별개 서비스·별개 클라이언트**입니다(`common/aws_utils.py`, [서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
+1. **서비스 경계를 코드로 분리했습니다.** SageMaker endpoint 호출은 `boto3 sagemaker-runtime.invoke_endpoint()`(스트리밍은 `invoke_endpoint_with_response_stream`), Bedrock 호출은 `boto3 bedrock-runtime.converse()`를 씁니다. 이 둘은 **별개 서비스·별개 클라이언트**입니다(`common/aws_utils.py`, 호출 스키마와 API 문서 링크는 [서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
 2. **DLC 이미지 URI를 env로 분리했습니다.** 태그는 자주 바뀌므로 코드에 박지 않고 완전 URI env(`DLC_IMAGE_URI` / `VLLM_IMAGE_URI` / `SGLANG_IMAGE_URI` / `LMI_IMAGE_URI`)를 최우선으로 읽고, 없으면 `DLC_REPOSITORY`+`DLC_TAG`나 SDK `image_uris.retrieve`로 폴백합니다(`common/dlc.py`). 현행 계정·리포지토리·태그 조합은 [deep-learning-containers의 available_images.md](https://github.com/aws/deep-learning-containers/blob/master/available_images.md)가 원본입니다. 로컬 `transformers`와 컨테이너 `transformers`도 서로 다르므로 구분합니다.
 3. **Gemma 함정 방어를 기본값으로 넣었습니다.** `attn=eager`를 안전 기본값으로 두고, `bf16`을 강제하며(**fp16 금지** — Gemma에서 NaN을 유발합니다), packing은 flash-attn이 아니면 자동으로 끕니다. 여기에 E2B/E4B는 저장 직전 KV-shared dead weight를 base에서 복원하고(`_revive_kv_shared_from_base`), 텍스트 트랙은 머지 후 language 서브모듈만 `*ForCausalLM`으로 재-export합니다 — 이 모두가 `tracks/*/scripts/train.py`에 내장되어 있습니다.
 
@@ -193,7 +193,7 @@
 ??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
     **gemma-4는 아닙니다.** 라이선스는 **모델 계열**을 따릅니다. Gemma 3/2/3n은 gated + Gemma Terms(서빙 시 use-restriction 전파 의무)이지만,
     **Gemma 4는 apache-2.0 + ungated**여서 토큰·약관 수락이 없습니다. `MODEL_IS_GATED` 기본값이 `0`인 것도 이 때문입니다.
-    gated 모델(`gemma-3-4b-it` 등)을 `MODEL_ID`로 지정할 때만 `MODEL_IS_GATED=1` + 토큰이 필요합니다. **재배포/서빙 전 live 모델 페이지의 라이선스 배너를 재확인**하세요.
+    gated 모델을 `MODEL_ID`로 지정할 때만 `MODEL_IS_GATED=1` + 토큰이 필요합니다 — gated + Gemma Terms의 대표 예는 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it)입니다. **재배포/서빙 전 그 페이지의 라이선스 배너를 재확인**하세요.
 
 ### Gemma 학습 관용구
 
@@ -289,26 +289,35 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 앞에서 다루지 않은, 킷 전체를 볼 때 자주 나오는 착각들입니다.
 
 ??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 킷은 왜 vLLM이 기본인가요?”"
-    **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다(구 LMI 0.36.0의 내부 vLLM으로는 불가).
+    **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
+    LMI도 됩니다 — 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 킷이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족하고, 그보다 **오래된 LMI 버전(lmi26 이하)** 태그는 gemma-4를 로드하지 못합니다. 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아닙니다.
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
     세 엔진 모두 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드는 바뀌지 않습니다**. 선택 기준은 [서빙 컨테이너](05_serving_containers.md)에 있습니다.
+
+컨테이너 이야기는 학습 쪽에서도 같은 형태로 반복됩니다.
 
 ??? question "오개념 — “학습은 HF DLC를 써야 하는 거 아닌가요?”"
     **꼭 그렇지 않습니다.** 이 킷은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
     [HF DLC](https://huggingface.co/docs/sagemaker/index)의 baked-in `transformers`는 gemma-4에 필요한 버전보다 낮을 수 있는데, 베이스를 PyTorch DLC로 두면 컨테이너 안에서 최신으로 맞출 수 있습니다.
     학습 이미지는 **리전별 private ECR**(`763104351884.dkr.ecr.<region>...`)만 허용됩니다 — `public.ecr.aws` URI를 주면 `CreateTrainingJob`이 거부합니다.
 
+학습·서빙을 지나면 평가 단계에서 tier를 헷갈리게 됩니다.
+
 ??? question "오개념 — “SageMaker 관리형 evaluator로 채점하면 되지 않나요?”"
     **이 킷의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
     gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 실측에서 `DescribeHubContent ... does not exist`로 실패했습니다.
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다 — 빠르고 저렴하다는 부수 효과도 있습니다.
 
+마지막은 이 킷에서 가장 비싼 착각인 과금에 관한 것입니다.
+
 ??? question "오개념 — “endpoint를 안 부르면 공짜겠지?”"
     **그렇지 않습니다.** real-time endpoint는 **호출 여부와 무관하게 provisioned 인스턴스가 시간당 과금**됩니다.
     쓰지 않는다면 삭제하는 것이 정답입니다 — [비용과 cleanup](#비용과-cleanup).
 
+위 항목들의 근거를 원본에서 직접 확인하고 싶다면 다음이 출발점입니다.
+
 ??? info "더 읽을 거리"
-    LMI 컨테이너가 실제로 어떻게 빌드되는지는 [deep-learning-containers 레포의 `large_model_inference`](https://github.com/aws/deep-learning-containers/tree/master/large_model_inference)에서 Dockerfile 수준으로 확인할 수 있습니다.
+    LMI 컨테이너가 실제로 어떻게 빌드되는지는 [djl-serving의 `lmi.Dockerfile`](https://github.com/deepjavalibrary/djl-serving/blob/master/serving/docker/lmi.Dockerfile)에서 Dockerfile 수준으로 확인할 수 있습니다(vLLM·SGLang DLC는 [deep-learning-containers의 `vllm`](https://github.com/aws/deep-learning-containers/tree/master/vllm)·[`sglang`](https://github.com/aws/deep-learning-containers/tree/master/sglang) 디렉터리).
     엔진 자체의 버전·기능 지원 여부는 문서보다 저장소(위 [설계 축 대조표](#설계-축-대조표)의 vLLM·SGLang 링크)가 빠릅니다.
 
 ---
@@ -333,6 +342,6 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 ### 라이선스 요약
 
 - **Gemma 4는 apache-2.0 + ungated**로 마찰이 가장 적습니다 — 이 킷의 기본 경로입니다.
-- Gemma 3/2/3n은 **Gemma Terms + gated**입니다(HF 토큰·약관 수락 필요, 서빙 시 use-restriction 전파 의무).
+- Gemma 3/2/3n은 **Gemma Terms + gated**입니다(HF 토큰·약관 수락 필요, 서빙 시 use-restriction 전파 의무) — 예: [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it).
 - 시드 데이터셋은 전부 permissive한 것만 선별했으나, share-alike(dolly의 cc-by-sa-3.0 등) 파생물은 주의하시기 바랍니다.
 - 재배포/서빙 전에 각 모델·데이터셋의 **live 라이선스 배너를 재확인**하세요.

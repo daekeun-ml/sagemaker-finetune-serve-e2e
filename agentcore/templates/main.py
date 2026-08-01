@@ -49,9 +49,12 @@ def extract_structured_json(text: str) -> str:
     if not SLM_ENDPOINT_NAME:
         return '{"error": "SLM_ENDPOINT_NAME env not set"}'
     rt = boto3.client("sagemaker-runtime", region_name=AWS_REGION)
+    # 🔴 messages 스키마의 생성 한도 키는 max_tokens (OpenAI 호환). max_new_tokens는
+    #    {"inputs","parameters"} 스키마 쪽 이름이라 vLLM/SGLang/LMI가 무시한다 → 한도가 안 걸린다.
+    #    256은 추출·분류 트랙 값(요약·도메인 QA는 512).
     payload = {"messages": [{"role": "system", "content": SLM_SYSTEM_PROMPT},
                             {"role": "user", "content": text}],
-               "max_new_tokens": 256, "temperature": 0.1}
+               "max_tokens": 256, "temperature": 0.1}
     resp = rt.invoke_endpoint(EndpointName=SLM_ENDPOINT_NAME,
                               ContentType="application/json", Body=json.dumps(payload))
     body = json.loads(resp["Body"].read().decode("utf-8"))

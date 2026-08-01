@@ -198,7 +198,7 @@ seed 전체
 | **`bedrock_synth.py` (이 킷)** | boto3 native | 킷 코드 | 킷 코드 | 기본값. 의존성 0, AWS 거버넌스 |
 | **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원 — native (`ModelProviderName.amazon_bedrock`) | 가장 활발 (v1.0.4 @ 2026-07-16) | 확인 필요 — core lib MIT / repo 루트 커스텀 | GUI+오케스트레이션 원할 때 |
 | **[Bespoke Curator](https://github.com/bespokelabsai/curator)** | LiteLLM 경유 (`bedrock/...`) | 활발 (0.1.29 @ 2026-07-13) | Apache-2.0 | 코드-우선, 대량·구조화·캐싱 |
-| ~~[distilabel](https://github.com/argilla-io/distilabel)~~ | 해당 없음 | ❌ 정체 (마지막 v1.5.3 @ 2025-01-28, 2026 릴리스 0건) | 해당 없음 | 배제 — 사용 금지 |
+| [distilabel](https://github.com/argilla-io/distilabel) | 해당 없음 | ❌ 정체 (마지막 v1.5.3 @ 2025-01-28, 2026 릴리스 0건) | 해당 없음 | ❌ 배제 — 사용 금지 |
 
 - **Kiln** — native Bedrock 연동을 코드 수준에서 확인한 유일한 도구입니다. repo는 `github.com/Kiln-AI/Kiln`이며 `pip install kiln-ai`로 설치합니다. **리포 루트 라이선스와 core lib 라이선스가 다르므로** 재배포 전에 반드시 확인하세요.
 - **Bespoke Curator** — native 커넥터는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repo는 `github.com/bespokelabsai/curator`입니다. 이 킷의 `common/llm_gateway.py`(LiteLLM)와 [Bedrock 라우팅 규약](https://docs.litellm.ai/docs/providers/bedrock)이 일치하므로 연결이 자연스럽습니다.
@@ -217,13 +217,19 @@ seed 전체
     아닙니다. 합성 생성은 **Bedrock**(`bedrock-runtime`의 `converse`)으로 teacher LLM(Claude)을 부르는 것이고, 학습된 SLM 서빙은 **SageMaker**([`sagemaker-runtime`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime.html)의 `invoke_endpoint`, 스트리밍은 `invoke_endpoint_with_response_stream`)로 처리합니다.
     둘은 서로 다른 서비스이고, IAM 권한도 요금 체계도 따로입니다.
 
+같은 서비스 혼동이 "대량 생성" 쪽에서 한 번 더 나타납니다.
+
 ??? question "오개념 — “Bedrock Converse가 곧 SageMaker Batch Transform인가요?”"
     아닙니다. 합성 대량 생성은 Bedrock API를 반복 호출하는 작업입니다.
-    [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다) — 다만 Serverless의 GPU 지원 여부는 바뀔 수 있는 값이므로 링크에서 현행 스펙을 다시 확인하세요. 자세한 비교는 [SageMaker 추론](04_sagemaker_inference.md)을 참고하세요.
+    [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다) — GPU가 기능 제외 목록에 있다는 근거와 재확인은 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)이며, 정책성 항목이라 바뀔 수 있으니 설계 확정 전에 그 페이지에서 현행 스펙을 다시 보세요. 자세한 비교는 [SageMaker 추론](04_sagemaker_inference.md)을 참고하세요.
+
+서비스 경계를 정리했다면, 다음은 grounded라는 말 자체에 대한 오해입니다.
 
 ??? question "오개념 — “grounded면 seed를 그대로 복사하는 것 아닌가요?”"
     아닙니다. 생성 프롬프트가 "verbatim 복사 금지, 같은 도메인/스타일/라벨공간의 **새** 예시"를 명시적으로 요구하고, 중복 필터(sha256, 공백 정규화 + 소문자화)가 동일하거나 사실상 같은 복제를 걸러냅니다.
     seed는 어디까지나 근거일 뿐, 정답을 복사할 대상이 아닙니다.
+
+필터 쪽에서도 기본값을 상수로 오해하는 일이 있습니다.
 
 ??? question "오개념 — “critique 임계값 0.6은 고정값인가요?”"
     아닙니다. `min_groundedness`/`min_relevance` 인자로 트랙별 조정이 가능합니다.

@@ -55,6 +55,31 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 그 안에서 vLLM 엔진이 돕니다. AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-container-docs.html)로 문서화합니다.
 즉 "LMI를 쓴다는 것이 곧 vLLM을 쓰지 않는다는 뜻"이 **아니라는** 것입니다.
 
+![DJL LMI 컨테이너의 내부 레이어 구조 다이어그램. 맨 위가 모델 서버 DJLServing이고 그 아래에 HuggingFace Accelerate·TensorRT-LLM·LMI-Dist(DeepSpeed)·Transformers-NeuronX·vLLM 다섯 개의 추론 백엔드가 한 줄로 나란히 놓이며, 다시 그 아래로 PyTorch, 그리고 GPU(cuDNN·cuBLAS·NCCL·CUDA toolkit)·AWS Inferentia(Neuron)·CPU(mkl) 가속기 계층과 Base Image가 차례로 쌓인다. 오른쪽에는 low-code/no-code 설정 예시로 Engine=Python, option.model_id(hf 모델 id 또는 로컬 경로 또는 s3 url), option.tensor_parallel_degree=max, option.rolling_batch=vllm 네 줄의 serving.properties 스니펫이 있다](images/sm_lmi.png)
+
+*LMI에서 갈아 끼우는 것은 위에서 두 번째 줄(백엔드)뿐입니다 — 맨 위의 DJLServing과 아래의 PyTorch·가속기 스택은 그대로 남습니다.*
+
+그림이 보여 주는 요점은 **LMI가 엔진이 아니라 스택**이라는 것입니다. 모델 서버는 [DJLServing](https://github.com/deepjavalibrary/djl-serving)이고, vLLM은 그 아래 백엔드 칸에 꽂히는 부품 하나입니다(LMI 문서는 `backend` = Python Engine + 추론 라이브러리로 정의합니다). 그래서 `/ping`·`/invocations`·요청 큐·연속 배칭은 백엔드를 바꿔도 DJLServing이 계속 담당하고, 우리가 손대는 것은 오른쪽 스니펫 네 줄 수준입니다. `serving.properties`의 `option.<키>`는 `OPTION_<키>` env와 1:1이고(`option.rolling_batch` ↔ `OPTION_ROLLING_BATCH`), `option.`으로 시작하지 않는 서버 설정은 `SERVING_` 접두사를 씁니다(`job_queue_size` → `SERVING_JOB_QUEUE_SIZE`). 이 킷의 `dlc.serving_env('lmi', ...)`가 내보내는 env가 정확히 이 규칙을 따릅니다.
+
+그림 스니펫에 나오는 세 키의 **기본값**은 실습에서 특히 자주 물립니다([LMI 구성 문서](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/deployment_guide/configurations.html)).
+
+| 키(env) | 기본값 | 이 킷의 값과 이유 |
+|---|---|---|
+| `option.max_rolling_batch_size`(`OPTION_MAX_ROLLING_BATCH_SIZE`) | **256** | **32** — vLLM 단독의 `max_num_seqs` 기본값과 같은 숫자라 24GB GPU에서 같은 OOM을 만납니다([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)) |
+| `option.tensor_parallel_degree`(`OPTION_TENSOR_PARALLEL_DEGREE`) | **1** (TensorRT-LLM 컨테이너는 `max`) | `max` — 그림의 권장값. 단일 GPU에서도 안전하며 다중 GPU 인스턴스로 옮길 때 그대로 동작 |
+| `option.model_loading_timeout`(`OPTION_MODEL_LOADING_TIMEOUT`) | **1800초(30분)** | 기본값 유지. 올릴 때는 SageMaker 쪽 `container_startup_health_check_timeout`도 같이 올려야 합니다 |
+
+또 하나, 그림 오른쪽의 "s5cmd 빠른 모델 다운로드"는 자동으로 켜지는 기능이 아니라 `option.model_id`에 **비압축 S3 prefix**(`s3://...`)를 직접 줄 때 타는 경로입니다 — DJL이 [s5cmd](https://github.com/peak/s5cmd)로 병렬 다운로드합니다([djl-serving 모델 구성 문서](https://docs.djl.ai/master/docs/serving/serving/docs/configurations_model.html)). 이 킷은 학습 산출물을 `model_data`로 넘겨 **SageMaker가** `/opt/ml/model`에 풀게 하고 `HF_MODEL_ID=/opt/ml/model`을 주므로 s5cmd 경로를 쓰지 않습니다. 수십 GB 모델을 S3에서 직접 당길 때 검토할 값입니다.
+
+!!! warning "그림은 스냅샷입니다"
+    백엔드 다섯 칸(HuggingFace Accelerate · TensorRT-LLM · LMI-Dist/DeepSpeed · Transformers-NeuronX · vLLM)과
+    그림에 적힌 버전은 촬영 시점 기준입니다. 현행 LMI user guide가 유지하는 백엔드는 **vLLM과 TensorRT-LLM 둘**이고,
+    HuggingFace Accelerate는 *maintenance* 상태로 표시됩니다. 이 킷이 쓰는 이미지는 `.env`의 `LMI_IMAGE_URI`가
+    결정하므로, 버전은 그림이 아니라 [현행 태그](#이-킷-env의-이미지-고정값)를 보세요.
+    LMI 버전이 번들 vLLM 버전을 결정하고, 거기서 gemma-4 지원 여부가 갈립니다.
+
+컨테이너 안이 정리되면, 컨테이너 **바깥**의 그림은 다음과 같습니다. 위 스택 전체가 아래 그림의 `DJL LMI` 상자 하나에 들어갑니다.
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ SageMaker real-time endpoint (오토스케일·IAM·CloudWatch)        │  ← 인프라 레이어
@@ -80,8 +105,9 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 | 정체 | AWS 관리형 서빙 컨테이너(엔진 wrap) | 엔진 직접 배포(OpenAI 서버/BYOC) | HF 서빙 컨테이너(SageMaker HF DLC) |
 | 누가 관리 | AWS | 사용자(BYOC) 또는 vLLM 커뮤니티 | HuggingFace + AWS(DLC) |
 | vLLM과의 관계 | 감싼다 | 그 자체 | 별개 백엔드 |
+| 모델 서버 | DJLServing(Netty 프런트엔드 + Python Engine 워커) | vLLM 자체 OpenAI 서버 | TGI 자체 router |
 | 엔진 선택 | vLLM / TensorRT-LLM 선택 가능 | vLLM 고정(그 자체) | TGI 자체 백엔드 |
-| 설정 방법 | `OPTION_*` env + `serving.properties` | vLLM native flag / args 직접 | `{"inputs","parameters"}` + HF env |
+| 설정 방법 | `OPTION_*`(=`option.*`)·`SERVING_*` env 또는 `serving.properties` | vLLM native flag / args 직접 | `{"inputs","parameters"}` + HF env |
 | 백엔드 전환 | `OPTION_ROLLING_BATCH`로 스위칭 | 없음(단일 엔진) | 없음 |
 | 버전 최신성 | AWS 검증 후 반영(한 박자 늦음) | upstream 최신 즉시 | HF 검증 후 반영 |
 | 유지보수 부담 | 낮음(AWS가 이미지·규약 관리) | 높음(이미지·규약·패치 직접) | 낮음(HF/AWS 관리) |
@@ -103,13 +129,38 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
    반면 LMI/TGI는 AWS나 HF가 특정 버전을 검증해 이미지로 굽기 때문에 **한 박자 늦지만 그만큼 검증되어** 있습니다.
 3. **SageMaker 규약을 누가 처리하는가**: 세 DLC 모두 `/ping`, `/invocations`, 모델 로딩이 **이미 구현**돼 있어
    직접 맞출 것이 없습니다. vLLM은 [본체에 SageMaker용 라우터](https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/serve/sagemaker/api_router.py)가
-   들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의 entrypoint가 `SM_VLLM_*` env를 CLI 플래그로 바꿔
-   서버를 띄우면서 [라우팅 미들웨어](https://github.com/aws/deep-learning-containers/blob/master/scripts/docker/vllm/sagemaker_serve.py)를 붙입니다.
+   들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의
+   [`sagemaker_entrypoint.sh`](https://github.com/aws/deep-learning-containers/blob/master/vllm/build_artifacts/sagemaker_entrypoint.sh)가
+   `SM_VLLM_*` env를 `--` CLI 플래그로 바꿔(`SM_VLLM_MAX_MODEL_LEN` → `--max-model-len`) 서버를 띄웁니다.
 
     !!! note "직접 맞춰야 하는 경우는 BYOC뿐입니다"
         vLLM을 **DLC가 아니라 직접 만든 이미지(BYOC)로** 올릴 때만 `/ping`·`/invocations`를 구현하거나
         OpenAI 서버 앞단에 adapter를 두어야 합니다. 이 킷은 DLC를 쓰므로 해당하지 않습니다 —
         `dlc.serving_env()`가 만드는 env만 넘기면 됩니다.
+
+그 "규약"이 정확히 무엇인지는 [자체 추론 코드 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)에 값까지 명시돼 있습니다. 컨테이너를 고르는 단계에서도 이 값들을 알아 두면 나중에 `Failed`나 타임아웃을 만났을 때 원인 후보를 훨씬 빨리 좁힐 수 있습니다.
+
+![SageMaker real-time 추론 컨테이너 계약 다이어그램. 클라이언트가 HTTPS로 endpoint를 호출하면 ML 컴퓨팅 인스턴스 안의 추론 컨테이너가 포트 8080에서 요청을 받고, S3의 model.tar.gz는 /opt/ml/model로 풀려 마운트되며, 컨테이너의 stdout/stderr는 CloudWatch Logs로 전송된다. 오른쪽에는 실행 명령 docker run [Image] serve, 예약 경로 /opt/ml/model, /ping 타임아웃 2초와 /invocations 타임아웃 60초가 정리되어 있다.](images/sm_endpoint_02.png)
+
+*SageMaker가 지키는 쪽(실행 명령·아티팩트 마운트·로그 수집)과 컨테이너가 지켜야 하는 쪽(8080 포트의 `/ping`·`/invocations`)이 나뉩니다 — DLC는 오른쪽 절반을 이미 구현해 둔 이미지입니다.*
+
+| 계약 항목 | 값 | 지키는 쪽 |
+|---|---|---|
+| 컨테이너 실행 | `docker run <image> serve` (`CMD`를 덮어씀) | SageMaker |
+| 모델 아티팩트 | S3의 `model.tar.gz`를 풀어 **`/opt/ml/model`**에 넣음(읽기 전용) | SageMaker |
+| 로그 | 컨테이너 stdout/stderr → CloudWatch Logs | SageMaker |
+| 웹 서버 | **포트 8080**에서 `/invocations`·`/ping` 수신 | 컨테이너(=DLC) |
+| health check | `/ping` 요청 타임아웃 **2초** | 컨테이너(=DLC) |
+| 추론 응답 | `/invocations` **60초** 이내 응답(모델 처리 시간 상한도 60초) | 컨테이너(=DLC) |
+| 소켓 수락 | **250ms** 이내 연결 수락 | 컨테이너(=DLC) |
+| 기동 유예 | 시작 후 **8분** 안에 `/ping` 200을 내지 못하면 인스턴스 기동 실패 → endpoint `Failed` | — |
+
+이 표에서 실무상 가장 자주 물리는 값은 두 개입니다.
+
+- **기동 8분 · `/ping` 2초** — `did not pass the ping health check`로 끝나는 실패의 정체가 이것입니다. 엔진이 가중치를 다 못 올렸거나 OOM으로 죽으면 8분 안에 200이 나오지 않습니다([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)). 컨테이너 잘못이 아니라 **엔진 설정** 문제인 경우가 대부분이므로, 원인은 CloudWatch 로그에서 찾아야 합니다(위 그림의 stdout/stderr 경로).
+- **`/invocations` 60초** — 생성 길이의 상한을 사실상 여기서 받습니다. 이 킷 실측(L4, 약 40ms/토큰)에서 멀티모달 추출은 `max_tokens=768`에 **21.3초**, 요약은 512에 **16.2초**였으니 한도의 3분의 1 수준입니다([max_tokens 절단](#max_tokens-절단과-finish_reason)). 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
+
+`/opt/ml/model`은 그림 속 경로가 아니라 이 킷이 실제로 쓰는 값입니다 — `dlc.serving_env(..., model_path='/opt/ml/model')`이 엔진별 키(`SM_VLLM_MODEL` / `SM_SGLANG_MODEL_PATH` / `HF_MODEL_ID`)로 넣어 주고, 학습 스크립트가 머지 모델을 `SM_MODEL_DIR=/opt/ml/model` 루트에 저장하기 때문에 엔진이 그 루트의 `config.json`으로 모델을 감지합니다. SGLang DLC는 `--model-path`를 생략하면 기본값이 `/opt/ml/model`, 포트 8080, 호스트 `0.0.0.0`입니다.
 
 ### 추론 4옵션과 배포 형태
 
@@ -139,7 +190,7 @@ LMI든 vLLM DLC든 결국은 **ECR에 올라간 도커 이미지**입니다. AWS
 
 이미지를 해석하는 경로는 두 가지입니다.
 
-1. **SDK resolve**: [`image_uris.retrieve` API 문서](https://sagemaker.readthedocs.io/en/stable/api/utility/image_uris.html)대로 `image_uris.retrieve(framework="djl-lmi"/"vllm" 등, region, version=...)`를 호출하면 SDK가 계정·리전·태그를 조립해 줍니다.
+1. **SDK resolve**: [`image_uris.retrieve` API 문서](https://sagemaker.readthedocs.io/en/stable/api/generated/sagemaker.core.image_uris.html#sagemaker.core.image_uris.retrieve)대로 `image_uris.retrieve(framework="djl-lmi"/"vllm" 등, region, version=...)`를 호출하면 SDK가 계정·리전·태그를 조립해 줍니다.
    다만 **SDK 버전에 매인 태그 목록**이라 최신보다 늦을 수 있습니다. SDK v3에서는 `sagemaker.core.image_uris.retrieve`이며, v2 경로(`sagemaker.image_uris`)는 폴백입니다.
 2. **직접 지정**: 위 패턴으로 URI를 **직접** 만들고 env로 오버라이드하는 방식입니다. available_images가 갱신되어도 코드를 고치지 않고 태그만 교체하면 됩니다.
 
@@ -186,12 +237,12 @@ SGLANG_IMAGE_URI=763104351884.dkr.ecr.us-west-2.amazonaws.com/sglang:0.5.15-gpu-
 LMI_IMAGE_URI=763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.36.0-lmi27.0.0-cu130-v1.1
 ```
 
-ECR 실조회(763104351884, us-west-2, 2026-07-30) 당시의 최신 태그는 다음과 같았습니다. SGLang DLC만 우분투 버전이 다르므로(24.04) 태그를 손으로 조립할 때 주의하세요.
+ECR 실조회(763104351884, us-west-2, 2026-07-30) 당시의 최신 태그는 다음과 같았습니다. SGLang DLC만 우분투 버전이 다르므로(24.04) 태그를 손으로 조립할 때 주의하세요. LMI 태그는 **버전 축이 둘**이라는 점도 기억하세요 — 앞의 `0.36.0`은 djl-serving 버전이고, gemma-4 지원 여부를 가르는 것은 번들 vLLM을 결정하는 **`lmi27.0.0`** 쪽입니다(`common/dlc.py`가 `0.36.0` 키로 `-lmi<NN>` 태그를 조립합니다).
 
 ```
 vllm:0.25.1-gpu-py312-cu130-ubuntu22.04-sagemaker                  # push 2026-07-22
 sglang:0.5.15-gpu-py312-cu130-ubuntu24.04-sagemaker                # push 2026-07-23  (ubuntu24.04)
-djl-inference:0.36.0-lmi27.0.0-cu130-v1.1                          # push 2026-07-16  (LMI 최신)
+djl-inference:0.36.0-lmi27.0.0-cu130-v1.1                          # push 2026-07-16  (LMI 27.0.0 = vLLM 0.23.1)
 # (HF Inference DLC는 서빙 선택지에서 제외 — 단건·스트리밍 불가. 필요 시 dlc.resolve_hf_inference_image())
 ```
 
@@ -204,7 +255,7 @@ aws ecr describe-images --registry-id 763104351884 --repository-name vllm --regi
 
 리전을 옮길 때는 `AWS_REGION`과 위 URI의 리전을 함께 바꿉니다(이미지는 리전별 ECR에서만 pull됩니다). 리전을 자주 옮긴다면 해당 줄을 **주석 처리**하세요 — 그러면 코드가 `AWS_REGION`으로 URI를 자동 조립합니다(`VLLM_DLC_VERSION` 등으로 버전만 지정). 해석 결과는 `dlc.serving_image_table(region)`으로 **세 엔진**을 한 번에 확인할 수 있고, `03_deploy_endpoint` 노트북이 이를 출력합니다.
 
-### 서빙 env는 CLI 플래그로 변환됩니다
+### 서빙 env → CLI 플래그 변환 규칙
 
 vLLM·SGLang DLC의 `sagemaker_entrypoint.sh`([aws/deep-learning-containers](https://github.com/aws/deep-learning-containers))는 **접두사를 떼고 소문자화 + `_`→`-`** 해서 그대로 엔진 CLI 플래그로 넘깁니다.
 
@@ -249,7 +300,7 @@ serve_env   = dlc.serving_env(ENGINE, max_model_len=4096,      # 엔진별 키�
 정확한 `OPTION_*`/`SM_*` 키 이름과 기본값은 컨테이너 버전마다 다릅니다. 실행 전에 [LMI 구성 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-configuration.html)에서 현행 키(`OPTION_*` · `serving.properties`)를 확인하세요.
 
 ??? question "오개념 — “transformers(HF Inference DLC) 경로는 왜 없나요?”"
-    **의도적으로 제외했습니다.** `code/inference.py` 핸들러로 서빙하면 **단건 처리**라 연속 배칭이 없고, [SageMaker HuggingFace Inference Toolkit](https://github.com/aws/sagemaker-huggingface-inference-toolkit)이 응답을 완성본으로 버퍼링해 **토큰 스트리밍도 불가**합니다([응답 스트리밍](#응답-스트리밍--vllm-경로에서는-됩니다)).
+    **의도적으로 제외했습니다.** `code/inference.py` 핸들러로 서빙하면 **단건 처리**라 연속 배칭이 없고, [SageMaker HuggingFace Inference Toolkit](https://github.com/aws/sagemaker-huggingface-inference-toolkit)이 응답을 완성본으로 버퍼링해 **토큰 스트리밍도 불가**합니다([응답 스트리밍](#응답-스트리밍--vllm-경로에서의-지원-여부)).
     E4B가 vLLM으로 못 뜬다고 알려졌을 때의 우회로였는데, 그 원인이 체크포인트였음이 밝혀져([KV-shared 복원](#e계열-kv-shared-dead-weight-복원)) 더는 필요하지 않습니다.
     `resolve_hf_inference_image()`는 `common/dlc.py`에 남아 있으니 직접 쓸 수는 있습니다.
 
@@ -435,7 +486,7 @@ serve_env = dlc.serving_env(
 
 ---
 
-## 응답 스트리밍 — vLLM 경로에서는 됩니다
+## 응답 스트리밍 — vLLM 경로에서의 지원 여부
 
 **결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측 확인했습니다.
 
@@ -636,8 +687,7 @@ vLLM 버전·config 키·지원 head는 빠르게 바뀌므로 배포 전 재확
 소개하지만, speculative decoding을 켜는 **config 자체는 container-level 기능**이라 이 킷처럼 JumpStart를 쓰지 않는
 self-managed endpoint(DJL LMI · vLLM DLC)에서도 설정할 수 있습니다.
 
-!!! warning "AWS 마케팅 수치는 그대로 인용하지 마세요"
-    "처리량 몇 배" 같은 speedup 수치는 특정 모델·시나리오에서 측정된 **AWS claim**입니다. 원문에서 그 표현과 측정 조건을 확인하고, 본인 워크로드에서는 직접 벤치마크해 acceptance rate와 함께 판단하세요.
+**AWS 마케팅 수치는 그대로 인용하지 마세요.** "처리량 몇 배" 같은 speedup 수치는 특정 모델·시나리오에서 측정된 **AWS claim**입니다. 원문에서 그 표현과 측정 조건을 확인하고, 본인 워크로드에서는 직접 벤치마크해 acceptance rate와 함께 판단하세요.
 
 | 컨테이너 | speculative decoding 설정 키 | 비고 |
 |---|---|---|
@@ -653,7 +703,7 @@ self-managed endpoint(DJL LMI · vLLM DLC)에서도 설정할 수 있습니다.
 
 `parallel_drafting: true`가 P-EAGLE 경로를 켭니다(upstream vLLM `SpeculativeConfig.parallel_drafting` 필드).
 
-### draft head가 없으면 켜지지 않습니다
+### draft head 없이는 켜지지 않는 이유
 
 speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.** target 모델에 맞춰 **학습된 draft head 체크포인트**가
 반드시 있어야 하며, `parallel_drafting`은 그 목적에 맞게 학습된 head를 추가로 요구합니다.
@@ -673,28 +723,38 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 ## 자주 나오는 오개념
 
-앞 절에서 다루지 않은, 컨테이너 선택 단계에서 자주 나오는 착각들입니다.
+앞 절에서 다루지 않은, 컨테이너 선택 단계에서 자주 나오는 착각들입니다. 가장 흔한 것은 엔진과 컨테이너를 경쟁 관계로 보는 것입니다.
 
 ??? question "오개념 — “LMI는 vLLM과 경쟁하는 것 아닌가요?”"
     **아닙니다. LMI는 vLLM을 감싸는 컨테이너입니다.** `OPTION_ROLLING_BATCH=vllm`으로 지정하면 LMI 안에서 vLLM 엔진이 돕니다.
     둘은 레이어가 다릅니다(엔진 vs 컨테이너) — [왜 레이어가 다른가](#왜-레이어가-다른가--엔진--서빙-컨테이너).
     "vLLM을 쓰고 싶다"의 답이 종종 "LMI로 쓴다"가 되는 이유가 여기에 있습니다.
 
+레이어가 정리되면 다음 걱정은 "그럼 처음 고른 것에 갇히는가"입니다.
+
 ??? question "오개념 — “한 번 고르면 영원히 그 컨테이너에 묶이는 것 아닌가요?”"
     **아닙니다.** 이 킷은 이미지 URI를 env(`SERVING_ENGINE` + `*_IMAGE_URI`)로 해석하고, 호출은 `sagemaker-runtime`으로 통일해 두었습니다.
     따라서 vLLM DLC, SGLang, LMI, BYOC 사이의 전환은 **이미지 URI와 env, payload 스키마를 조정하는** 문제일 뿐 처음부터 다시 작성하는 일이 아닙니다.
+
+전환이 자유롭다면 남는 질문은 "그래서 가장 빠른 것을 고르면 되는가"입니다.
 
 ??? question "오개념 — “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
     **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지·SageMaker 규약·보안 패치를 **직접** 책임져야 합니다.
     관리 마찰을 줄이고 싶다면 AWS가 굽는 vLLM DLC나 LMI(내부 vLLM 백엔드)가 대체로 낫습니다. 같은 엔진을 관리형으로 쓰는 셈이기 때문입니다.
 
+비용을 줄이려는 시도는 종종 엉뚱한 tier로 향합니다.
+
 ??? question "오개념 — “Serverless로 싸게 LLM을 서빙하면 되지 않나요?”"
     **아닙니다.** 현시점의 SageMaker Serverless Inference에는 **GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이 킷의 기본은 real-time(GPU)입니다.
     GPU 미지원은 정책성 항목이라 언젠가 바뀔 수 있으니 **실행 전 재확인**하세요.
 
+이미지의 종류 자체를 혼동하는 경우도 흔합니다.
+
 ??? question "오개념 — “DLC는 관리형 잡 전용 아닌가요? DLAMI와 같은 것 아닌가요?”"
     **아닙니다.** DLC는 **워크로드 컨테이너**로 EC2/ECS/EKS 등 어디서나 실행되며, 관리형 잡 전용이 아닙니다.
     또한 **DLAMI**(노드 호스트 이미지)와도 다른 레이어입니다. 본 문서의 vLLM DLC·LMI·TGI는 모두 DLC로 배포되는 컨테이너입니다.
+
+마지막은 컨테이너 선택과 롤아웃 방식을 같은 층으로 보는 착각입니다.
 
 ??? question "오개념 — “SageMaker 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
     **아닙니다.** 그 배포 가드레일은 **SageMaker classic endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).

@@ -146,7 +146,9 @@ def stream_sagemaker_chat(
 
     vLLM/SGLang/LMI는 OpenAI 호환 SSE(`stream: true`)를 지원하므로
     `invoke_endpoint_with_response_stream`으로 첫 토큰부터 받아볼 수 있다.
-    실측(요약 트랙, vLLM 0.26.0): 첫 청크 0.51s / 전체 9.24s → 대기 체감 약 18배 감소.
+    실측(요약 트랙 endpoint, vLLM 0.26.0, ml.g6.2xlarge, 입력 5,996자):
+      첫 응답 0.42s(391 조각) vs 완성 대기 16.16s → 첫 응답 체감 38배.
+      완료 시각은 15.9s vs 16.2s로 사실상 같다(전체 생성 시간·throughput은 개선되지 않는다).
 
     🔴 청크 경계는 SSE 줄 경계와 **일치하지 않는다**(실측): PayloadPart 하나가 JSON 중간에서
        끊겨 `..."system_finger` / `print":"vllm..."` 로 나뉘어 온 사례를 확인했다.
