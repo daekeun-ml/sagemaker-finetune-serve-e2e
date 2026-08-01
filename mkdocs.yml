@@ -53,6 +53,9 @@ markdown_extensions:
   - toc:
       permalink: true
       toc_depth: 3
+      # 기본 slugify는 NFKD로 비ASCII를 전부 버려서 한글 제목이 빈 앵커(#_1, #_2)가 됩니다.
+      # pymdownx.slugs.slugify는 유니코드를 보존합니다: '## 비용과 cleanup' → '#비용과-cleanup'.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.highlight:
@@ -65,15 +68,17 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
-  - 시작하기: index.md
+  - 홈: index.md
+  - 시작하기: getting_started.md
+  - SageMaker 기초: 01_sagemaker_basics.md
   - 실행 런북: RUN_E2E.md
-  - 가이드:
-      - 전체 지도: 00_overview.md
-      - SageMaker 추론: 01_sagemaker_inference.md
-      - 파인튜닝: 02_finetuning.md
-      - 합성 데이터: 03_synthetic_data.md
-      - Agentic loop: 04_agentic.md
+  - 전체 지도: 00_overview.md
+  - 파이프라인 순서로 읽기:
+      - 합성 데이터: 02_synthetic_data.md
+      - 파인튜닝: 03_finetuning.md
+      - SageMaker 추론: 04_sagemaker_inference.md
       - 서빙 컨테이너: 05_serving_containers.md
+      - Agentic loop: 06_agentic.md
 
 extra_css:
   - stylesheets/extra.css
@@ -86,3 +91,9 @@ extra:
 # 링크가 끊기면 빌드를 실패시킵니다(CI에서 --strict 로 강제).
 # 2,300줄 문서에 상호참조가 많아, 문서를 옮길 때 깨진 링크를 배포 전에 잡는 것이 목적입니다.
 strict: true
+
+# 파일 링크뿐 아니라 #앵커까지 검증합니다. 섹션 제목을 바꾸면 그 절을 가리키던
+# 링크가 조용히 깨지는데, 이 설정이 빌드 단계에서 잡아냅니다.
+validation:
+  anchors: warn
+  unrecognized_links: warn

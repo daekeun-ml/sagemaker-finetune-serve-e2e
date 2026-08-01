@@ -57,6 +57,10 @@ agentcore/.agentcore*/
 # --- MkDocs 빌드 산출물 (CI가 생성) ---
 site/
 
+# --- 패키지 빌드 부산물 (uv/pip 가 남기는 wheel) ---
+*.whl
+*.tar.bz2
+
 # --- 로그·OS ---
 *.log
 .DS_Store

@@ -1086,7 +1086,7 @@ def _c02_grpo(s: TrackSpec) -> list[dict]:
             "  (제약은 **생성 프롬프트에만** 넣습니다. critique에도 넣으면 seed와 다르다며 전부 기각합니다 — 실측 8/8 기각.)\n"
             "`04_evaluate`를 이미 돌렸다면 **`failures`가 가장 효과적**입니다. 실전에서는 여기에 "
             "**실제 트래픽 로그**가 가장 좋은 소스입니다.\n"
-            "> 상세 근거: [`docs/02_finetuning.md` §5.5](../../docs/02_finetuning.md), 구현: `common/grpo_data.py`"
+            "> 상세 근거: [`docs/03_finetuning.md` §5.5](../../docs/03_finetuning.md), 구현: `common/grpo_data.py`"
         ),
         code(
             "import os, importlib\n"
