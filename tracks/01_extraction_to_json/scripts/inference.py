@@ -19,7 +19,7 @@ inference.py — HF PyTorch Inference DLC용 커스텀 핸들러 (transformers.g
   HF Inference Toolkit의 handler_service.handle()가 transform_fn 결과를 `return [response]`로
   '완성본 한 번에' 버퍼링해 반환한다(소스 확인, 2026-07). 여기에 TextIteratorStreamer를 넣어도
   invoke_endpoint_with_response_stream은 단일 청크만 받는다. E4B 스트리밍이 필요하면 12B+로
-  vLLM DLC 배포(native 스트리밍) 또는 커스텀 컨테이너(FastAPI+SSE) 필요. 배경: docs/05_serving_containers.md §4.6.
+  vLLM DLC 배포(native 스트리밍) 또는 커스텀 컨테이너(FastAPI+SSE) 필요. 배경: docs/05_serving_containers.md 「응답 스트리밍」.
 """
 from __future__ import annotations
 

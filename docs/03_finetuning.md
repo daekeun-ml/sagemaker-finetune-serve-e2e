@@ -4,9 +4,19 @@
     SageMaker에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다. HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 잡·DLC·LoRA 관용구는 처음이어도 괜찮습니다.
     선행 조건은 각 트랙의 `01_data_and_synthetic.ipynb`까지 실행해 `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태입니다. Training Job이 무엇이고 `/opt/ml/*` 경로 계약이 왜 있는지가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
     다루는 것은 학습 경로 선택·Gemma 관용구·LoRA/QLoRA·머지/재-export·`MaxRuntimeExceeded` 함정·SFT→GRPO 데이터 규율이고, endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md)이, 합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)가 다룹니다.
-    라이브 검증 2026-07 (SDK/스크립트 실측 2026-07-31).
 
-관련 킷 파일은 다음과 같습니다: `common/config.py` · `common/dlc.py` · `common/gemma_format.py` · `common/grpo_data.py` · `tracks/*/scripts/train.py` · `tracks/*/scripts/train_grpo.py` · `tracks/05_multimodal_extraction/scripts/train_mm.py` · `tracks/*/scripts/requirements.txt` · 노트북 `01_data_and_synthetic` → `02_train_sft_sagemaker` → (선택) `02a_train_grpo_sagemaker`.
+이 문서와 관련된 킷 파일:
+
+- `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 트랙 정의(`TRACKS`), HF 토큰 조회
+- `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)
+- `common/gemma_format.py` — 트랙별 raw row를 표준 `messages`로 변환, system fold 폴백
+- `common/grpo_data.py` — GRPO prompt 소스 준비(`holdout`/`synth`/`failures`)
+- `tracks/*/scripts/train.py` — SFT 학습 스크립트(LoRA/QLoRA, 머지, 텍스트 재-export)
+- `tracks/*/scripts/train_grpo.py` — GRPO 정련 스크립트(프로그램적 reward, 추출·분류 트랙)
+- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT(vision tower 유지, 재-export 없음)
+- `tracks/*/scripts/requirements.txt` — 학습 컨테이너 안에서 올리는 transformers/trl/peft 핀
+
+노트북 순서: `01_data_and_synthetic` → `02_train_sft_sagemaker` → (선택) `02a_train_grpo_sagemaker`
 
 !!! warning "빠르게 바뀌는 값"
     **모델 ID·DLC 이미지 태그·SDK 버전·리전·GA 상태**는 이 문서에서 가장 빨리 낡는 부분입니다. `transformers`/`trl`/`peft` 핀, ECR 태그, `ml.g5`/`ml.g6` 용량 가용성, Gemma 라이선스 배너는 **실행 직전에 다시 확인**하세요.
@@ -67,7 +77,7 @@ SDK 버전도 함께 확인하세요. [SageMaker Python SDK 문서](https://sage
 2. **학습 로직 투명성** — Gemma는 손대야 할 관용구가 많습니다([Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)). `train.py`는 이 결정들을 코드로 명시하고 있어 리뷰·재현·이식이 쉽습니다. 특히 멀티모달 base를 텍스트로 서빙하려면 저장 단계에 손을 대야 하는데, 관리형 레시피에서는 불가능한 개입입니다.
 3. **이식성(로컬↔SageMaker 단일 소스)** — SageMaker는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU에서 `--dry_run`으로 검증한 바로 그 파일이 클라우드에서 그대로 돕니다.
 
-??? question "오개념 — \"JumpStart가 더 production-ready 아닌가요?\""
+??? question "오개념 — “JumpStart가 더 production-ready 아닌가요?”"
     그렇지 않습니다. production 여부는 경로가 아니라 운영(체크포인트·모니터링·재현성)이 결정합니다.
     커스텀 스크립트 경로도 managed spot·checkpoint·CloudWatch로 충분히 production-ready합니다. 선택 기준은 성숙도가 아니라 "레시피 제어가 필요한가"입니다.
 
@@ -93,7 +103,7 @@ SDK 버전도 함께 확인하세요. [SageMaker Python SDK 문서](https://sage
 - [Gemma 공식 문서](https://ai.google.dev/gemma/docs)가 설명하듯 Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 [TRL `SFTTrainer`](https://huggingface.co/docs/trl)가 **자동으로 `apply_chat_template`을 적용**합니다. `<start_of_turn>` 같은 마커를 **손으로 조립하지 마세요**. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
 - Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 날 수 있습니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있으므로 이 킷은 판단을 `apply_chat_template`에 맡기고, 실패 시 **첫 `user` 턴 맨 앞에 접어 넣는 폴백**(`common/gemma_format.py`의 `fold_system_into_user`)을 둡니다. 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 이 형태로 만들어 두는 것이 가장 안전합니다.
 
-??? question "오개념 — \"system 프롬프트를 messages에 그냥 넣으면 되지 않나요?\""
+??? question "오개념 — “system 프롬프트를 messages에 그냥 넣으면 되지 않나요?”"
     될 때도 있고 안 될 때도 있습니다. 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 에러가 납니다.
     `common/gemma_format.py`의 `build_messages`는 system을 받아 두고, `render_prompt`가 실패하면 `fold_system_into_user`로 첫 user 턴에 병합해 재시도합니다. 학습 데이터는 처음부터 fold된 형태로 만들어 두세요.
 
@@ -110,7 +120,7 @@ modules_to_save = None
 ```
 
 - 텍스트 전용 base라면 [PEFT `LoraConfig`](https://huggingface.co/docs/peft)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
-- **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다. 실측(2026-07): language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다(`ValueError: Target module ... is not supported`). 이름 리스트나 `all-linear`를 주면 vision/audio까지 매칭돼 크래시합니다.
+- **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다. language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다 — `ValueError: Target module ... is not supported`(실측 2026-07). 이름 리스트나 `all-linear`를 주면 vision/audio까지 매칭돼 크래시합니다.
 - 그래서 멀티모달에서는 **정규식으로 `language_model` 경로만 한정**합니다. 실측: language의 `nn.Linear` 258개만 매칭(ClippableLinear 0개), `get_peft_model` 성공, `lora_A` 516개 부착. 멀티모달에서는 embed/lm_head를 `modules_to_save`로 두면 vision 임베딩까지 얽힐 수 있어 생략합니다(순수 텍스트 LoRA).
 
 ### bf16 필수, fp16 금지
@@ -163,7 +173,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 - **출력**: `--output_dir`의 기본값이 `SM_MODEL_DIR`(SageMaker가 `/opt/ml/model`로 세팅)이므로, 학습 산출물이 자동으로 S3 아티팩트가 됩니다.
 - **`--dry_run`**: `epochs=1`, `max_seq_length<=512`, 데이터 32행으로 강제하고 중간 체크포인트 저장도 끕니다. **파이프라인(데이터 로드→토크나이즈→몇 step→저장)만** 검증하고 몇 분 안에 끝납니다. 실제 학습은 `--dry_run` 없이 실행하세요.
 - **`--max_train_samples`**: 데이터 파일은 그대로 두고 앞 N건만 학습합니다. 노트북 기본값은 `MAX_TRAIN_SAMPLES=200`, `EPOCHS=2`로, 핸즈온에서 파이프라인이 끝까지 도는지 확인하는 용도입니다. 정식 학습은 `None`(전량)과 `EPOCHS=3~5`로 올려 따로 돌리세요.
-- **의존성**: 무거운 import(`torch`/`trl`/`peft`)는 `main()` 안에서 지연 로드하므로, 인자 파싱 오류가 있으면 빠르게 죽습니다. 컨테이너 내부 패키지는 `scripts/requirements.txt`가 설치합니다(`transformers>=5.14.1` / `trl>=1.8.0` / `peft>=0.19.1` / `datasets>=5.0.0` / `accelerate>=1.0.0` / `bitsandbytes>=0.44.0`). 실측 최신 조합은 transformers 5.14.1 / trl 1.9.0 / peft 0.19.1(2026-07-31)이며 **실행 전 재확인** 대상입니다.
+- **의존성**: 무거운 import(`torch`/`trl`/`peft`)는 `main()` 안에서 지연 로드하므로, 인자 파싱 오류가 있으면 빠르게 죽습니다. 컨테이너 내부 패키지는 `scripts/requirements.txt`가 설치합니다(`transformers>=5.14.1` / `trl>=1.8.0` / `peft>=0.19.1` / `datasets>=5.0.0` / `accelerate>=1.0.0` / `bitsandbytes>=0.44.0`). 최신 조합은 transformers 5.14.1 / trl 1.9.0 / peft 0.19.1이며(실측 2026-07-31) **실행 전 재확인** 대상입니다.
 - **학습 이미지**: 이 킷은 `.env`의 `DLC_IMAGE_URI`(리전 포함 완전 URI)를 그대로 씁니다. 기본값은 순수 PyTorch 학습 DLC(`pytorch-training`)이고, `requirements.txt`가 컨테이너 안에서 transformers/trl/peft를 최신으로 올립니다. 베이스에 transformers가 baked-in된 HF DLC(`huggingface-pytorch-training`)도 같은 방식으로 지정할 수 있습니다(AWS의 [SageMaker + HuggingFace 공식 가이드](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)). 자세한 URI 규칙은 [DLC 이미지 URI 패턴](04_sagemaker_inference.md#dlc-이미지-uri-패턴)을 참고하세요.
 
 ### 텍스트 전용 재-export와 KV-shared 복원
@@ -175,7 +185,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 이 텐서는 forward에서 사용되지 않는 dead weight이고 LoRA 타깃에도 없으므로, base 값을 되살리는 것은 정확도에 무해합니다. 12B/26B-A4B는 `num_kv_shared_layers=0`이라 이 복원이 필요 없습니다. 서빙 쪽 관점은 [서빙 컨테이너 선택](05_serving_containers.md)에 정리돼 있습니다.
 
-??? question "오개념 — \"train.py에서 왜 common/config.py를 import 하지 않나요?\""
+??? question "오개념 — “train.py에서 왜 common/config.py를 import 하지 않나요?”"
     SageMaker는 `source_dir`(=`scripts/`)만 컨테이너에 올리기 때문입니다. `common/`을 참조하면 클라우드에서 ImportError가 납니다.
     그래서 `train.py`는 **의도적으로 self-contained**하며, 설정은 노트북이 hyperparameters/environment로 주입합니다.
 
@@ -217,7 +227,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 - `--dry_run`에서는 시간 낭비를 막기 위해 머지를 건너뜁니다(어댑터만 루트에 저장).
 - 어댑터만 저장하고 런타임에 얹는 방식도 가능합니다. 머지하면 저장·배포 단계에서 "작은 어댑터"의 이점은 사라지지만, LoRA의 본래 이점은 **학습 효율**(적은 파라미터 업데이트)에 있고 머지는 **서빙 편의**를 위한 별개 선택입니다. 여러 어댑터를 스왑해야 한다면 머지하지 말고 어댑터를 그대로 보관하세요.
 
-??? question "오개념 — \"QLoRA가 항상 낫지 않나요?\""
+??? question "오개념 — “QLoRA가 항상 낫지 않나요?”"
     그렇지 않습니다. QLoRA는 **메모리 절약** 기법이지 품질 향상 기법이 아닙니다.
     메모리가 충분하다면 LoRA가 더 단순하고 빠를 수 있습니다. 태스크·GPU 상황에 맞춰 조건부로 고르세요.
 
@@ -229,7 +239,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 ### 실측 — 1시간 한도에 걸린 학습 잡
 
-`gemma-summarization-train-20260731084146`, `ml.g6.2xlarge`, 2026-07-31 실측입니다.
+학습 잡 `gemma-summarization-train-20260731084146`, `ml.g6.2xlarge`에서 관측한 타임라인입니다(실측 2026-07-31).
 
 | 단계 | 소요 | 누적 |
 |---|---|---|
@@ -266,7 +276,7 @@ trainer = ModelTrainer(
 
 `/opt/ml/model` **전체가** `model.tar.gz`로 올라가므로, epoch마다 쌓인 체크포인트가 업로드 시간을 늘립니다(= 한도를 잡아먹습니다). 서빙은 머지된 루트만 읽으므로 `SFTConfig(save_total_limit=1)`로 1개만 남깁니다(실측: 체크포인트 3개 = 0.7GB, 전부 서빙에 불필요).
 
-??? question "오개념 — \"핸즈온인데 MAX_RUNTIME_HOURS=4면 4시간 과금되나요?\""
+??? question "오개념 — “핸즈온인데 MAX_RUNTIME_HOURS=4면 4시간 과금되나요?”"
     아닙니다. 한도는 **강제 종료 시점**일 뿐이고 실제 과금은 잡이 실행된 시간만큼입니다.
     노트북 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2`)이면 실측 20~25분 안에 끝납니다.
 
@@ -289,7 +299,7 @@ trainer = ModelTrainer(
 - **라이선스 전파** — Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다. gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 [모델 카드](https://huggingface.co/google)의 라이선스 배너를 다시 확인하세요.
 - 시드 데이터셋은 전부 permissive한 것으로 골랐습니다: glaive-function-calling-v2(apache-2.0), `mteb/banking77`(mit, parquet 미러), billsum(cc0-1.0), databricks-dolly-15k(cc-by-sa-3.0), cord-v2(cc-by-4.0). 세부는 `common/config.py`의 `TRACKS`를 참조하세요. `PolyAI/banking77` 원본은 스크립트 기반이라 `datasets>=5.0.0`에서 로드되지 않아 parquet 미러로 바꿨습니다(실측 2026-07-30).
 
-??? question "오개념 — \"gemma-4가 ungated니까 큰 걸 쓰면 되지 않나요?\""
+??? question "오개념 — “gemma-4가 ungated니까 큰 걸 쓰면 되지 않나요?”"
     라이선스 관점만 보면 편한 것은 맞습니다. 하지만 크기·비용·품질 요구가 서로 다릅니다.
     기본은 단일 GPU 친화적인 `E4B`(effective 4.5B)이고, 용량이 더 필요할 때 `12B`나 `26B-A4B`로 조건부 승급하세요. 12B는 `transformers>=5.10.0`이 필요하고 머지 단계의 호스트 RAM 요구도 커집니다.
 
@@ -358,7 +368,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 요약·QA는 LLM-judge를 reward로 쓸 수는 있지만, rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞이므로 이 킷에서는 제외했습니다.
 
-??? question "오개념 — \"SFT 없이 base에서 바로 GRPO 하면 안 되나요?\""
+??? question "오개념 — “SFT 없이 base에서 바로 GRPO 하면 안 되나요?”"
     됩니다. `train_grpo.py`는 `model` 채널이 없으면 HF base로 폴백합니다.
     다만 형식조차 안 잡힌 상태에서는 rollout이 전부 낮은 점수라 역시 편차가 작고 수렴이 불안정합니다. **SFT → GRPO**가 정석인 이유입니다.
 
@@ -368,33 +378,33 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 아래 항목들은 앞 절에서 다루지 않은, 학습 방식 자체와 컨테이너 계층을 헷갈릴 때 생기는 착각입니다.
 
-??? question "오개념 — \"파인튜닝은 전체 가중치를 학습하는 것 아닌가요?\""
+??? question "오개념 — “파인튜닝은 전체 가중치를 학습하는 것 아닌가요?”"
     이 킷은 그렇지 않습니다. **PEFT LoRA/QLoRA**로 어댑터만 학습하며 full fine-tune이 아닙니다.
     그래서 단일 GPU에서도 SLM을 돌릴 수 있습니다. 다만 텍스트 전용 base에서는 `modules_to_save`로 `lm_head`/`embed_tokens`를 full-train 대상에 포함시킵니다.
 
 환경 차이를 과소평가하는 착각도 같은 유형입니다.
 
-??? question "오개념 — \"로컬에서 됐으니 SageMaker에서도 그대로 되겠지\""
+??? question "오개념 — “로컬에서 됐으니 SageMaker에서도 그대로 되겠지”"
     같은 `train.py`를 쓰므로 대체로 맞습니다. 다만 세 가지가 다릅니다.
     (1) boolean 하이퍼는 `--key value`로 들어옵니다([str2bool](#boolean-하이퍼파라미터--str2bool)), (2) 데이터는 `SM_CHANNEL_TRAIN`으로 들어옵니다, (3) 컨테이너의 `transformers` 버전은 로컬과 다를 수 있습니다(`requirements.txt`가 조정).
     이 세 가지는 dry-run으로 미리 잡을 수 있습니다.
 
 컨테이너 이미지를 고를 때 나오는 혼동은 다음과 같습니다.
 
-??? question "오개념 — \"DLC 이미지 태그는 최신으로 아무거나 넣으면 되지 않나요?\""
+??? question "오개념 — “DLC 이미지 태그는 최신으로 아무거나 넣으면 되지 않나요?”"
     그렇지 않습니다. DLC 태그는 **AWS가 게시한 조합만** 유효합니다.
     `common/dlc.py`는 `DLC_IMAGE_URI`(완전 URI) → `DLC_REPOSITORY`+`DLC_TAG` → SDK `image_uris.retrieve` 순으로 해석합니다. ECR 계정은 `763104351884`(대부분의 리전 공용), 패턴은 `763104351884.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>`이며 현행 태그는 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/) 페이지에서 확인하세요. 태그는 자주 갱신되므로 **실행 직전에 다시 확인**해야 합니다.
     학습 이미지는 **리전별 private ECR만** 허용됩니다 — `public.ecr.aws/...` URI를 주면 실패하고, 리전을 옮길 때는 `AWS_REGION`과 URI의 리전을 함께 바꿔야 합니다.
 
 이미지 종류를 혼동하는 경우도 흔합니다.
 
-??? question "오개념 — \"DLC(컨테이너)와 DLAMI(AMI)는 같은 것 아닌가요?\""
+??? question "오개념 — “DLC(컨테이너)와 DLAMI(AMI)는 같은 것 아닌가요?”"
     다릅니다. DLC는 **워크로드 컨테이너 이미지**(학습/추론)이고 DLAMI는 **노드 호스트 이미지(AMI)** 입니다.
     이 킷은 SageMaker 학습 컨테이너로 DLC를 씁니다. 이미지에 무엇이 들어 있는지는 [AWS Deep Learning Containers 저장소](https://github.com/aws/deep-learning-containers)의 Dockerfile로 직접 확인할 수 있습니다.
 
 마지막은 단계 경계에 대한 착각입니다.
 
-??? question "오개념 — \"학습이 곧 배포 아닌가요?\""
+??? question "오개념 — “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.
     SageMaker 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 킷은 real-time endpoint를 씁니다 — [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교).
 
@@ -415,7 +425,3 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 | Bedrock (GRPO `synth` prompt 생성) | 입력·출력 토큰당 과금 | 상시 리소스 없음. `N_GRPO`로 총량 제어 |
 
 managed spot(`Compute(enable_managed_spot_training=True)`)을 쓰면 학습 비용을 줄일 수 있습니다(체크포인트 설정 필요). 다만 절감 수치는 리전·수급에 따라 다르므로 절대값으로 약속하지 마세요.
-
----
-
-**이전**: [Grounded 합성 데이터](02_synthetic_data.md) · **관련**: [서빙 컨테이너 선택](05_serving_containers.md) · [실행 런북](RUN_E2E.md) · **다음**: [SageMaker 추론](04_sagemaker_inference.md)

@@ -4,7 +4,7 @@
     파인튜닝한 SLM(Gemma 4)을 "어떻게 서빙하나"가 궁금한 초심자~중급자. HyperPod/EC2 지식은 필요 없습니다.
     선행 조건: `02_train_sft_sagemaker`까지 실행해 `model_data`(S3 아티팩트)가 있는 상태를 가정합니다. Training Job·Endpoint의 수명과 과금 차이가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요.
     다루는 것: 추론 4옵션 선택, endpoint 구조와 호출, 서빙 컨테이너/DLC 이미지, 비용과 정리.
-    다루지 않는 것: 학습 하이퍼파라미터, 평가 지표, agentic 설계. 라이브 검증 2026-07.
+    다루지 않는 것: 학습 하이퍼파라미터, 평가 지표, agentic 설계.
 
 이 문서는 이 킷의 **추론 앵커 문서**입니다. 다른 가이드(학습·agentic·평가)는 "endpoint가 무엇인지"를 설명할 때 이 문서로 링크를 겁니다.
 
@@ -77,7 +77,7 @@ payload 크기, timeout, cold-start 시간, 오토스케일 축소 최솟값 같
 2. **요청-응답 채널**: Real-time은 동기 응답(HTTP)을 주고, Async는 **S3 입력 → 큐 → S3 출력** 방식으로 비동기 처리하며, Batch는 S3 데이터셋을 잡 단위로 훑습니다. 채널이 다르기 때문에 payload/timeout 한도도 서로 다릅니다.
 3. **스케일 바닥값**: Async는 인스턴스를 0까지 축소할 수 있어 유휴 비용을 줄일 수 있지만, Real-time은 (오토스케일을 걸더라도) 통상 1대 이상을 유지합니다. 이것이 바로 **상시 과금**이 발생하는 원인입니다.
 
-??? question "오개념 — \"Serverless가 제일 싸니까 LLM도 Serverless로 하면 되지 않나요?\""
+??? question "오개념 — “Serverless가 제일 싸니까 LLM도 Serverless로 하면 되지 않나요?”"
     **아닙니다.** SageMaker Serverless Inference에는 **GPU가 없습니다**(현재 기준, CPU 전용). Gemma 같은 SLM/LLM은 GPU 없이는 사실상 돌아가지 않거나, 돌아가더라도 실용 불가 수준으로 느립니다.
     "간헐적인 트래픽이니 Serverless가 저렴하겠다"는 판단은 CPU 모델(작은 임베딩, 전통 ML)에나 맞는 이야기입니다. LLM/SLM에는 Real-time(또는 GPU가 붙는 Async/Batch)을 쓰세요.
     다만 GPU 미지원은 정책성 항목이라 언젠가 바뀔 수 있으니 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)에서 **실행 전 재확인**하시기 바랍니다.
@@ -165,7 +165,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 | 과금 | 인스턴스 시간당(삭제 전까지) | 호출 토큰량 |
 | 이 킷의 위치 | 파인튜닝 Gemma 서빙 | agentic reasoning·합성 데이터 생성 |
 
-??? question "오개념 — \"내 endpoint도 Bedrock API로 부르면 되지 않나요?\""
+??? question "오개념 — “내 endpoint도 Bedrock API로 부르면 되지 않나요?”"
     **아닙니다.** endpoint는 `sagemaker-runtime.invoke_endpoint()`로, Bedrock은 `bedrock-runtime.converse()`로 호출하는 **완전히 다른 서비스**입니다.
     이 킷은 `common/llm_gateway.py`(LiteLLM)로 두 백엔드를 하나의 인터페이스처럼 쓰지만, 내부적으로 각각 올바른 서비스로 라우팅하는 것일 뿐 같은 API를 쓰는 것이 아닙니다.
     Bedrock Claude는 inference-profile prefix(`us.` / `eu.` / `apac.` / `global.`)가 필요합니다. 모델 ID는 **하드코딩 금지, env로 주입** — `common/config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`, 실측 2026-07)를 참고하세요.
@@ -197,7 +197,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 세 엔진 모두 연속 배칭 + OpenAI 호환이라 **호출 코드가 동일**합니다. [HF TGI](https://github.com/huggingface/text-generation-inference)와 HF PyTorch Inference DLC는 이 킷의 서빙 선택지에서 제외했습니다 — 후자는 transformers 단건 서빙용이라 연속 배칭·스트리밍이 없습니다(`dlc.resolve_hf_inference_image()`로 남겨 두긴 했습니다).
 
-**gemma-4 서빙에는 vLLM ≥ 0.19가 필요합니다.** vLLM DLC(실측 0.25.1 / 0.26.0)는 이 조건을 충족합니다. LMI를 쓸 때는 번들 vLLM이 이 조건을 넘는 최신 태그여야 합니다 — ECR 실조회 2026-07-30 최신은 `0.36.0-lmi27.0.0-cu130-v1.1`(LMI 27.0.0 = vLLM 0.23.1)이며, 그보다 오래된 LMI 태그는 gemma-4를 로드하지 못합니다.
+**gemma-4 서빙에는 vLLM ≥ 0.19가 필요합니다.** vLLM DLC(실측 0.25.1 / 0.26.0)는 이 조건을 충족합니다. LMI를 쓸 때는 번들 vLLM이 이 조건을 넘는 최신 태그여야 합니다 — 최신 태그는 `0.36.0-lmi27.0.0-cu130-v1.1`(LMI 27.0.0 = vLLM 0.23.1, ECR 실조회 2026-07-30)이며, 그보다 오래된 LMI 태그는 gemma-4를 로드하지 못합니다.
 
 ### model_data 로드 경로
 
@@ -237,7 +237,7 @@ SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있�
 
 컨테이너를 하나로 통일하고 싶은 마음이 들 수 있는데, 실제로는 그렇게 되지 않습니다.
 
-??? question "오개념 — \"서빙 컨테이너 하나면 다 되는 것 아닌가요?\""
+??? question "오개념 — “서빙 컨테이너 하나면 다 되는 것 아닌가요?”"
     **아닙니다.** 컨테이너마다 지원 모델, payload 스키마, 스트리밍 방식, 내부 백엔드가 다릅니다. 같은 Gemma라도 OpenAI 호환 서버와 TGI generation 스키마는 payload가 서로 다릅니다 — `_parse_endpoint_response()`가 응답을 방어적으로 파싱하는 이유입니다.
     "한 컨테이너로 모든 것을 해결한다"가 아니라, **모델·처리량·기능 요구에 맞춰 선택**해야 합니다.
     참고로 **DLAMI와 DLC는 다릅니다.** DLAMI는 노드(호스트) 머신 이미지, DLC는 그 위에서 도는 워크로드 컨테이너이며, DLC는 관리형 잡 전용이 아니라 EC2/ECS/EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
@@ -314,21 +314,21 @@ vLLM/SGLang DLC의 entrypoint는 `SM_<ENGINE>_` 접두사를 떼고 소문자화
 
 앞 절에서 다루지 않은, 배포 단계에서 자주 나오는 착각들입니다.
 
-??? question "오개념 — \"blue/green이나 canary 배포는 HyperPod에서도 되겠지?\""
+??? question "오개념 — “blue/green이나 canary 배포는 HyperPod에서도 되겠지?”"
     **그렇지 않습니다.** blue/green·canary·rolling 배포 가드레일과 production variant A/B는 SageMaker **"클래식" endpoint의 기능**입니다.
     HyperPod는 클러스터(학습/추론 인프라) 레이어라서 EndpointConfig 교체 기반의 배포 가드레일이 그대로 존재하지 않습니다.
     티어의 기능을 다른 티어에 귀속시키지 않도록, 기능을 찾을 때 "어느 서비스의 기능인지"를 먼저 확인하세요.
 
 또 하나 자주 나오는 것은 스트리밍에 대한 기대치입니다.
 
-??? question "오개념 — \"스트리밍을 켜면 처리량도 올라가지 않나요?\""
+??? question "오개념 — “스트리밍을 켜면 처리량도 올라가지 않나요?”"
     **아닙니다.** 스트리밍이 줄이는 것은 **첫 토큰까지의 체감 대기**뿐입니다. 실측에서 첫 응답은 0.42초로 빨라졌지만 완료 시각은 15.9초 vs 16.2초로 사실상 같았습니다.
     동시 처리량(throughput)을 결정하는 것은 연속 배칭과 [max_num_seqs 기본값](#24gb-gpu-cuda-oom--max_num_seqs-기본값)이지 스트리밍 여부가 아닙니다.
     응답이 JSON/라벨처럼 **완성돼야 쓸 수 있는** 태스크라면 스트리밍을 켤 이유가 거의 없습니다.
 
 마지막은 삭제와 과금에 관한 것입니다.
 
-??? question "오개념 — \"호출하지 않으면 endpoint 요금도 안 나오죠?\""
+??? question "오개념 — “호출하지 않으면 endpoint 요금도 안 나오죠?”"
     **아닙니다.** Real-time endpoint는 호출이 0건이어도 **켜져 있는 동안 인스턴스 시간당** 과금됩니다.
     `endpoint_name`으로 삭제해도 **model은 조용히 남습니다** — `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 생성하기 때문입니다(실측).
     시간당 과금은 endpoint에서만 발생하지만, config/model이 남으면 계정당 개수 제한에 걸립니다. 정리 순서는 [비용과 cleanup](#비용과-cleanup)을 보세요.
@@ -376,8 +376,16 @@ sm.list_endpoints()   # 이 트랙 prefix가 비어 있으면 그 트랙 과금�
 
 ## 킷 내 참조 파일
 
-`common/aws_utils.py`(`invoke_sagemaker_chat`, `stream_sagemaker_chat`, `cw_links`, `COST_WARNING`) · `common/dlc.py`(`resolve_serving_image`, `serving_env`) · `common/config.py`(`SERVING_ENGINE`, `INFER_INSTANCE_TYPE`, `BEDROCK_CLAUDE_MODEL_ID`) · `common/llm_gateway.py` · `common/gemma_format.py` · `tracks/*/03_deploy_endpoint.ipynb` · `tracks/*/99_cleanup.ipynb` · `.env`
+호출과 관측:
 
----
+- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), 스트리밍(`stream_sagemaker_chat`), CloudWatch 링크(`cw_links`), 비용 경고 문구(`COST_WARNING`)
+- `common/llm_gateway.py` — LiteLLM 통합 게이트웨이(`endpoint_chat`), endpoint와 Bedrock을 한 인터페이스로
+- `common/gemma_format.py` — Gemma chat 포맷 어댑터(`build_inference_messages`, `fold_system_into_user`)
 
-**이전**: [파인튜닝](03_finetuning.md) · **관련**: [SageMaker 기초](01_sagemaker_basics.md) · [실행 런북](RUN_E2E.md) · **다음**: [서빙 컨테이너 선택](05_serving_containers.md)
+배포 설정:
+
+- `common/dlc.py` — 서빙 DLC 이미지 URI 해석(`resolve_serving_image`)과 엔진별 env 매핑(`serving_env`)
+- `common/config.py` — 엔진 선택(`SERVING_ENGINE`)·인스턴스 타입(`INFER_INSTANCE_TYPE`)·Bedrock 모델 ID(`BEDROCK_CLAUDE_MODEL_ID`) 등 프리셋과 환경변수
+- `.env` — 엔진별 완전 이미지 URI와 리전 오버라이드
+
+노트북 순서: `02_train_sft_sagemaker`(`model_data` 생성) → `03_deploy_endpoint`(배포·스모크 호출) → `99_cleanup`(과금 중단)

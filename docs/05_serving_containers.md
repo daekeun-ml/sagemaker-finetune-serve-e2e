@@ -4,7 +4,7 @@
     파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 "컨테이너를 무엇으로 골라야 할지" 막힌 분을 위한 문서입니다.
     선행 조건: `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가 S3에 있는 상태를 가정합니다.
     다루는 것: 엔진과 컨테이너의 레이어 구분, 이미지 URI 해석, OOM·절단·스트리밍 실측 함정, speculative decoding, 비용과 정리.
-    다루지 않는 것: 학습 하이퍼파라미터(`03_finetuning.md`), 평가 지표, agentic 설계. 라이브 검증 2026-07.
+    다루지 않는 것: 학습 하이퍼파라미터(`03_finetuning.md`), 평가 지표, agentic 설계.
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
 
@@ -101,8 +101,15 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
    반면 단독 vLLM은 엔진이 곧 컨테이너이므로 스위칭이라는 개념 자체가 없습니다. TGI는 자체 백엔드로 고정되어 있습니다.
 2. **최신성과 안정성의 트레이드오프**: 단독 vLLM은 upstream 릴리스를 바로 당겨 쓸 수 있어 **최신 기능을 가장 빠르게** 반영합니다.
    반면 LMI/TGI는 AWS나 HF가 특정 버전을 검증해 이미지로 굽기 때문에 **한 박자 늦지만 그만큼 검증되어** 있습니다.
-3. **SageMaker 규약을 누가 처리하는가**: LMI/TGI DLC는 `/ping`, `/invocations`, 모델 로딩을 **AWS와 HF가 이미 구현**해 두었습니다.
-   반면 단독 vLLM을 BYOC로 올리면 그 규약을 **직접 맞춰야** 합니다(또는 vLLM OpenAI 서버 앞단에 adapter를 둡니다).
+3. **SageMaker 규약을 누가 처리하는가**: 세 DLC 모두 `/ping`, `/invocations`, 모델 로딩이 **이미 구현**돼 있어
+   직접 맞출 것이 없습니다. vLLM은 [본체에 SageMaker용 라우터](https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/serve/sagemaker/api_router.py)가
+   들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의 entrypoint가 `SM_VLLM_*` env를 CLI 플래그로 바꿔
+   서버를 띄우면서 [라우팅 미들웨어](https://github.com/aws/deep-learning-containers/blob/master/scripts/docker/vllm/sagemaker_serve.py)를 붙입니다.
+
+    !!! note "직접 맞춰야 하는 경우는 BYOC뿐입니다"
+        vLLM을 **DLC가 아니라 직접 만든 이미지(BYOC)로** 올릴 때만 `/ping`·`/invocations`를 구현하거나
+        OpenAI 서버 앞단에 adapter를 두어야 합니다. 이 킷은 DLC를 쓰므로 해당하지 않습니다 —
+        `dlc.serving_env()`가 만드는 env만 넘기면 됩니다.
 
 ### 추론 4옵션과 배포 형태
 
@@ -168,7 +175,7 @@ def resolve_inference_image(region: str) -> str | None:
 
 ### 이 킷 .env의 이미지 고정값
 
-이 킷의 `.env`는 **이미지를 리전 포함 완전 URI로 하드코딩**해 둡니다(ECR 실조회 검증 2026-07-30). 무엇이 쓰이는지 한눈에 보이고, SDK의 `image_uris.retrieve` 추측을 우회합니다.
+이 킷의 `.env`는 **이미지를 리전 포함 완전 URI로 하드코딩**해 둡니다. 무엇이 쓰이는지 한눈에 보이고, SDK의 `image_uris.retrieve` 추측을 우회합니다.
 
 ```bash
 # .env
@@ -199,7 +206,7 @@ aws ecr describe-images --registry-id 763104351884 --repository-name vllm --regi
 
 ### 서빙 env는 CLI 플래그로 변환됩니다
 
-vLLM·SGLang DLC의 `sagemaker_entrypoint.sh`([aws/deep-learning-containers](https://github.com/aws/deep-learning-containers) 소스 확인 2026-07-30)는 **접두사를 떼고 소문자화 + `_`→`-`** 해서 그대로 엔진 CLI 플래그로 넘깁니다.
+vLLM·SGLang DLC의 `sagemaker_entrypoint.sh`([aws/deep-learning-containers](https://github.com/aws/deep-learning-containers))는 **접두사를 떼고 소문자화 + `_`→`-`** 해서 그대로 엔진 CLI 플래그로 넘깁니다.
 
 | env | → CLI | 엔진 |
 |---|---|---|
@@ -241,7 +248,7 @@ serve_env   = dlc.serving_env(ENGINE, max_model_len=4096,      # 엔진별 키�
 
 정확한 `OPTION_*`/`SM_*` 키 이름과 기본값은 컨테이너 버전마다 다릅니다. 실행 전에 [LMI 구성 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-configuration.html)에서 현행 키(`OPTION_*` · `serving.properties`)를 확인하세요.
 
-??? question "오개념 — \"transformers(HF Inference DLC) 경로는 왜 없나요?\""
+??? question "오개념 — “transformers(HF Inference DLC) 경로는 왜 없나요?”"
     **의도적으로 제외했습니다.** `code/inference.py` 핸들러로 서빙하면 **단건 처리**라 연속 배칭이 없고, [SageMaker HuggingFace Inference Toolkit](https://github.com/aws/sagemaker-huggingface-inference-toolkit)이 응답을 완성본으로 버퍼링해 **토큰 스트리밍도 불가**합니다([응답 스트리밍](#응답-스트리밍--vllm-경로에서는-됩니다)).
     E4B가 vLLM으로 못 뜬다고 알려졌을 때의 우회로였는데, 그 원인이 체크포인트였음이 밝혀져([KV-shared 복원](#e계열-kv-shared-dead-weight-복원)) 더는 필요하지 않습니다.
     `resolve_hf_inference_image()`는 `common/dlc.py`에 남아 있으니 직접 쓸 수는 있습니다.
@@ -281,13 +288,13 @@ SDK v3 `ModelBuilder`는 **같은 코드**를 3단계 대상에 배포할 수 �
 
 import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(실측 — `sagemaker.serve`에 직접 `Mode`가 없습니다).
 
-??? question "오개념 — \"IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?\""
+??? question "오개념 — “IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?”"
     **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(소스 실측: `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
     gemma-4는 멀티모달(오디오 포함)이라 pipeline이 `AnyToAnyPipeline`으로 잡혀 `librosa` 등을 요구하고, 임베딩 모델도 아니라 `SentenceTransformer` 폴백도 실패합니다(`UnboundLocalError`).
     LLM을 IN_PROCESS로 띄우려면 `InferenceSpec`(load/invoke)을 직접 구현해야 하는데, 이는 vLLM 엔진을 손으로 재구현하는 셈이라 실익이 없습니다.
     부가: IN_PROCESS도 `ModelBuilder.__post_init__`이 `role_arn`을 해석하므로(IAM user면 `RoleValidationError`) 로컬 실행이라도 `role_arn=`을 넘겨야 합니다.
 
-`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(실측 2026-07)**. 근거는 다음과 같습니다.
+`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(실측)**. 근거는 다음과 같습니다.
 
 - **vLLM DLC + LOCAL_CONTAINER** — `image_uri`만 주면 passthrough라 `model_server=None`이 되고, LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs()`로 크래시합니다.
 - **DJL LMI + LOCAL_CONTAINER** — 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다). 다만 당시 실측에서 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다. **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다** — 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다. 지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
@@ -304,7 +311,7 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
 
 ## E계열 KV-shared dead weight 복원
 
-실측 2026-07-30. **"E4B는 vLLM으로 못 띄운다"는 말은 사실이 아닙니다.** 원본 `google/gemma-4-E4B-it`은 vLLM에서 그대로 뜹니다. 못 뜨는 것은 **transformers `save_pretrained`를 거친 체크포인트**입니다.
+**"E4B는 vLLM으로 못 띄운다"는 말은 사실이 아닙니다.** 원본 `google/gemma-4-E4B-it`은 vLLM에서 그대로 뜹니다. 못 뜨는 것은 **transformers `save_pretrained`를 거친 체크포인트**입니다.
 
 **무엇이 없어지나.** gemma-4 E계열은 뒤쪽 `num_kv_shared_layers`개 레이어가 앞 레이어의 KV를 재사용합니다
 (E4B: 42층 중 24~41의 18층). transformers는 그 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 **아예 만들지 않습니다**
@@ -334,7 +341,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 | 복원 전(`save_pretrained` 그대로) | 665 | ❌ 실패 — `weights not initialized ...k_norm` |
 | 복원 후(이 킷) | 719 = 원본과 동일 | ✅ 성공 — 로드 + 정상 생성 |
 
-**참고: vLLM issue [#44788](https://github.com/vllm-project/vllm/issues/44788)** (as of 2026-07-30 OPEN)은
+**참고: vLLM issue [#44788](https://github.com/vllm-project/vllm/issues/44788)**(2026-07-30 기준 OPEN)은
 바로 이 현상입니다. 이슈 제목이 "Gemma 4 models with KV sharing"이라 "E계열은 vLLM 불가"로 읽히기 쉬우나,
 두 번째 코멘트가 `save_pretrained` 왕복 후에만 재현됨을 보여줍니다. 원본 체크포인트는 그 54개를 모두 갖고 있습니다
 (safetensors 헤더 직접 확인). FP8 변형(`leon-se/gemma-4-E4B-it-FP8-Dynamic`)도 원본 유래라 동일하게 정상입니다.
@@ -343,7 +350,7 @@ LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않�
 
 ## 24GB GPU CUDA OOM — max_num_seqs 기본값
 
-실측 2026-07-31. **모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다. 이 킷은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
+**모델이 커서가 아닙니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과하게 잡혀 샘플러 버퍼가 GPU를 넘깁니다. 이 킷은 **32**로 낮춰 두었고, GPU를 바꿀 필요는 없습니다.
 
 ### 증상 — endpoint가 Failed
 
@@ -387,7 +394,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 - **텍스트 트랙도 안전지대가 아닙니다** — KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
 - vLLM 자신도 로그에서 `--kv-cache-memory=3.76 GiB`를 권고합니다 → **KV를 4.69로 과대 배정한 것**입니다.
 
-??? question "오개념 — \"GPU 타입을 바꿔야 하나?\""
+??? question "오개념 — “GPU 타입을 바꿔야 하나?”"
     **아닙니다.** 로컬 L40S를 `gpu_memory_utilization=0.441`로 제한해 **L4와 같은 절대 예산(20.2 GiB)** 을 만든 뒤 실측한 결과입니다.
 
     | 설정 | 결과 |
@@ -399,7 +406,7 @@ gemma-4의 vocab이 **262,144**로 크기 때문에, 동시 시퀀스 기본값 
 
 ### 대응 — 엔진별 키는 serving_env가 관리
 
-같은 의미의 설정이 엔진마다 다른 키를 씁니다(플래그명 라이브 검증 2026-07-31). SGLang 플래그는 [`server_args.py` 소스](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)에서, LMI 키와 vLLM pass-through 동작은 [LMI vLLM user guide](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/user_guides/vllm_user_guide.html)에서 확인했습니다.
+같은 의미의 설정이 엔진마다 다른 키를 씁니다(플래그명 실측 2026-07-31). SGLang 플래그는 [`server_args.py` 소스](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)에서, LMI 키와 vLLM pass-through 동작은 [LMI vLLM user guide](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/user_guides/vllm_user_guide.html)에서 확인했습니다.
 
 | 엔진 | 동시 시퀀스 | 메모리 비율 |
 |---|---|---|
@@ -430,7 +437,7 @@ serve_env = dlc.serving_env(
 
 ## 응답 스트리밍 — vLLM 경로에서는 됩니다
 
-실측 2026-07-31(E4B 포함). **결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측 확인했습니다.
+**결론: vLLM DLC로 서빙하는 E4B에서 SSE 토큰 스트리밍이 됩니다.** 이전 버전 문서는 "E4B는 스트리밍 불가"라고 썼는데, 그것은 **HF PyTorch Inference DLC를 쓰던 시절**의 결론입니다. 서빙 경로가 vLLM/SGLang/LMI 셋으로 바뀐 뒤 E4B에서 토큰 스트리밍이 정상 동작함을 실측 확인했습니다.
 
 실측 조건은 요약 트랙 endpoint, vLLM 0.26.0, `ml.g6.2xlarge`, 입력 5,996자입니다.
 
@@ -472,7 +479,7 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 ## 노트북에서 드러난 실측 함정
 
-아래 네 가지는 모두 실측 2026-07-31에 이 킷에서 실제로 발생한 문제이며, 지금은 코드로 막아 두었습니다.
+아래 네 가지는 모두 이 킷에서 실제로 발생한 문제이며, 지금은 코드로 막아 두었습니다.
 
 ### max_tokens 절단과 finish_reason
 
@@ -623,7 +630,7 @@ print('사용할 endpoint:', endpoint_name)     # 무엇을 부르는지 항상 
 target 모델이 한 번에 검증하는 기법으로, 같은 출력 품질에서 throughput을 높입니다. **EAGLE3**는 별도의 draft LLM
 대신 target 모델의 hidden-state를 재사용하는 경량 draft head를 쓰는 방식이며, **P-EAGLE**는 AWS가 여기에
 parallel drafting(여러 draft 토큰을 단일 forward pass에서 동시에 예측)을 더해 upstream vLLM에 기여한 확장입니다.
-아래 내용은 라이브 검증 2026-07 기준이며, vLLM 버전·config 키·지원 head는 빠르게 바뀌므로 배포 전 재확인하세요.
+vLLM 버전·config 키·지원 head는 빠르게 바뀌므로 배포 전 재확인하세요.
 
 **핵심 사실 — JumpStart 전용이 아닙니다.** AWS 블로그의 "P-EAGLE on SageMaker"는 **JumpStart 원클릭** 경험을
 소개하지만, speculative decoding을 켜는 **config 자체는 container-level 기능**이라 이 킷처럼 JumpStart를 쓰지 않는
@@ -668,28 +675,28 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 앞 절에서 다루지 않은, 컨테이너 선택 단계에서 자주 나오는 착각들입니다.
 
-??? question "오개념 — \"LMI는 vLLM과 경쟁하는 것 아닌가요?\""
+??? question "오개념 — “LMI는 vLLM과 경쟁하는 것 아닌가요?”"
     **아닙니다. LMI는 vLLM을 감싸는 컨테이너입니다.** `OPTION_ROLLING_BATCH=vllm`으로 지정하면 LMI 안에서 vLLM 엔진이 돕니다.
     둘은 레이어가 다릅니다(엔진 vs 컨테이너) — [왜 레이어가 다른가](#왜-레이어가-다른가--엔진--서빙-컨테이너).
     "vLLM을 쓰고 싶다"의 답이 종종 "LMI로 쓴다"가 되는 이유가 여기에 있습니다.
 
-??? question "오개념 — \"한 번 고르면 영원히 그 컨테이너에 묶이는 것 아닌가요?\""
+??? question "오개념 — “한 번 고르면 영원히 그 컨테이너에 묶이는 것 아닌가요?”"
     **아닙니다.** 이 킷은 이미지 URI를 env(`SERVING_ENGINE` + `*_IMAGE_URI`)로 해석하고, 호출은 `sagemaker-runtime`으로 통일해 두었습니다.
     따라서 vLLM DLC, SGLang, LMI, BYOC 사이의 전환은 **이미지 URI와 env, payload 스키마를 조정하는** 문제일 뿐 처음부터 다시 작성하는 일이 아닙니다.
 
-??? question "오개념 — \"vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?\""
+??? question "오개념 — “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
     **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지·SageMaker 규약·보안 패치를 **직접** 책임져야 합니다.
     관리 마찰을 줄이고 싶다면 AWS가 굽는 vLLM DLC나 LMI(내부 vLLM 백엔드)가 대체로 낫습니다. 같은 엔진을 관리형으로 쓰는 셈이기 때문입니다.
 
-??? question "오개념 — \"Serverless로 싸게 LLM을 서빙하면 되지 않나요?\""
+??? question "오개념 — “Serverless로 싸게 LLM을 서빙하면 되지 않나요?”"
     **아닙니다.** 현시점의 SageMaker Serverless Inference에는 **GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이 킷의 기본은 real-time(GPU)입니다.
     GPU 미지원은 정책성 항목이라 언젠가 바뀔 수 있으니 **실행 전 재확인**하세요.
 
-??? question "오개념 — \"DLC는 관리형 잡 전용 아닌가요? DLAMI와 같은 것 아닌가요?\""
+??? question "오개념 — “DLC는 관리형 잡 전용 아닌가요? DLAMI와 같은 것 아닌가요?”"
     **아닙니다.** DLC는 **워크로드 컨테이너**로 EC2/ECS/EKS 등 어디서나 실행되며, 관리형 잡 전용이 아닙니다.
     또한 **DLAMI**(노드 호스트 이미지)와도 다른 레이어입니다. 본 문서의 vLLM DLC·LMI·TGI는 모두 DLC로 배포되는 컨테이너입니다.
 
-??? question "오개념 — \"SageMaker 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?\""
+??? question "오개념 — “SageMaker 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
     **아닙니다.** 그 배포 가드레일은 **SageMaker classic endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).
     컨테이너는 "무엇을 서빙하는가"의 문제이고, 가드레일은 "어떻게 롤아웃하는가"의 문제입니다.
 
@@ -715,11 +722,22 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 ## 킷 내 참조 파일
 
-`common/dlc.py`(`resolve_serving_image`·`serving_env`·이미지 URI 해석) · `common/config.py`(`SERVING_ENGINE`·모델 프리셋·`INFER_INSTANCE_TYPE`) ·
-`common/aws_utils.py`(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`cw_links`) · `common/display_utils.py`(`show_inference`·`stream_inference`) ·
-`common/llm_gateway.py`(LiteLLM 통합) · `tracks/*/scripts/train.py`(`_revive_kv_shared_from_base`) · `tracks/*/scripts/serve_local_vllm.sh` ·
-`tracks/*/03_deploy_endpoint.ipynb`(배포 지점) · `tracks/*/99_cleanup.ipynb`(과금 중단) · `.env`
+이미지와 서빙 설정:
 
----
+- `common/dlc.py` — 엔진별 서빙 이미지 URI 해석과 env 생성(`resolve_serving_image`·`serving_env`·`serving_image_table`)
+- `common/config.py` — 모델 프리셋과 서빙 기본값(`SERVING_ENGINE`·`INFER_INSTANCE_TYPE`)
+- `.env` — 이미지 완전 URI(`VLLM_IMAGE_URI` 등)와 `SERVING_ENGINE` 고정값
 
-**이전**: [SageMaker 추론](04_sagemaker_inference.md) · **관련**: [파인튜닝](03_finetuning.md) · [실행 런북](RUN_E2E.md) · **다음**: [Agentic loop](06_agentic.md)
+호출과 출력:
+
+- `common/aws_utils.py` — endpoint 호출·SSE 스트리밍·CloudWatch 링크(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`cw_links`)
+- `common/display_utils.py` — 잘림·마크다운 깨짐을 막는 노트북 렌더링(`show_inference`·`stream_inference`)
+- `common/llm_gateway.py` — LiteLLM으로 Bedrock과 endpoint를 한 인터페이스로 묶는 게이트웨이
+
+학습 산출물과 로컬 검증:
+
+- `tracks/*/scripts/train.py` — SFT 학습 스크립트. 저장 직전 KV-shared 텐서 복원(`_revive_kv_shared_from_base`)
+- `tracks/*/scripts/serve_local_vllm.sh` — 배포 전 로컬 `vllm serve` 프리플라이트
+- `tracks/*/scripts/cleanup_local.sh` — 로컬 vLLM 프로세스와 압축 해제 모델 정리(GPU·디스크 회수)
+
+노트북 순서: `02b_local_serve` → `03_deploy_endpoint` → `04_evaluate` → `99_cleanup` (각 단계의 역할은 [연결 노트북](#연결-노트북-0006--99) 참고)

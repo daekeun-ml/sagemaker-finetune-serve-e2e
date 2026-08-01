@@ -21,6 +21,7 @@
 
 !!! tip "전체를 완주할 거라면"
     단계별 핸드오프·비용·체크리스트·문제해결은 [실행 런북](RUN_E2E.md)에 정리돼 있습니다.
+
 ---
 
 ## 설치
@@ -36,7 +37,7 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 ```
 > pip만 쓰려면: `pip install -r requirements.txt`
 > 최신으로 올리려면: `uv lock --upgrade` (또는 `uv lock --upgrade-package transformers`)
->
+
 !!! warning "LiteLLM은 코어 의존성이 아닙니다"
     litellm이 요구하는 `importlib-metadata>=8`이 sagemaker(`<7`)와 충돌합니다.
     `common/llm_gateway.py`(LiteLLM 경유 호출)가 필요하면 **별도 환경**에 설치하세요:
@@ -127,7 +128,10 @@ tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 트랙과 별�
 ├── 03_deploy_mm_endpoint.ipynb   ④ 멀티모달 endpoint 배포 (이미지 입력 허용, 텍스트 전용 재-export 아님)
 └── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
 ```
-> 시드: `naver-clova-ix/cord-v2` (cc-by-4.0, ungated) · 학습 스크립트: `scripts/train_mm.py` (AutoModelForImageTextToText + processor).
+멀티모달 트랙이 쓰는 시드와 스크립트:
+
+- `naver-clova-ix/cord-v2` — 시드 데이터셋(cc-by-4.0, ungated). 영수증 이미지 + 구조화 JSON 라벨
+- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT. `AutoModelForImageTextToText` + `AutoProcessor`로 이미지를 처리하고, vision tower를 유지해 텍스트 재-export를 하지 않습니다
 
 ### 주피터 실행
 ```bash
@@ -173,19 +177,24 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 ---
 
 ## 더 알아보기
-- [`01_sagemaker_basics.md`](01_sagemaker_basics.md) — **SageMaker가 처음이라면 방식 C(노트북) 전에 읽기 권장**. Training Job vs Endpoint, 경로 계약, 수명과 과금
-- [`00_overview.md`](00_overview.md) — 전체 파이프라인 지도
-- [`04_sagemaker_inference.md`](04_sagemaker_inference.md) — ⭐ **SageMaker 추론 핵심 가이드** (4옵션·endpoint·서빙 컨테이너)
-- [`03_finetuning.md`](03_finetuning.md) — PyTorch DLC + TRL LoRA/QLoRA
-- [`02_synthetic_data.md`](02_synthetic_data.md) — grounded 합성 데이터
-- [`06_agentic.md`](06_agentic.md) — Strands + AgentCore
-- [`05_serving_containers.md`](05_serving_containers.md) — DJL LMI vs vLLM vs TGI
+
+문서는 파이프라인 순서로 정리돼 있습니다. 개념부터 보려면 위에서, 특정 단계만 필요하면 해당 항목으로 가세요.
+
+- [`01_sagemaker_basics.md`](01_sagemaker_basics.md) — SageMaker가 처음이라면 방식 C 전에 읽기 권장. Training Job vs Endpoint, 경로 계약, 수명과 과금
+- [`02_synthetic_data.md`](02_synthetic_data.md) — 데이터 준비. grounded 합성과 critique/refine
+- [`03_finetuning.md`](03_finetuning.md) — 학습. PyTorch DLC + TRL LoRA/QLoRA
+- [`04_sagemaker_inference.md`](04_sagemaker_inference.md) — 배포. 추론 4옵션과 endpoint 선택 기준
+- [`05_serving_containers.md`](05_serving_containers.md) — 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
+- [`06_agentic.md`](06_agentic.md) — 활용. Strands + Bedrock Claude, AgentCore 배포
+
+- [`00_overview.md`](00_overview.md) — 전체 지도. 노트북과 문서 매핑
+- [`RUN_E2E.md`](RUN_E2E.md) — E2E 완주 런북. 단계별 핸드오프와 비용
 
 ---
 
 ## 자주 막히는 곳
 - **"어느 노트북부터?"** → `tracks/01_extraction_to_json/00_setup.ipynb`.
-- **"GPU에서 그냥 돌려보고 싶다"** → 위 **3번**(dry-run), AWS 불필요.
-- **"AWS 없이 코드만 확인"** → 위 **2번**(스모크 테스트).
+- **"GPU에서 그냥 돌려보고 싶다"** → 위 [방식 B](#방식-b--로컬-gpu-dry-run)(dry-run), AWS 불필요.
+- **"AWS 없이 코드만 확인"** → 위 [방식 A](#방식-a--스모크-테스트)(스모크 테스트).
 - **"gated 모델 접근 오류"** → gemma-3은 HF 약관 수락 + `HF_TOKEN` 필요. 또는 ungated `gemma-4-12B-it` 사용.
 - **"과금이 무섭다"** → `DRY_RUN=1`로 시작, 끝나면 `99_cleanup.ipynb` 필수.

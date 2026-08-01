@@ -4,7 +4,7 @@
     이 킷을 처음 여는 ML 엔지니어 / 데이터 과학자. SageMaker·Bedrock을 몰라도 읽을 수 있습니다.
     선행 조건: 없습니다. 이 문서가 킷의 **진입점(index)**입니다.
     다루는 것: 무엇이 어디에 있고 어떤 순서로 도는지, 노트북 ↔ 문서 매핑, 모델·엔진 기본값, 비용과 정리.
-    다루지 않는 것: 개념 상세(각 가이드 01~06으로 연결합니다). 라이브 검증 2026-07.
+    다루지 않는 것: 개념 상세(각 가이드 01~06으로 연결합니다).
 
 개념 설명은 각 상세 문서로 넘기고, 여기서는 "무엇이 어디에 있고 어떤 순서로 도는가"만 확정합니다.
 
@@ -169,7 +169,7 @@
 | `tracks/*/scripts/train.py` · `train_grpo.py` | self-contained 학습 (로컬 dry-run ↔ SageMaker 겸용) |
 | `agentcore/app.py` | AgentCore Runtime 엔트리포인트 ([bedrock-agentcore SDK](https://github.com/aws/bedrock-agentcore-sdk-python)로 Strands 에이전트 호스팅) |
 
-??? question "오개념 — \"트랙끼리 뭔가 공유하니 순서대로 해야 하나?\""
+??? question "오개념 — “트랙끼리 뭔가 공유하니 순서대로 해야 하나?”"
     **그렇지 않습니다.** 5개 트랙은 **완전히 독립된 E2E**입니다. 관심 있는 트랙 하나만 `00→99`로 돌려도 완결됩니다.
     `common/`은 코드 중복을 제거하기 위한 것일 뿐, 실행 의존성이 아닙니다.
 
@@ -177,7 +177,7 @@
 
 ## 모델 선택 (gemma-4 프리셋 3종)
 
-기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(사실 검증 2026-07-21, HF raw `config.json` 실측). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
+기본값은 `MODEL_SIZE=E4B`이고, **gemma-4 전 사이즈가 apache-2.0 + ungated라서 HF 토큰이 필요 없습니다**(실측 2026-07-21, HF raw `config.json`). 라이선스 배너와 chat template은 [gemma-4-E4B-it 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)가 원본입니다.
 
 | 프리셋 (`MODEL_SIZE`) | 모델 ID | 성격 | 프리셋 인스턴스 | transformers 요건 |
 |---|---|---|---|---|
@@ -187,10 +187,10 @@
 
 - `gemma-4-31B`는 **프리셋에 없습니다.** `MODEL_ID`로 직접 지정할 수는 있지만, 인스턴스 사이징과 `transformers` 요건은 직접 맞춰야 합니다.
 - 이 킷의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습·서빙 인스턴스를 override해 둡니다. 크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
-- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B 실측 peak RAM은 약 17.5GB입니다(2026-07).
+- **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/재-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다. `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화하며, E4B 실측 peak RAM은 약 17.5GB입니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 트랙은 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 재-export합니다. 이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
 
-??? question "오개념 — \"Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?\""
+??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
     **gemma-4는 아닙니다.** 라이선스는 **모델 계열**을 따릅니다. Gemma 3/2/3n은 gated + Gemma Terms(서빙 시 use-restriction 전파 의무)이지만,
     **Gemma 4는 apache-2.0 + ungated**여서 토큰·약관 수락이 없습니다. `MODEL_IS_GATED` 기본값이 `0`인 것도 이 때문입니다.
     gated 모델(`gemma-3-4b-it` 등)을 `MODEL_ID`로 지정할 때만 `MODEL_IS_GATED=1` + 토큰이 필요합니다. **재배포/서빙 전 live 모델 페이지의 라이선스 배너를 재확인**하세요.
@@ -244,7 +244,7 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 `DRY_RUN=1`로 두면 학습은 **1 epoch · `max_seq_length` <= 512 · 앞 32건**으로, 합성은 소량으로 돌면서 **파이프라인만** 검증합니다(`common/config.py:is_dry_run`, `train.py`의 dry-run 오버라이드). **GPU dry-run은 L40S에서 검증되었으며**, 다른 GPU/메모리에서는 배치·seq 길이를 재조정해야 할 수 있습니다. 파이프라인이 확인되면 `DRY_RUN=0`으로 실제 실행하세요.
 
-??? question "오개념 — \"로컬 `transformers`와 SageMaker가 같은 버전이겠지?\""
+??? question "오개념 — “로컬 `transformers`와 SageMaker가 같은 버전이겠지?”"
     **그렇지 않습니다.** 로컬 env의 `transformers`는 데이터 준비/dry-run용이고, **SageMaker 컨테이너 버전은 DLC 이미지 태그**가 결정합니다.
     컨테이너 안에서 상위 버전이 필요하면 `tracks/*/scripts/requirements.txt`가 이를 업그레이드합니다.
     이 킷의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다 — baked-in `transformers`에 묶이지 않습니다.
@@ -288,22 +288,22 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 
 앞에서 다루지 않은, 킷 전체를 볼 때 자주 나오는 착각들입니다.
 
-??? question "오개념 — \"AWS 예제는 다 DJL LMI인데, 이 킷은 왜 vLLM이 기본인가요?\""
+??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 킷은 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다(구 LMI 0.36.0의 내부 vLLM으로는 불가).
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
     세 엔진 모두 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드는 바뀌지 않습니다**. 선택 기준은 [서빙 컨테이너](05_serving_containers.md)에 있습니다.
 
-??? question "오개념 — \"학습은 HF DLC를 써야 하는 거 아닌가요?\""
+??? question "오개념 — “학습은 HF DLC를 써야 하는 거 아닌가요?”"
     **꼭 그렇지 않습니다.** 이 킷은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
     [HF DLC](https://huggingface.co/docs/sagemaker/index)의 baked-in `transformers`는 gemma-4에 필요한 버전보다 낮을 수 있는데, 베이스를 PyTorch DLC로 두면 컨테이너 안에서 최신으로 맞출 수 있습니다.
     학습 이미지는 **리전별 private ECR**(`763104351884.dkr.ecr.<region>...`)만 허용됩니다 — `public.ecr.aws` URI를 주면 `CreateTrainingJob`이 거부합니다.
 
-??? question "오개념 — \"SageMaker 관리형 evaluator로 채점하면 되지 않나요?\""
+??? question "오개념 — “SageMaker 관리형 evaluator로 채점하면 되지 않나요?”"
     **이 킷의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
     gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 실측에서 `DescribeHubContent ... does not exist`로 실패했습니다.
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다 — 빠르고 저렴하다는 부수 효과도 있습니다.
 
-??? question "오개념 — \"endpoint를 안 부르면 공짜겠지?\""
+??? question "오개념 — “endpoint를 안 부르면 공짜겠지?”"
     **그렇지 않습니다.** real-time endpoint는 **호출 여부와 무관하게 provisioned 인스턴스가 시간당 과금**됩니다.
     쓰지 않는다면 삭제하는 것이 정답입니다 — [비용과 cleanup](#비용과-cleanup).
 
@@ -336,7 +336,3 @@ export DRY_RUN=1                                         # 먼저 파이프라�
 - Gemma 3/2/3n은 **Gemma Terms + gated**입니다(HF 토큰·약관 수락 필요, 서빙 시 use-restriction 전파 의무).
 - 시드 데이터셋은 전부 permissive한 것만 선별했으나, share-alike(dolly의 cc-by-sa-3.0 등) 파생물은 주의하시기 바랍니다.
 - 재배포/서빙 전에 각 모델·데이터셋의 **live 라이선스 배너를 재확인**하세요.
-
----
-
-**이전**: [시작하기](index.md) · **관련**: [실행 런북](RUN_E2E.md) · **다음**: [합성 데이터](02_synthetic_data.md)

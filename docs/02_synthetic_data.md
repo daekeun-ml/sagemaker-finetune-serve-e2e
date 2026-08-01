@@ -4,9 +4,18 @@
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다. Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
     선행 조건은 없습니다 — 이 문서가 대응하는 노트북이 각 트랙의 첫 단계(`01_data_and_synthetic.ipynb`)입니다.
     다루는 것은 grounded 생성·critique 게이트·held-out 규율·라이브러리 대안이고, 학습 자체는 [파인튜닝](03_finetuning.md)이 다룹니다.
-    라이브 검증 2026-07 (GitHub/PyPI 실측 2026-07-19, Bedrock 호출 실측 2026-07-31).
 
-관련 킷 파일은 다음과 같습니다: `common/synth/bedrock_synth.py` · `common/synth/README.md` · `common/config.py` · `common/aws_utils.py` · `common/gemma_format.py` · `common/llm_gateway.py` · `common/eval_utils.py` · 각 트랙의 `01_data_and_synthetic.ipynb`와 `04_evaluate.ipynb`(held-out).
+이 문서와 관련된 킷 파일:
+
+- `common/synth/bedrock_synth.py` — grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
+- `common/synth/README.md` — 기본 경로와 오픈 라이브러리 대안의 선택 근거
+- `common/config.py` — 모델 ID·리전·`NUM_SYNTHETIC` 등 env 기반 설정
+- `common/aws_utils.py` — Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker/Bedrock 서비스 경계
+- `common/gemma_format.py` — 트랙별 raw row → 표준 `messages` 변환(`build_messages`)
+- `common/llm_gateway.py` — LiteLLM 경유로 Bedrock과 SageMaker endpoint를 단일 인터페이스로 호출(대안 경로)
+- `common/eval_utils.py` — 트랙별 held-out 평가 메트릭
+
+노트북 순서: 각 트랙의 `01_data_and_synthetic.ipynb`(생성) → (학습·배포) → `04_evaluate.ipynb`(held-out 전용)
 
 !!! warning "빠르게 바뀌는 값"
     Bedrock 모델 ID·inference-profile prefix·sampling 파라미터 지원 여부·토큰 단가·boto3/SDK 버전·리전, 그리고 대안 라이브러리의 버전·라이선스·유지보수 상태는 **실행 직전에 다시 확인**하세요.
@@ -61,7 +70,7 @@
 2. **2축 critique 게이트** — 생성물마다 `groundedness`(seed 도메인 일치)와 `relevance`(task 적합)를 0~1로 재채점하고, `min_groundedness`/`min_relevance`(기본 0.6)에 미달하면 폐기합니다. 판정용 시스템 프롬프트(`CRITIQUE_SYSTEM`)는 생성용(`GEN_SYSTEM`)과 완전히 분리되어 있습니다.
 3. **채택분만 accumulate** — 목표치 `n_total`에 도달할 때까지 라운드를 반복하고, PII/중복 필터를 통과하고 critique를 넘긴 예시만 `SynthExample`로 쌓입니다. 진전이 없는 라운드가 3회 연속이면(`MAX_STALE = 3`) 무한루프를 피해 중단하고 수율 저조 경고를 남깁니다.
 
-??? question "오개념 — \"critique도 결국 같은 LLM이 하는데 의미가 있나?\""
+??? question "오개념 — “critique도 결국 같은 LLM이 하는데 의미가 있나?”"
     한계는 있지만 유효합니다. 같은 모델이라도 **역할·프롬프트·컨텍스트를 분리**합니다. 생성은 `GEN_SYSTEM`으로 seed chunk 전체를 받아 다양성을 만들고, critique는 `CRITIQUE_SYSTEM`("strict data-quality judge")으로 seed 상위 5건만 받아 후보 1건을 점수화합니다.
     완벽한 진리 검증은 아니지만 seed 도메인 이탈이나 라벨공간 위반 같은 **명백한 drift를 걸러내는 저비용 게이트**입니다.
     최종 품질 판정은 [held-out 평가](#held-out-규율--합성으로-평가-금지)가 담당합니다.
@@ -123,9 +132,9 @@ synth = bs.generate_grounded(
 
 ### max_tokens 실측값과 sampling 파라미터
 
-2026-07-31 실측 결과로 두 가지 기본값이 정해졌습니다.
+두 가지 기본값은 Bedrock 호출을 실제로 돌려 보고 정해졌습니다.
 
-- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다. 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
+- **`max_tokens`를 넉넉히 잡아야 합니다.** Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다(실측 2026-07-31). 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패). 그래서 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
 - **sampling 파라미터는 아예 보내지 않습니다.** Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다. 지정하면 매 호출이 거부 후 폴백 재시도를 타 **호출 수가 2배**가 됩니다. 기본은 `maxTokens`만 보내고, 필요하면 `temperature` 또는 `top_p` 중 하나만 명시합니다(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
 
 ### 생성 지시와 채점 기준의 분리
@@ -134,7 +143,7 @@ synth = bs.generate_grounded(
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
-??? question "오개념 — \"PII 정규식이 순수 숫자열도 지우지 않나?\""
+??? question "오개념 — “PII 정규식이 순수 숫자열도 지우지 않나?”"
     그렇지 않습니다. phone/card 패턴은 **구분자(공백/`-`/괄호)를 요구**하도록 좁혀 두었습니다.
     따라서 function-call JSON에 흔한 타임스탬프·금액·id 같은 순수 긴 숫자열은 PII로 오탐하지 않습니다. 오탐 때문에 유효한 합성이 폐기되는 것을 막기 위한 설계입니다.
 
@@ -148,7 +157,7 @@ synth = bs.generate_grounded(
 - **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
 - dry-run(`DRY_RUN=1`)은 파이프라인 검증용입니다. 노트북이 seed 8건 / 합성 6건 / `max_batches=3`으로 낮춰 잡으므로 실제 값과는 별개입니다.
 
-??? question "오개념 — \"합성을 많이 만들수록 항상 좋은가요?\""
+??? question "오개념 — “합성을 많이 만들수록 항상 좋은가요?”"
     그렇지 않습니다. seed 다양성이 한계에 다다르면 추가 생성은 **중복·near-duplicate**만 늘리고(중복 필터가 폐기합니다) 비용만 증가시킵니다.
     양보다는 [held-out 지표](#held-out-규율--합성으로-평가-금지)로 검증한 유효 증가분을 기준으로 조정하세요.
 
@@ -174,7 +183,7 @@ seed 전체
 
 `load_seed_examples`는 같은 인덱스를 항상 같은 순서로 돌려주므로(분류 트랙은 고정 시드 42로 셔플) 이 분리는 재현 가능합니다. 시드가 학습 구간보다 작으면 assert가 먼저 실패하므로, `NUM_SEED_SAMPLES`를 줄이거나 더 큰 시드 데이터셋을 쓰세요.
 
-??? question "오개념 — \"합성 데이터의 groundedness 점수가 높으면 평가에 써도 되나요?\""
+??? question "오개념 — “합성 데이터의 groundedness 점수가 높으면 평가에 써도 되나요?”"
     안 됩니다. groundedness는 "seed 도메인에 맞는가"를 나타낼 뿐 "정답인가"를 뜻하지 않습니다.
     게다가 합성은 정의상 teacher의 출력이므로, 이를 채점 기준으로 쓰면 **평가 순환 오류**가 그대로 남습니다. held-out은 반드시 실제 seed(증강 이전)에서만 뽑아야 합니다.
 
@@ -182,7 +191,7 @@ seed 전체
 
 ## 라이브러리 대안
 
-기본 경로(`bedrock_synth.py`)만으로도 충분하지만, 오케스트레이션이나 대량 실행이 필요하다면 아래 대안을 붙일 수 있습니다. **버전·라이선스·유지보수 상태는 실행 전 재확인** 대상입니다(PyPI/repo 실측 2026-07).
+기본 경로(`bedrock_synth.py`)만으로도 충분하지만, 오케스트레이션이나 대량 실행이 필요하다면 아래 대안을 붙일 수 있습니다. **버전·라이선스·유지보수 상태는 실행 전 재확인** 대상입니다.
 
 | 도구 | Bedrock 연동 | 상태 (2026-07 실측) | 라이선스 | 쓸 때 |
 |---|---|---|---|---|
@@ -196,7 +205,7 @@ seed 전체
 - 참고로 배제한 것들도 남겨 둡니다. **meta-llama/synthetic-data-kit**은 문서→QA/CoT 생성에 특화되었으나 케이던스가 둔화되고(2025-10 이후) Bedrock이 미문서화입니다. **Augmentoolkit**은 커밋은 활발하나 config/CLI 중심이라 라이브러리성이 낮고 Bedrock 미문서화입니다. **DeepFabric**(구 promptwright)은 LiteLLM을 쓰지 않아 Bedrock 미지원, **NVIDIA NeMo Curator**는 활발하지만 Bedrock 소비 커넥터가 없습니다(자체 NIM/vLLM 엔드포인트 호스팅용). **DataDreamer / fabricator**는 정체 상태입니다.
 - 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 킷의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
 
-??? question "오개념 — \"유명한 distilabel을 왜 안 쓰나요?\""
+??? question "오개념 — “유명한 distilabel을 왜 안 쓰나요?”"
     유명세와 유지보수는 별개입니다. 실측 시점 기준 **2026년 릴리스가 0건**(마지막 2025-01)이라 프로덕션 의존성으로는 부적합합니다.
     이 킷은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
 
@@ -204,19 +213,19 @@ seed 전체
 
 ## 자주 나오는 오개념
 
-??? question "오개념 — \"합성 데이터 생성이 곧 SageMaker endpoint 호출 아닌가요?\""
+??? question "오개념 — “합성 데이터 생성이 곧 SageMaker endpoint 호출 아닌가요?”"
     아닙니다. 합성 생성은 **Bedrock**(`bedrock-runtime`의 `converse`)으로 teacher LLM(Claude)을 부르는 것이고, 학습된 SLM 서빙은 **SageMaker**([`sagemaker-runtime`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime.html)의 `invoke_endpoint`, 스트리밍은 `invoke_endpoint_with_response_stream`)로 처리합니다.
     둘은 서로 다른 서비스이고, IAM 권한도 요금 체계도 따로입니다.
 
-??? question "오개념 — \"Bedrock Converse가 곧 SageMaker Batch Transform인가요?\""
+??? question "오개념 — “Bedrock Converse가 곧 SageMaker Batch Transform인가요?”"
     아닙니다. 합성 대량 생성은 Bedrock API를 반복 호출하는 작업입니다.
     [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다) — 다만 Serverless의 GPU 지원 여부는 바뀔 수 있는 값이므로 링크에서 현행 스펙을 다시 확인하세요. 자세한 비교는 [SageMaker 추론](04_sagemaker_inference.md)을 참고하세요.
 
-??? question "오개념 — \"grounded면 seed를 그대로 복사하는 것 아닌가요?\""
+??? question "오개념 — “grounded면 seed를 그대로 복사하는 것 아닌가요?”"
     아닙니다. 생성 프롬프트가 "verbatim 복사 금지, 같은 도메인/스타일/라벨공간의 **새** 예시"를 명시적으로 요구하고, 중복 필터(sha256, 공백 정규화 + 소문자화)가 동일하거나 사실상 같은 복제를 걸러냅니다.
     seed는 어디까지나 근거일 뿐, 정답을 복사할 대상이 아닙니다.
 
-??? question "오개념 — \"critique 임계값 0.6은 고정값인가요?\""
+??? question "오개념 — “critique 임계값 0.6은 고정값인가요?”"
     아닙니다. `min_groundedness`/`min_relevance` 인자로 트랙별 조정이 가능합니다.
     정밀한 라벨 태스크는 임계값을 올리고, 다양성이 중요한 QA는 낮출 수 있습니다. 다만 올릴수록 수율이 떨어져 같은 `n_total`을 채우는 데 호출이 늘어납니다.
 
@@ -237,10 +246,6 @@ seed 전체
 
 합성 생성 자체는 상시 리소스를 남기지 않습니다. 다만 같은 노트북 흐름의 endpoint와 학습 잡은 별개이므로 `99_cleanup.ipynb`로 정리하세요.
 
-**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. 킷 기본값은 `global.anthropic.claude-sonnet-5`(이 계정에서 `list_inference_profiles`로 실측 확인, 2026-07)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
+**모델 ID는 env로 주입하고 하드코딩하지 마세요.** `BEDROCK_CLAUDE_MODEL_ID`에는 [inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html) prefix(`us.`/`eu.`/`apac.`/`global.`)가 필수입니다. 킷 기본값은 `global.anthropic.claude-sonnet-5`(이 계정 `list_inference_profiles` 실측 2026-07)이며, 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다. 모델 로스터는 자주 바뀌므로 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
 
 AWS 마케팅 수치("최대 N% 절감" 등)는 **AWS 주장**으로 표기하고 출처를 붙이세요(이 문서에서는 인용하지 않습니다).
-
----
-
-**이전**: [전체 지도](00_overview.md) · **관련**: [SageMaker 기초](01_sagemaker_basics.md) · **다음**: [파인튜닝](03_finetuning.md)

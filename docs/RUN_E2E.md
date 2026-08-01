@@ -4,13 +4,13 @@
     파이프라인을 **클라우드에서 한 번에 완주**하려는 사람. 어떤 순서로, 무엇을 준비하고, 각 단계가 무엇을 다음으로 넘기고, 얼마가 들고, 무엇을 확인하고 넘어가는지를 한 곳에 모았습니다.
     선행 조건: AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스. 설치 절차와 스모크/로컬 dry-run은 [GETTING_STARTED.md](getting_started.md)가 다룹니다.
     Training Job·Endpoint 같은 개념이 낯설면 [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으시면 각 단계가 무엇을 만드는지 보입니다.
-    다루지 않는 것: 개념 배경(각 주제 가이드), 학습 하이퍼파라미터 튜닝, 컨테이너 내부 구조. 라이브 검증 2026-07.
+    다루지 않는 것: 개념 배경(각 주제 가이드), 학습 하이퍼파라미터 튜닝, 컨테이너 내부 구조.
 
 이 문서는 **실행 순서와 확인 지점**만 담습니다. "왜 이렇게 하는가"는 [전체 지도](00_overview.md)와 각 주제 가이드에 있습니다.
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK v3 API 이름·인스턴스 타입 가용성·리전 GPU 용량·AgentCore GA 상태는 분기마다 바뀝니다.
-    이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 2026-07 시점 실측이므로 원문 쪽이 항상 최신입니다.
+    이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상이며(코드에도 `# TODO verify`로 표기), 확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 실측 스냅샷이므로 원문 쪽이 항상 최신입니다.
     실제 값은 `.env`와 셸 env로 주입합니다 — 계정 ID·role ARN·HF 토큰은 문서에도 노트북에도 하드코딩하지 않습니다.
 
 ---
@@ -72,7 +72,7 @@
 
 그래서 1차 완주도 "무료 리허설"은 아닙니다. 무엇이 실제로 과금되는지는 다음 착각에서 갈립니다.
 
-??? question "오개념 — \"DRY_RUN=1이면 과금이 아예 없는 거죠?\""
+??? question "오개념 — “DRY_RUN=1이면 과금이 아예 없는 거죠?”"
     **아닙니다.** `DRY_RUN=1`은 **양을 줄이는 스위치**일 뿐입니다. Bedrock 합성 호출은 건수만큼 과금되고, `03_deploy_endpoint`를 실행하면 GPU endpoint가 실제로 떠서 시간당 과금됩니다.
     비용이 0인 검증은 `tests/test_smoke.py`(순수 로직)와 로컬 GPU dry-run뿐입니다.
 
@@ -199,7 +199,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 - 공통 로직은 `common/`이 공유하므로, 텍스트 트랙 간 차이는 데이터 어댑터(`tracks/*/track_data.py`)와 `config.TRACKS` 레지스트리뿐입니다.
 - 여러 트랙을 동시에 띄우면 GPU 인스턴스 비용이 트랙 수만큼 늘어납니다. **한 트랙씩 완주하고 정리하는 방식**을 권장합니다.
 
-??? question "오개념 — \"트랙을 옮기면 `%store` 값도 알아서 바뀌겠지?\""
+??? question "오개념 — “트랙을 옮기면 `%store` 값도 알아서 바뀌겠지?”"
     **그렇지 않습니다.** `%store`는 IPython 프로필 단위라 **트랙을 넘어 공유**됩니다. 전역 `endpoint_name`/`model_data`는 마지막에 실행한 트랙 값이 남아, 엉뚱한 endpoint를 호출하거나 다른 트랙 모델을 배포하게 됩니다(실측).
     그래서 노트북은 트랙 전용 키(`ep_<트랙>`, `md_<트랙>`)를 먼저 읽고, `train_path`는 아예 트랙 로컬 파일(`data/train.jsonl`)로 고정합니다.
 
@@ -257,7 +257,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 각 노트북은 학습·배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links()`). 잡 로그, endpoint 기동, OOM, Bedrock 호출량을 여기서 실시간으로 볼 수 있습니다.
 
-??? question "오개념 — \"endpoint를 호출하지 않으면 요금도 안 나오죠?\""
+??? question "오개념 — “endpoint를 호출하지 않으면 요금도 안 나오죠?”"
     **아닙니다.** real-time endpoint는 호출 여부와 무관하게 **provisioned 인스턴스가 시간당** 과금됩니다. 오토스케일도 통상 최소 1대는 유지합니다.
     쓰지 않는다면 삭제가 정답입니다. 비용 관점의 전체 비교는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 있습니다.
 
@@ -265,8 +265,21 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 
 ## 킷 내 참조 파일
 
-`common/config.py`(`MODEL_SIZE` 프리셋·`SERVING_ENGINE`·`is_dry_run`·`TRACKS`) · `common/dlc.py`(이미지 URI 해석·`serving_env`) · `common/aws_utils.py`(`invoke_sagemaker_chat`·`cw_links`·`ensure_model_data_in_region`·`COST_WARNING`) · `common/eval_utils.py`(트랙별 지표) · `tracks/*/scripts/train.py`·`train_grpo.py` · `tracks/05_multimodal_extraction/scripts/train_mm.py` · `tracks/*/99_cleanup.ipynb` · `agentcore/cleanup_agent.sh` · `.env`
+설정과 공통 유틸:
 
----
+- `common/config.py` — 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run()`, `TRACKS` 레지스트리
+- `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 폴백)과 서빙 env 생성(`serving_env`)
+- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 리전 정합성 검사(`ensure_model_data_in_region`), 비용 경고(`COST_WARNING`)
+- `.env` — 인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 비시크릿 설정값
 
-**이전**: [시작하기](index.md) · **관련**: [SageMaker 추론](04_sagemaker_inference.md) · [서빙 컨테이너 선택](05_serving_containers.md) · **다음**: [전체 지도](00_overview.md)
+학습 스크립트(트랙 폴더에 자족적으로 들어 있음):
+
+- `tracks/*/scripts/train.py` — SFT + LoRA/QLoRA 학습, 머지 후 텍스트 재-export
+- `tracks/*/scripts/train_grpo.py` — SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 트랙만)
+- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 재-export 없음)
+
+평가와 정리:
+
+- `common/eval_utils.py` — 트랙별 지표(`arg_f1`/`macro_f1`/ROUGE-L/LLM-judge)
+- `tracks/*/99_cleanup.ipynb` — endpoint → endpoint-config → model 삭제
+- `agentcore/cleanup_agent.sh` — AgentCore Runtime + ECR 정리(`--aws`)

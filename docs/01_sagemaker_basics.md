@@ -8,7 +8,7 @@
 
 !!! warning "빠르게 바뀌는 값"
     인스턴스 요금·리전 가용성·서비스 한도·GA 상태·Serverless의 GPU 지원 여부는 분기마다 바뀝니다.
-    이 문서는 **개념과 계약**(경로·수명·과금 모델)에 집중하고 구체적인 수치는 최소한만 언급합니다. 수치를 인용할 때는 전부 **실행 직전 재확인** 대상이며, 확인처는 각 주장 옆에 붙은 공식 문서 링크입니다(라이브 검증 2026-08).
+    이 문서는 **개념과 계약**(경로·수명·과금 모델)에 집중하고 구체적인 수치는 최소한만 언급합니다. 수치를 인용할 때는 전부 **실행 직전 재확인** 대상이며, 확인처는 각 주장 옆에 붙은 공식 문서 링크입니다.
 
 ---
 
@@ -174,7 +174,7 @@ Training Job에 경로 계약이 있듯이 Endpoint에도 계약이 있고, 학�
 | 이 킷의 노트북 | `02_train_sft_sagemaker` | `03_deploy_endpoint` |
 | 잊었을 때의 손해 | 거의 없음(이미 종료됨) | **계속 청구됨** |
 
-!!! danger "초심자에게 가장 비싼 오해 — \"학습이 끝났으니 다 끝난 것\""
+!!! danger "초심자에게 가장 비싼 오해 — “학습이 끝났으니 다 끝난 것”"
     **Training Job은 스스로 멈추지만 Endpoint는 스스로 멈추지 않습니다.** 이 한 줄의 차이가 실제 청구서를 만듭니다.
     Real-time endpoint는 요청이 0건이어도 GPU 인스턴스 시간당 요금이 계속 부과되며, 노트북 커널을 닫거나 랩톱을 꺼도 **AWS 쪽 서버는 계속 떠 있습니다.**
     실습이 끝나면 반드시 해당 트랙의 **`99_cleanup.ipynb`를 실행**하세요. 삭제 순서·잔여 리소스 훑는 방법·다른 리전 확인까지 실행 절차는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 정리돼 있습니다.
@@ -227,7 +227,7 @@ Training Job에 경로 계약이 있듯이 Endpoint에도 계약이 있고, 학�
 
 앞의 표에서 특히 자주 틀리는 지점을 따로 정리합니다.
 
-??? question "오개념 — \"HyperPod의 차별점은 노드 자동 교체다\""
+??? question "오개념 — “HyperPod의 차별점은 노드 자동 교체다”"
     **그것만으로는 차별점이 아닙니다.** AWS ParallelCluster도 `clustermgtd`로 불건전 노드를 감지해 교체합니다(CloudWatch 대시보드에 `Unhealthy Instance Errors` 지표가 있고, static 노드에는 `node_replacement_timeout`이 있습니다).
     HyperPod의 실제 차별점은 세 가지입니다.
 
@@ -237,16 +237,16 @@ Training Job에 경로 계약이 있듯이 Endpoint에도 계약이 있고, 학�
 
     즉 "노드를 살리는 것"이 아니라 **"진행 중인 학습을 살리는 것"**이 초점입니다.
 
-??? question "오개념 — \"HyperPod로 올리면 blue/green이나 canary 배포도 되겠지\""
+??? question "오개념 — “HyperPod로 올리면 blue/green이나 canary 배포도 되겠지”"
     **가드레일은 아닙니다.** HyperPod에도 [추론 플랫폼](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment.html)이 있어 프로덕션 트래픽을 받을 수 있습니다. 하지만 blue/green·canary·rolling 배포 가드레일과 production variant A/B는 **SageMaker AI Inference endpoint**의 기능입니다 — `CreateEndpoint`/`UpdateEndpoint`의 `EndpointConfig` 교체를 기반으로, CloudWatch 알람으로 baking 기간을 감시하며 자동 롤백까지 하는 메커니즘입니다. 적용 대상은 real-time과 asynchronous이고 serverless는 제외되며, 제외 목록에 있는 기능(inference component 등)을 쓰는 endpoint에서는 가드레일 자체를 쓸 수 없습니다.
     HyperPod EKS에서 같은 목적을 달성하려면 Kubernetes rolling update로 직접 구성해야 합니다. 기능을 찾을 때는 **"어느 서비스의 기능인가"를 먼저 확인**하세요 — 티어 간 기능 귀속 오류가 아키텍처 결정을 가장 크게 망칩니다.
 
-??? question "오개념 — \"HyperPod는 하나다\""
+??? question "오개념 — “HyperPod는 하나다”"
     **오케스트레이터가 두 종류입니다.** **Slurm** 방식은 클러스터 안에 컨트롤러·로그인·워커 노드를 두고 `sbatch`/`srun`으로 제출하며, auto-resume은 `srun --auto-resume=1` 플래그로 켭니다.
     **EKS** 방식은 EKS 컨트롤 플레인과 HyperPod 클러스터(워커 노드)를 1:1로 연결하고, 워크로드는 컨테이너/파드로 제출합니다.
     둘은 제출 방식·팀 스킬셋·관측 스택이 모두 다릅니다. 한쪽 문서를 읽고 다른 쪽 동작을 가정하지 마세요.
 
-??? question "오개념 — \"DLC는 SageMaker 전용이다\""
+??? question "오개념 — “DLC는 SageMaker 전용이다”"
     **아닙니다.** DLC(Deep Learning Containers)는 **워크로드 컨테이너 이미지**라서 EC2·ECS·EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
     비교 대상으로 자주 등장하는 **DLAMI는 노드(호스트) 머신 이미지**이며 층이 다릅니다. "관리형이니까 DLC, 자체 구성이니까 DLAMI"라는 대응은 성립하지 않습니다.
 
@@ -296,8 +296,19 @@ Training Job에 경로 계약이 있듯이 Endpoint에도 계약이 있고, 학�
 
 ## 킷 내 참조 파일
 
-`tracks/01_extraction_to_json/scripts/train.py`(`SM_CHANNEL_TRAIN` 해석, `SM_MODEL_DIR` 기본값, `save_total_limit=1`) · `tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb`(`ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition`, `MAX_RUNTIME_HOURS`) · `tracks/01_extraction_to_json/03_deploy_endpoint.ipynb` · `tracks/01_extraction_to_json/99_cleanup.ipynb` · `common/dlc.py` · `common/aws_utils.py`
+이 문서의 개념이 코드로 나타나는 곳입니다(플래그십 트랙 `tracks/01_extraction_to_json/` 기준).
 
----
+경로 계약과 Training Job:
 
-**이전**: [시작하기](getting_started.md) · **관련**: [SageMaker 추론](04_sagemaker_inference.md) · [파인튜닝](03_finetuning.md) · **다음**: [실행 런북](RUN_E2E.md)
+- `tracks/01_extraction_to_json/scripts/train.py` — `SM_CHANNEL_TRAIN`으로 입력 채널을 찾고 `SM_MODEL_DIR`을 출력 기본값으로 씀. `save_total_limit=1`로 아티팩트 크기를 억제
+- `tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb` — `ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` 조립, `MAX_RUNTIME_HOURS`로 시간 한도 명시
+
+Endpoint의 생성과 삭제:
+
+- `tracks/01_extraction_to_json/03_deploy_endpoint.ipynb` — `model_data`를 real-time endpoint로 배포하고 invoke 스모크 테스트
+- `tracks/01_extraction_to_json/99_cleanup.ipynb` — Endpoint → EndpointConfig → Model 순서로 삭제해 과금을 멈춤
+
+공용 헬퍼:
+
+- `common/dlc.py` — 학습·서빙 DLC 이미지 URI 해석(`DLC_IMAGE_URI` 환경변수 오버라이드)
+- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 변경분만 올리는 S3 업로드(`upload_if_changed`)

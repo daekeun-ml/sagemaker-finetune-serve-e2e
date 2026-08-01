@@ -300,7 +300,7 @@ def serving_env(engine: str, max_model_len: int, max_num_seqs: int = 32,
 
     max_num_seqs / gpu_memory_utilization 기본값은 24GB GPU(L4) CUDA OOM 방지용이다 —
     vLLM 기본 max_num_seqs=256은 샘플러 logits 버퍼를 256 x vocab(gemma-4는 262,144) x 4B
-    = 256MiB 로 잡아, gemma-4 가중치(~15GB) + KV 캐시와 겹치면 터진다(실측 docs/05 §4.9).
+    = 256MiB 로 잡아, gemma-4 가중치(~15GB) + KV 캐시와 겹치면 터진다(실측 docs/05 「24GB GPU CUDA OOM」).
 
     mm_limit: 이미지/오디오 허용 제한 JSON 문자열(예 '{"image": 1}'). None이면 지정하지 않는다.
     hf_token: gated 모델일 때만 전달(없으면 넣지 않는다 — 서빙 메타데이터에 평문 노출 방지).
