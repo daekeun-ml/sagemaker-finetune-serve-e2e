@@ -44,6 +44,12 @@ tracks/*/data/
 # 단, 멀티모달 배포 검증용 샘플 이미지는 커밋한다(248KB, 없으면 노트북이 40초 대기).
 !tracks/05_multimodal_extraction/samples/
 
+# --- pipelines/ 의 스테이지 간 상태 (노트북 %store 대체) ---
+# 🔴 model_data / endpoint_name 같은 '내 계정의 실행 결과'가 들어갑니다(버킷 이름에 계정 ID 포함)
+#    → 커밋하지 않습니다. 지워도 그 스테이지만 다시 돌리면 됩니다(캐시입니다).
+#    config.yaml 은 설정만 담고 시크릿이 없으므로 커밋합니다.
+.pipeline_state/
+
 # --- 벤치마크·임시 산출물 ---
 bench/
 req.json

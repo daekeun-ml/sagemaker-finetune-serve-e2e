@@ -72,10 +72,13 @@ markdown_extensions:
 nav:
   - 홈: index.md
   - 시작하기: getting_started.md
-  # 아래 가이드는 파일명 번호 = 읽는 순서입니다(00 지도 → 01 개념 → 02~06 파이프라인).
-  - 가이드:
+  # 그룹 이름은 '무엇을 담았나'가 아니라 '언제 여는가'로 붙입니다. '가이드' 같은 라벨은
+  # 안에 뭐가 있는지 알려주지 않아, 처음 온 사람이 어느 그룹을 열지 못 고릅니다.
+  # 파일명 번호(00~06)는 그대로 읽는 순서입니다.
+  - 개념부터 이해하기:
       - 00 전체 지도: 00_overview.md
       - 01 SageMaker 기초: 01_sagemaker_basics.md
+  - 파인튜닝 · 서빙 가이드:
       - 02 합성 데이터: 02_synthetic_data.md
       - 03 파인튜닝: 03_finetuning.md
       - 04 SageMaker 추론: 04_sagemaker_inference.md
@@ -84,19 +87,23 @@ nav:
   # 코스 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 코스 번호 01→05.
   # 다섯 페이지는 courses/ 하위에 모여 있고, 폴더명이 옛 track_ 접두어의 역할을 대신합니다
   # (URL도 .../courses/extraction/ 으로 바뀌었습니다).
-  - 코스:
+  - 태스크별 실습 코스:
       - 추출 → JSON: courses/extraction.md
       - 분류: courses/classification.md
       - 요약: courses/summarization.md
       - 도메인 QA: courses/domain_qa.md
       - 멀티모달 추출: courses/multimodal.md
+  # 노트북과 파이썬 두 경로를 한 그룹에 묶습니다 — 둘은 '같은 코스를 어떻게 돌리나'의
+  # 선택지라, 떨어뜨려 놓으면 하나만 있는 줄 압니다.
+  - 직접 실행하기:
+      - 노트북으로 완주 (JupyterLab): RUN_E2E.md
+      - 스크립트로 실행 (Python): pipelines.md
   # SDK V3는 가이드 번호 체계(00~06, 파이프라인 순서)에 넣지 않습니다. 순서대로 읽는 문서가
   # 아니라 V2 코드를 옮길 때 찾아보는 참조 문서라, 번호를 붙이면 '일곱 번째로 읽는 것'으로 오해됩니다.
-  - SDK V3:
+  - SageMaker SDK V3:
       - V2에서 바뀐 것: sdk_v3/index.md
       - 학습: sdk_v3/training.md
       - 배포: sdk_v3/serving.md
-  - 실행 runbook: RUN_E2E.md
 
 extra_css:
   - stylesheets/extra.css

@@ -80,6 +80,32 @@
 
 ---
 
+## 두 가지 실행 방법
+
+같은 코스를 **노트북**으로도, **파이썬 스크립트**로도 돌릴 수 있습니다. 둘은 같은 `common/`
+레이어를 쓰므로 결과가 같고, 쓰는 상황이 다릅니다.
+
+| | 노트북 (`tracks/`) | 스크립트 (`pipelines/`) |
+|---|---|---|
+| 적합 | 처음 배울 때, 중간 산출물을 눈으로 볼 때, 질의를 바꿔가며 볼 때 | 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현 |
+| 실행 | JupyterLab에서 셀 순서대로 | `python pipelines/run_extraction.py --stages all` |
+| 단계 전달 | `%store` (IPython 전용, **전역**) | 코스별 JSON 파일 (`.pipeline_state/`) |
+| 설정 | 노트북 셀 상수 + `.env` | `config.yaml` + env(시크릿만) |
+| 에이전트 단계 | 있음 (05, 06) | 없음 — 노트북에만 |
+
+```bash
+# 나눠서 실행 — 학습만 돌려두고 나중에 배포
+python pipelines/run_extraction.py --stages data,train
+python pipelines/run_extraction.py --stages deploy,eval
+```
+
+!!! tip "먼저 --dry-run"
+    `--dry-run`은 **과금되는 것을 하나도 만들지 않습니다.** 학습 잡·endpoint는 물론 Bedrock 호출도
+    하지 않습니다 — Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 + critique 약 100회가 실제로
+    청구됩니다. 그래서 몇 초에 끝나고 AWS 자격증명 없이도 전 경로를 밟습니다.
+
+자세한 사용법은 [`pipelines/README.md`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/pipelines/README.md)에 있습니다. 아래 절은 **노트북 경로**를 기준으로 설명합니다.
+
 ## 파이프라인 한눈에
 
 각 노트북은 결과를 `%store`로 저장하고 다음 노트북이 `%store -r`로 읽습니다. 다만 `train.jsonl`처럼 **코스 간 오염이 치명적인 값은 코스 로컬 파일로 고정**해 두었습니다([단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프) 표 참고).

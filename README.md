@@ -127,7 +127,8 @@ Gemma 4는 SageMaker의 관리형 경로에서도 쓸 수 있습니다. 그런�
 ```
 sagemaker-finetune-serve-e2e/
 ├── common/     노트북이 공통으로 import 하는 얇은 레이어
-├── tracks/     5개 코스 (각각 독립 E2E)
+├── tracks/     5개 코스 (각각 독립 E2E, 노트북)
+├── pipelines/  같은 코스를 파이썬으로 한 번에 실행 (CI·재현용)
 ├── docs/       파인튜닝 · 서빙 컨테이너 · 합성 데이터 · agentic 가이드
 ├── tools/      노트북 셀 출력 정리
 └── agentcore/  ARM64 컨테이너 스캐폴드 (Strands → AgentCore Runtime)
