@@ -9,7 +9,7 @@
 
 [![V2의 Model/predictor 코드와 V3의 ModelBuilder/build/deploy 코드를 나란히 비교](../images/sdkv3_inference.png)](../images/sdkv3_inference.png)
 
-*V3 코드에서 **없어진 두 인자**를 보세요 — `role`과 `image_uri`가 사라졌습니다. 그리고 `model.deploy()` 한 번이 `build()` → `deploy()` 두 단계로 갈라졌고, 마지막이 `predictor.predict()`가 아니라 `endpoint.invoke()`입니다.*
+*V3 코드에서 **없어진 두 인자**를 보세요: `role`과 `image_uri`가 사라졌습니다. 그리고 `model.deploy()` 한 번이 `build()` → `deploy()` 두 단계로 갈라졌고, 마지막이 `predictor.predict()`가 아니라 `endpoint.invoke()`입니다.*
 
 `tracks/*/03_deploy_endpoint.ipynb`입니다. `ModelBuilder`는 **`build()` → `deploy()` 두 단계**이고, `deploy()`가 돌려주는 것은 `Predictor`가 아니라 `Endpoint` 리소스입니다.
 
@@ -83,7 +83,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 | **추론 컨테이너** | Docker 이미지. OS·Python·CUDA 드라이버·프레임워크 라이브러리·모델 서버 소프트웨어가 한 이미지에 구워져 있고, SageMaker가 ML 인스턴스에서 실제로 실행하는 것 |
 | **모델 서버** | 그 컨테이너 **안에서 도는 HTTP 애플리케이션**. 포트를 열고 모델을 메모리에 올리고 요청을 받아 추론해 응답 |
 
-같은 프레임워크라도 이미지에 따라 서버가 다릅니다 — PyTorch DLC는 TorchServe를 싣고, 같은 PyTorch용 다른 이미지는 DJL Serving이나 Triton을 쓸 수 있습니다.
+같은 프레임워크라도 이미지에 따라 서버가 다릅니다. PyTorch DLC는 TorchServe를 싣고, 같은 PyTorch용 다른 이미지는 DJL Serving이나 Triton을 쓸 수 있습니다.
 
 | 모델 서버 | 적합한 용도 | 대표 컨테이너 |
 |---|---|---|
@@ -96,7 +96,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 | MMS (Multi-Model Server) | 경량·다중 모델 호스팅 | MXNet/범용 DLC |
 | SMD | 커스텀 orchestrator | SageMaker 관리형 DLC |
 
-이 kit은 이 표에 없는 조합을 씁니다 — vLLM·SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
+이 kit은 이 표에 없는 조합을 씁니다: vLLM·SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
 
 ## 배포 3모드 — 테스트에서 프로덕션까지
 

@@ -55,14 +55,14 @@ output: Virgin Australia commenced services on 31 August 2000 as Virgin Blue, wi
         single route.
 ```
 
-`context`가 빈 문자열인 row는 헤더 없이 instruction만 `input`이 됩니다 — 실제로 다음과 같은 짧은 예시가 그대로 학습셋에 들어갑니다.
+`context`가 빈 문자열인 row는 헤더 없이 instruction만 `input`이 됩니다. 실제로 다음과 같은 짧은 예시가 그대로 학습셋에 들어갑니다.
 
 ```text
 input:  Which is a species of fish? Tope or Rope
 output: Tope
 ```
 
-학습 시점에는 `to_messages()`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다 — Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
+학습 시점에는 `to_messages()`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다. Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오개념 — “context가 있으니 RAG 코스 아닌가요?”"
     아닙니다. 이 코스는 **검색 단계가 없습니다.** context는 데이터셋이 이미 붙여 준 문단이고, 모델이 배우는 것은 "주어진 문단에 근거해 답하기"입니다. 검색기를 붙이는 것은 이 코스 위에 얹는 별도 작업이며, 이 kit의 노트북에는 포함되지 않았습니다.
@@ -82,11 +82,11 @@ output: Tope
 | `context`가 채워진 row | 4,467건 (29.8%) — 나머지 70%는 문서 없이 답해야 하는 질문 |
 | `category` 분포 | `open_qa` 3,742 · `general_qa` 2,191 · `classification` 2,136 · `closed_qa` 1,773 · `brainstorming` 1,766 · `information_extraction` 1,506 · `summarization` 1,188 · `creative_writing` 709 |
 
-`load_seed_examples(n)`은 앞에서부터 순서대로 훑으며 `instruction`과 `response`가 **둘 다 비어 있지 않은** row만 채택하고, `n`건이 모이면 멈춥니다. 셔플하지 않습니다 — 이 데이터셋은 라벨 정렬 순서가 아니고 category가 앞부분에도 섞여 있어, 분류 코스처럼 셔플을 강제할 이유가 없습니다.
+`load_seed_examples(n)`은 앞에서부터 순서대로 훑으며 `instruction`과 `response`가 **둘 다 비어 있지 않은** row만 채택하고, `n`건이 모이면 멈춥니다. 셔플하지 않습니다. 이 데이터셋은 라벨 정렬 순서가 아니고 category가 앞부분에도 섞여 있어, 분류 코스처럼 셔플을 강제할 이유가 없습니다.
 
 !!! warning "스플릿이 하나뿐이라 held-out을 직접 잘라야 합니다"
     dolly에는 test 스플릿이 없습니다. 그래서 `04_evaluate`는 학습이 사용한 **앞 `NUM_SEED_SAMPLES`건(기본 300)을 명시적으로 건너뛰고** 그 뒤 `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 held-out으로 씁니다. `load_seed_examples`가 항상 같은 순서를 돌려주므로 이 분리는 재현 가능합니다.
-    `pool[-N_EVAL:]` 같은 방식은 쓰지 않습니다 — 넉넉히 로드하지 않으면 held-out이 학습 구간(0~299) **안쪽**에 들어가 점수가 부풀려집니다. 배경은 [held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다.
+    `pool[-N_EVAL:]` 같은 방식은 쓰지 않습니다. 넉넉히 로드하지 않으면 held-out이 학습 구간(0~299) **안쪽**에 들어가 점수가 부풀려집니다. 배경은 [held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다.
 
 !!! danger "CC-BY-SA는 파생물로 전파됩니다"
     dolly는 cc-by-sa-3.0(share-alike)입니다. 이 데이터로 학습한 어댑터·머지 모델·합성 데이터를 **배포**할 때 share-alike 의무가 따라붙습니다. 사내 실습으로 끝낼 것인지, 외부 배포까지 갈 것인지에 따라 시드를 다시 고르는 편이 나을 수 있습니다(이 kit의 다른 코스 시드는 apache-2.0 / mit / cc0-1.0 / cc-by-4.0입니다).
@@ -122,7 +122,7 @@ output: Tope
 | `06_agentcore_deploy` | AgentCore Runtime 배포 |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제, 로컬 모델 정리 |
 
-**`02a`(GRPO)가 없는 이유**는 reward를 프로그램으로 계산할 수 없기 때문입니다. `scripts/train_grpo.py`의 `--reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐이고, "좋은 답변"을 규칙으로 채점할 방법이 없습니다. LLM-judge를 reward로 쓰는 것은 가능하지만 rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞입니다 — 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)에 있습니다.
+**`02a`(GRPO)가 없는 이유**는 reward를 프로그램으로 계산할 수 없기 때문입니다. `scripts/train_grpo.py`의 `--reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐이고, "좋은 답변"을 규칙으로 채점할 방법이 없습니다. LLM-judge를 reward로 쓰는 것은 가능하지만 rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞입니다. 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)에 있습니다.
 
 !!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
     `DRY_RUN=1`이면 시드 8건 · 합성 6건 · held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md)에 정리돼 있습니다.
@@ -143,10 +143,10 @@ output: Tope
 | `endpoint_prefix` | `gemma-domainqa` | 분류 `gemma-classification` | 학습 Job·endpoint 이름과 `%store` 키(`ep_domain_qa`·`md_domain_qa`)의 접두어 |
 | `multimodal` | `False` | 05만 `True` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 코스는 `01_data_and_synthetic`을 씁니다 |
 
-스트리밍이 기본 on인 이유는 답변이 긴 자유서술이라 첫 토큰을 먼저 보여 주는 편이 체감상 훨씬 낫기 때문입니다(짧은 JSON·라벨을 내는 추출·분류 코스에서는 끕니다). 단 첫 토큰 체감만 줄고 전체 생성 시간이나 처리량은 바뀌지 않습니다 — [스트리밍이 개선하지 않는 것](../05_serving_containers.md#스트리밍이-개선하지-않는-것).
+스트리밍이 기본 on인 이유는 답변이 긴 자유서술이라 첫 토큰을 먼저 보여 주는 편이 체감상 훨씬 낫기 때문입니다(짧은 JSON·라벨을 내는 추출·분류 코스에서는 끕니다). 단 첫 토큰 체감만 줄고 전체 생성 시간이나 처리량은 바뀌지 않습니다([스트리밍이 개선하지 않는 것](../05_serving_containers.md#스트리밍이-개선하지-않는-것)).
 
 !!! warning "절단은 에러 없이 200 응답으로 옵니다"
-    잘렸는지 확인하려면 응답의 `finish_reason`을 봐야 합니다(`length`면 절단) — 코스별 `gen_max_tokens` 전체 표와 확인 코드는 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+    잘렸는지 확인하려면 응답의 `finish_reason`을 봐야 합니다(`length`면 절단). 코스별 `gen_max_tokens` 전체 표와 확인 코드는 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
     배포·평가·에이전트 셀이 모두 같은 `gen_max_tokens=512`를 쓰도록 맞춰져 있으니, 한 곳만 256으로 되돌리지 마세요. 그 셀에서만 답이 잘려 원인 파악이 어려워집니다.
 
 ---

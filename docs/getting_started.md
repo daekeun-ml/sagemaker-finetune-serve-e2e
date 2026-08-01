@@ -54,7 +54,7 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 cd ~/sagemaker-finetune-serve-e2e
 python tests/test_smoke.py
 ```
-기대 출력: 마지막 줄이 `9/9 passed`(테스트를 추가하면 그만큼 늘어납니다). 실패 없이 끝나는지만 보면 됩니다 — 데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직·멀티모달 코스 등록을 검증합니다.
+기대 출력: 마지막 줄이 `9/9 passed`(테스트를 추가하면 그만큼 늘어납니다). 실패 없이 끝나는지만 보면 됩니다. 데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직·멀티모달 코스 등록을 검증합니다.
 
 ---
 
@@ -100,7 +100,7 @@ python tracks/01_extraction_to_json/scripts/train.py \
 **"초심자를 위한 주피터 노트북"이 바로 이겁니다.** kit에는 태스크 하나를 데이터 준비부터 학습·배포·평가·정리까지
 끝내는 **실습 코스가 5개** 있고, 각 텍스트 코스 폴더에
 `00`~`06`,`99` 노트북이 (+ 선택 `02a`/`02b`), 멀티모달 코스에는 별도의 짧은 세트가 있습니다. 번호 순서대로 실행하면 됩니다.
-폴더 이름과 코드 식별자는 초기 이름인 `track`을 그대로 씁니다(`tracks/`, `track_data.py`) — 아래에서 말하는 코스와 같은 것입니다.
+폴더 이름과 코드 식별자는 초기 이름인 `track`을 그대로 씁니다(`tracks/`, `track_data.py`). 아래에서 말하는 코스와 같은 것입니다.
 
 ### 어느 노트북부터
 ```
@@ -116,11 +116,11 @@ tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
 ├── 06_agentcore_deploy.ipynb     ⑦ AgentCore 프로덕션 배포
 └── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
 ```
-다른 텍스트 task는 `02_classification/`, `03_summarization/`, `04_domain_qa/` — **구조·순서 동일**.
+다른 텍스트 task는 `02_classification/`, `03_summarization/`, `04_domain_qa/`이고 **구조·순서 동일**입니다.
 - `02a_train_grpo_sagemaker`(SFT→GRPO 정련)는 **추출·분류 코스에만** 있습니다(리워드가 프로그램적으로 계산됨). 요약·domain_qa에는 없습니다.
 - `02b_local_serve`(배포 전 로컬 vLLM 프리플라이트)는 모든 텍스트 코스에서 선택적으로 제공됩니다.
 
-**멀티모달 코스는 구조가 다릅니다** — `tracks/05_multimodal_extraction/` (이미지 → 구조화 JSON 추출, 영수증, gemma-4 vision)은
+**멀티모달 코스는 구조가 다릅니다.** `tracks/05_multimodal_extraction/`(이미지 → 구조화 JSON 추출, 영수증, gemma-4 vision)은
 합성 데이터 단계가 없고 이미지 입력이라 노트북 세트가 짧습니다:
 ```
 tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 코스와 별개 구조)
@@ -161,7 +161,7 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 
     gemma-4 계열(ungated)만 쓸 거라면 토큰 자체가 필요 없습니다.
 
-    **커스텀 캐시 경로를 쓴다면** — `HF_HOME=~/hf-cache`로 `hf auth login`을 했다면 토큰이
+    **커스텀 캐시 경로를 쓴다면**, `HF_HOME=~/hf-cache`로 `hf auth login`을 했다면 토큰이
     `~/hf-cache/token`에 저장됩니다. 이때 **노트북 프로세스에도 같은 `HF_HOME`이 있어야**
     `huggingface_hub`이 그 토큰을 찾습니다.
 

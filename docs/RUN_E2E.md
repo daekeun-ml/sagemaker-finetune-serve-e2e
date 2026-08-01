@@ -16,8 +16,8 @@
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK v3 API 이름·인스턴스 타입 가용성·리전 GPU 용량·AgentCore GA 상태는 분기마다 바뀝니다.
     이 문서의 태그·ID·인스턴스 타입은 전부 **실행 직전 재확인** 대상입니다(코드에도 `# TODO verify`로 표기).
-    확인처는 각 절에 인라인으로 링크한 공식 문서입니다 — 이 문서의 수치는 실측 스냅샷이므로 원문 쪽이 항상 최신입니다.
-    실제 값은 `.env`와 셸 env로 주입합니다 — 계정 ID·role ARN·HF 토큰은 문서에도 노트북에도 하드코딩하지 않습니다.
+    확인처는 각 절에 인라인으로 링크한 공식 문서입니다. 이 문서의 수치는 실측 스냅샷이므로 원문 쪽이 항상 최신입니다.
+    실제 값은 `.env`와 셸 env로 주입합니다. 계정 ID·role ARN·HF 토큰은 문서에도 노트북에도 하드코딩하지 않습니다.
 
 ---
 
@@ -25,16 +25,16 @@
 
 **태스크별 실습 코스 하나(`tracks/<track>/` 폴더)의 노트북을 `00 → 99` 순서로 실행하면 1개 E2E가 완성됩니다. 첫 완주는 `DRY_RUN=1`로 소량·저비용으로 돌려 파이프라인을 검증하고, 두 번째 완주에서만 본격 과금하세요.**
 
-폴더 이름과 코드 식별자(`tracks/`, `TRACKS`, `track_data.py`)는 초기 이름인 `track`을 그대로 쓰고 있습니다 — 이 문서에서 말하는 **코스**와 같은 것을 가리킵니다.
+폴더 이름과 코드 식별자(`tracks/`, `TRACKS`, `track_data.py`)는 초기 이름인 `track`을 그대로 쓰고 있습니다. 이 문서에서 말하는 **코스**와 같은 것을 가리킵니다.
 
 정리하면 다음과 같습니다.
 
-1. **코스 하나가 완결된 E2E입니다.** 5개 코스는 서로 독립이므로 한 코스를 끝내고 정리한 뒤 다음 코스로 옮기세요 — [5개 코스를 모두 돌리려면](#5개-코스를-모두-돌리려면).
+1. **코스 하나가 완결된 E2E입니다.** 5개 코스는 서로 독립이므로 한 코스를 끝내고 정리한 뒤 다음 코스로 옮기세요([5개 코스를 모두 돌리려면](#5개-코스를-모두-돌리려면)).
 2. **핸드오프는 `%store`와 코스 로컬 파일로 이어집니다.** 어느 노트북이 무엇을 만들어 넘기는지는 [단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프)의 표에 정리했습니다.
-3. **두 번 완주가 정석입니다.** 1차는 `DRY_RUN=1`, 2차는 실제 규모입니다 — [왜 두 번 완주하는가](#왜-두-번-완주하는가--dry_run-우선).
-4. **막히는 지점은 거의 정해져 있습니다.** `%store` 오염, `MaxRuntimeExceeded`, 24GB GPU CUDA OOM, Bedrock 모델 ID 형식이 전부입니다
-    — 증상별 정리는 [E2E 흐름에서 자주 막히는 곳](#e2e-흐름에서-자주-막히는-곳).
-5. **real-time endpoint는 삭제 전까지 시간당 과금됩니다.** 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다 — [비용과 cleanup](#비용과-cleanup).
+3. **두 번 완주가 정석입니다.** 1차는 `DRY_RUN=1`, 2차는 실제 규모입니다([왜 두 번 완주하는가](#왜-두-번-완주하는가--dry_run-우선)).
+4. **막히는 지점은 거의 정해져 있습니다.** `%store` 오염, `MaxRuntimeExceeded`, 24GB GPU CUDA OOM, Bedrock 모델 ID 형식이 전부입니다.
+    증상별 정리는 [E2E 흐름에서 자주 막히는 곳](#e2e-흐름에서-자주-막히는-곳)에 있습니다.
+5. **real-time endpoint는 삭제 전까지 시간당 과금됩니다.** 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다([비용과 cleanup](#비용과-cleanup)).
 
 ---
 
@@ -109,7 +109,7 @@ python pipelines/run_extraction.py --stages deploy,eval
 
 !!! tip "먼저 --dry-run"
     `--dry-run`은 **과금되는 것을 하나도 만들지 않습니다.** 학습 Job·endpoint는 물론 Bedrock 호출도
-    하지 않습니다 — Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 + critique 약 100회가 실제로
+    하지 않습니다. Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 + critique 약 100회가 실제로
     청구됩니다. 그래서 몇 초에 끝나고 AWS 자격증명 없이도 전 경로를 밟습니다.
 
 자세한 사용법은 [`pipelines/README.md`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/pipelines/README.md)에 있습니다.
@@ -141,7 +141,7 @@ python pipelines/run_extraction.py --stages deploy,eval
 
 ??? info "관리형 evaluator를 쓰지 않는 이유"
     SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova·일부 JumpStart)** 전용입니다.
-    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다 — 실측하면 `DescribeHubContent ... does not exist`로 떨어집니다.
+    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다. 실측하면 `DescribeHubContent ... does not exist`로 떨어집니다.
 
 ### 멀티모달 코스 (05) 파이프라인
 
@@ -164,12 +164,12 @@ python pipelines/run_extraction.py --stages deploy,eval
 한 번만 하면 되는 준비입니다.
 
 - [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)).
-    코어 의존성은 `>=` floor로만 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1` — 현행 값은 `pyproject.toml`이 원본입니다).
+    코어 의존성은 `>=` floor로만 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1`). 현행 값은 `pyproject.toml`이 원본입니다.
     SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
 - [ ] **AWS 자격증명** — `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
 - [ ] **SageMaker 실행 role** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다.
     Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role()`이 `get_execution_role()`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다.
-    **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다릅니다.** 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요 — 권한 부족은 제출 시점이 아니라 Job이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr)).
+    **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다릅니다.** 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요. 권한 부족은 제출 시점이 아니라 Job이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role로-무엇을-하는가--s3와-ecr-접근)).
 - [ ] **Bedrock 모델 액세스** — 콘솔에서 사용할 Claude 모델의 액세스를 활성화합니다.
     그리고 AWS가 [cross-region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 문서화하는 **inference-profile ID**(`us.`/`eu.`/`apac.`/`global.` 접두사 필수)를 확보해 `BEDROCK_CLAUDE_MODEL_ID`에 설정합니다. 기본값은 `global.anthropic.claude-sonnet-5`입니다.
 - [ ] **모델 선택** — 기본은 `google/gemma-4-E4B-it`(apache-2.0·ungated, `MODEL_SIZE=E4B`)입니다.
@@ -220,7 +220,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 ### 단계별 주의
 
 - **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다.
-    합성 전에 토큰 길이 EDA를 꼭 보세요 — 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
+    합성 전에 토큰 길이 EDA를 꼭 보세요. 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
 - **③ 학습** — `stopping_condition`을 **반드시 명시**하세요. 생략하면 SDK 기본 1시간이 붙습니다.
     [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)가 적는 API 기본값 1일과는 다릅니다.
     학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다.
@@ -228,7 +228,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
     첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분·3분).
 - **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다.
     셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다.
-    **한 번에 하나만** 배포하세요 — 둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다. endpoint 기동에는 5~15분이 걸립니다.
+    **한 번에 하나만** 배포하세요. 둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다. endpoint 기동에는 5~15분이 걸립니다.
     참고할 곳: 엔진 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine), 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측), 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마).
 - **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다.
     `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
@@ -242,7 +242,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
     출력은 2,554토큰으로 `max_tokens` 4,500 안이라 절단은 없습니다. 즉 문제는 품질이 아니라 순수 지연입니다.
 
 !!! danger "평가셋은 합성으로 만들지 마세요"
-    합성 데이터나 학습셋으로 평가하면 점수가 조용히 부풀려집니다 — teacher 모델을 얼마나 모방했는지를 재는 데 그칩니다.
+    합성 데이터나 학습셋으로 평가하면 점수가 조용히 부풀려집니다. teacher 모델을 얼마나 모방했는지를 재는 데 그칩니다.
     `04_evaluate`는 반드시 **합성 증강 이전의 시드에서 결정론적으로 분리한 held-out**만 사용합니다. 규율의 배경은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다.
 
 위 단계들의 근거를 원본 소스에서 확인하려면 다음을 보세요.
@@ -285,7 +285,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 |---|---|
 | `02`에서 `train_path`/`data/train.jsonl` 없음 | `01`을 실행하지 않았습니다. 코스 내 노트북은 **순서대로** 실행하세요 |
 | 다른 코스 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 아티팩트를 걸러 줍니다 |
-| 학습 Job이 시작 직후 실패 | IAM role 권한(S3/ECR) 또는 DLC 태그 문제 → CloudWatch 로그 확인, `.env`의 `DLC_IMAGE_URI` 리전·태그 재확인(`aws ecr describe-images`). 권한이 제출 시점에 안 걸리고 여기서 터지는 구조는 [실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role이-매개하는-것--s3와-ecr) |
+| 학습 Job이 시작 직후 실패 | IAM role 권한(S3/ECR) 또는 DLC 태그 문제 → CloudWatch 로그 확인, `.env`의 `DLC_IMAGE_URI` 리전·태그 재확인(`aws ecr describe-images`). 권한이 제출 시점에 안 걸리고 여기서 터지는 구조는 [실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role로-무엇을-하는가--s3와-ecr-접근) |
 | 학습이 끝났는데 Job이 `Stopped`, 아티팩트에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). 실측에서는 Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료됐고, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
 | `InsufficientInstanceCapacity`로 Job이 안 뜸 | 리전별 GPU 용량 문제 → `AWS_REGION`을 바꿔 재시도(`.env`의 DLC URI 리전도 함께 변경) |
 | endpoint가 `Failed`, 이유는 `did not pass the ping health check`뿐 | 대개 CUDA OOM입니다. 24GB GPU(L4)에서 vLLM 기본 `max_num_seqs=256`이 샘플러 logits 버퍼를 `256 × 262,144 × 4B = 256 MiB`로 잡아 터집니다 → `serving_env()` 기본값(`max_num_seqs=32`, `gpu_memory_utilization=0.90`)을 유지하고 CloudWatch endpoint 로그를 확인하세요([24GB GPU CUDA OOM](04_sagemaker_inference.md#24gb-gpu-cuda-oom--max_num_seqs-기본값)) |
@@ -317,11 +317,11 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 !!! danger "비용과 cleanup"
     **real-time endpoint는 삭제하기 전까지 시간당(GPU 인스턴스) 요금이 계속 부과됩니다.** 호출이 0건이어도 켜져 있는 동안 과금됩니다.
     실습이 끝나면 **모든 코스의 `99_cleanup`을 실행하고 콘솔에서 endpoint 0개를 확인**하세요.
-    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하고, 다른 리전에도 띄운 적이 있으면 그 리전도 확인하세요.
+    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다. 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하고, 다른 리전에도 띄운 적이 있으면 그 리전도 확인하세요.
 
 삭제 순서는 **endpoint → endpoint-config → model**입니다. 앞을 지우지 않으면 뒤가 사용 중이라 거부됩니다.
 
-model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 `endpoint_name`으로는 찾을 수 없습니다 — `99_cleanup`은 endpoint-config에서 실제 `ModelName`을 먼저 조회해 지웁니다.
+model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 `endpoint_name`으로는 찾을 수 없습니다. `99_cleanup`은 endpoint-config에서 실제 `ModelName`을 먼저 조회해 지웁니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|

@@ -29,7 +29,7 @@
     "이 긴 문서 요약해 줘"를 **전담하는 작은 모델**을 만듭니다. 입력은 문서 본문 하나, 출력은 요약 문장들뿐입니다. 라벨도 카테고리도 JSON 스키마도 없습니다.
     학습 데이터가 미국 연방 법안이므로 결과 모델의 어투는 "법안 요지 브리핑"에 가깝습니다. 사내 규정·규약서·보고서처럼 **형식이 정해진 긴 문서**를 다루는 작업에 가장 잘 맞고, 대화 로그 요약이나 회의록 같은 대화체에는 그대로 맞지 않습니다(아래 시드 절 참고).
 
-`track_data.py`의 어댑터는 한 row를 두 필드로만 줄입니다 — 원본 `text` → `input`, 원본 `summary` → `output`. 실제 `data/train.jsonl` 첫 예시입니다(발췌).
+`track_data.py`의 어댑터는 한 row를 두 필드로만 줄입니다: 원본 `text` → `input`, 원본 `summary` → `output`. 실제 `data/train.jsonl` 첫 예시입니다(발췌).
 
 ```text
 # 원본 row (FiscalNote/billsum)
@@ -58,7 +58,7 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
     {"role": "user", "content": f"{SYSTEM_PROMPT}\n\nSummarize the following document:\n\n{example['input']}"}
     ```
 
-    반면 배포 후 호출부는 이 한 줄을 보내지 않습니다 — `04_evaluate`·`05_agentic_strands`는 `gf.build_inference_messages(ex['input'], system_content=td.SYSTEM_PROMPT)`로 **system + 본문**만 보내고, `03_deploy_endpoint`는 `f'{td.SYSTEM_PROMPT}\n\n{user}'`를 씁니다. 지시문은 `SYSTEM_PROMPT`에 이미 들어 있어 실무상 큰 문제는 아니지만, "학습과 완전히 동일한 프롬프트"는 아니라는 뜻입니다. 파인튜닝 효과를 최대로 재려면 호출 시에도 같은 한 줄을 붙여 A/B로 비교해 보세요.
+    반면 배포 후 호출부는 이 한 줄을 보내지 않습니다. `04_evaluate`·`05_agentic_strands`는 `gf.build_inference_messages(ex['input'], system_content=td.SYSTEM_PROMPT)`로 **system + 본문**만 보내고, `03_deploy_endpoint`는 `f'{td.SYSTEM_PROMPT}\n\n{user}'`를 씁니다. 지시문은 `SYSTEM_PROMPT`에 이미 들어 있어 실무상 큰 문제는 아니지만, "학습과 완전히 동일한 프롬프트"는 아니라는 뜻입니다. 파인튜닝 효과를 최대로 재려면 호출 시에도 같은 한 줄을 붙여 A/B로 비교해 보세요.
 
     `02b_local_serve`의 예시 입력(`serve_example_user`)은 본문만, `03_deploy_endpoint`의 스모크 입력(`deploy_smoke_user`)은 같은 문서에 `"Summarize: "`를 붙인 형태라 두 표면형의 응답 차이를 `02b`의 3-D 셀에서 A/B로 볼 수 있습니다(`tracks/build_all_tracks.py`).
 
@@ -72,11 +72,11 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 - `track_data.MAX_DOC_CHARS = 6000` — 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. 리포에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 즉 이 코스의 학습 입력 길이는 데이터가 정하는 게 아니라 **이 상수가 정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13% 쪽이고, 상한에 걸리는 첫 행은 index 1입니다.
 - 정답 요약 길이는 시드 중앙 1,110자(최대 4,950자)인데, 합성으로 만든 200건은 중앙 515자(최대 850자)로 더 짧습니다. 합성이 시드보다 짧고 균질해지는 경향이 있으니 `01` 노트북의 EDA 표를 그냥 넘기지 마세요.
-- 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다 — 잘림이 아니라 순수 지연이며, 그래서 이 kit의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정--num_synthetic-기본값)).
+- 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다. 잘림이 아니라 순수 지연이며, 그래서 이 kit의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정--num_synthetic-기본값)).
 
 !!! warning "법안 원문의 이중 백틱이 노트북 출력을 삼킵니다"
     billsum은 구식 인용부호로 ``` ``and'' ``` 처럼 **이중 백틱**을 씁니다. 실측된 한 held-out 입력에는 백틱이 **79개** 있었고, 이 텍스트를 노트북 마크다운에 그대로 넣자 인라인 코드스팬이 열려 뒤따르는 예측 블록까지 사라졌습니다(응답 1,596자를 정상 수신한 상태였는데도 화면에 아무것도 없었습니다).
-    `common/display_utils.py`가 입력·예측을 모두 `<pre>`로 감싸 막아 두었습니다. 직접 셀을 쓸 때도 같은 규칙을 지키세요 — 자세한 재현은 [입력 텍스트가 노트북 마크다운을 깨뜨릴 때](../05_serving_containers.md#입력-텍스트가-노트북-마크다운을-깨뜨릴-때)에 있습니다.
+    `common/display_utils.py`가 입력·예측을 모두 `<pre>`로 감싸 막아 두었습니다. 직접 셀을 쓸 때도 같은 규칙을 지키세요. 자세한 재현은 [입력 텍스트가 노트북 마크다운을 깨뜨릴 때](../05_serving_containers.md#입력-텍스트가-노트북-마크다운을-깨뜨릴-때)에 있습니다.
 
 대화체 요약(회의록·상담 로그)을 원한다면 시드를 바꿔야 합니다. 완전 permissive한 대화 요약 공개셋이 마땅치 않아 이 kit은 **문서 요약 시드 + grounded 합성**으로 확장하는 쪽을 택했습니다(`track_data.py` 독스트링).
 
@@ -93,7 +93,7 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 요약은 정답이 하나가 아니어서 exact match가 성립하지 않고, 반대로 ROUGE만 보면 "원문 문구를 많이 베낀 요약"이 유리해집니다. 그래서 자동 지표를 주 지표로 두고 judge를 보완으로 붙이는 조합입니다. judge는 비용 때문에 held-out **앞 20건**에만 돌리고, 프롬프트에 넣는 원문은 4,000자로 잘립니다(`eval_utils.py`).
 
-held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 잘라 씁니다. 합성 데이터로 평가하면 teacher 모방을 재는 것이 되므로 금지입니다 — 규율의 배경은 [held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다. 평가 전용 문서는 없고 구현이 곧 명세입니다(`common/eval_utils.py` + 각 코스 `04_evaluate`).
+held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 잘라 씁니다. 합성 데이터로 평가하면 teacher 모방을 재는 것이 되므로 금지입니다. 규율의 배경은 [held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)에 있습니다. 평가 전용 문서는 없고 구현이 곧 명세입니다(`common/eval_utils.py` + 각 코스 `04_evaluate`).
 
 ---
 
@@ -115,7 +115,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 ??? question "오개념 — “GRPO 노트북이 빠진 건 미완성이라서인가요?”"
     아닙니다. 의도적으로 없습니다. GRPO에는 **프로그램으로 채점되는 reward**가 필요하고 `scripts/train_grpo.py --reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐입니다. "좋은 요약"은 규칙으로 채점할 수 없어서 이 코스의 `TrackSpec`은 `grpo_reward_kind`가 비어 있고, 그러면 빌더가 `02a`를 생성하지 않습니다.
-    LLM-judge를 reward로 쓸 수는 있지만 rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞입니다 — 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)에 있습니다.
+    LLM-judge를 reward로 쓸 수는 있지만 rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞입니다. 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)에 있습니다.
 
 !!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
     `DRY_RUN=1`이면 시드 8건 · 합성 6건 · held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프)에 정리돼 있습니다.
@@ -124,7 +124,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 ## 코스별 설정값
 
-다른 코스와 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`입니다. 입력이 길고 정답도 길어서 **서빙 컨텍스트와 생성 길이를 학습 길이와 분리**해 둔 코스이고(도메인 QA 코스도 같은 이유로 분리합니다), `serve_max_model_len`은 이 kit에서 가장 큰 값입니다(생성 상한만은 멀티모달 코스의 768이 더 큽니다 — 정답 JSON이 592토큰까지 가기 때문입니다).
+다른 코스와 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`입니다. 입력이 길고 정답도 길어서 **서빙 컨텍스트와 생성 길이를 학습 길이와 분리**해 둔 코스이고(도메인 QA 코스도 같은 이유로 분리합니다), `serve_max_model_len`은 이 kit에서 가장 큰 값입니다(생성 상한만은 멀티모달 코스의 768이 더 큽니다. 정답 JSON이 592토큰까지 가기 때문입니다).
 
 | 설정 | 이 코스 | 다른 텍스트 코스 | 근거 |
 |---|---|---|---|
@@ -136,13 +136,13 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 | `endpoint_prefix` | `gemma-summarization` | 분류 `gemma-classification` | 학습 Job·endpoint 이름과 `%store` 키(`ep_summarization`·`md_summarization`)의 접두어 |
 | `multimodal` | `False` | 05만 `True` | 텍스트 전용이라는 표식입니다(레지스트리 기본값). 노트북 세트를 정하는 것은 이 값이 아니라 빌더이며, 이 코스는 `01_data_and_synthetic`을 씁니다 |
 
-`gen_max_tokens=512`의 근거는 endpoint 실측입니다(입력 5,996자) — `max_tokens=256`은 `finish_reason='length'`로 902자에서 문장 중간에 끊겼고, 512는 `stop`으로 397토큰·1,446자, 1024는 `stop`으로 571토큰이었습니다. 즉 512부터 모델이 스스로 종료합니다. 정답 전량(max 964토큰)까지 덮으려면 1024로 올리면 됩니다. 절단은 예외도 경고도 없이 200 응답으로 오므로 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)의 `finish_reason` 확인 습관을 권합니다.
+`gen_max_tokens=512`의 근거는 endpoint 실측입니다(입력 5,996자). `max_tokens=256`은 `finish_reason='length'`로 902자에서 문장 중간에 끊겼고, 512는 `stop`으로 397토큰·1,446자, 1024는 `stop`으로 571토큰이었습니다. 즉 512부터 모델이 스스로 종료합니다. 정답 전량(max 964토큰)까지 덮으려면 1024로 올리면 됩니다. 절단은 예외도 경고도 없이 200 응답으로 오므로 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)의 `finish_reason` 확인 습관을 권합니다.
 
-이 코스는 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 실측에서 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다 — 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](../04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)).
+이 코스는 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 실측에서 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다. 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](../04_sagemaker_inference.md#응답-스트리밍--invoke_endpoint_with_response_stream)).
 
 !!! warning "이 코스에서 먼저 터진 두 가지"
     (1) **학습 Job이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, 아티팩트에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)).
-    (2) **엉뚱한 endpoint를 불렀습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 에러가 났습니다 — 요약 endpoint는 4096이라 정상인데도입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 오염](../05_serving_containers.md#store-전역-오염--엉뚱한-endpoint-호출)).
+    (2) **엉뚱한 endpoint를 불렀습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 에러가 났습니다. 요약 endpoint는 4096이라 정상인데도입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 오염](../05_serving_containers.md#store-전역-오염--엉뚱한-endpoint-호출)).
 
 ---
 

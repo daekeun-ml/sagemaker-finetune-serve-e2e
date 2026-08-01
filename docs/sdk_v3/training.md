@@ -10,7 +10,7 @@
 
 [![V2의 PyTorch estimator 코드와 V3의 ModelTrainer 코드를 나란히 비교](../images/sdkv3_training.png)](../images/sdkv3_training.png)
 
-*왼쪽 V2는 `framework_version="1.12.0"`·`py_version="py38"`을 주면 SDK가 내부 lookup 표로 DLC 이미지를 찾아냅니다. 오른쪽 V3는 `training_image`를 직접 넘깁니다 — **SDK가 프레임워크를 알 필요가 없어졌습니다.** 나머지 인자는 `SourceCode`·`Compute`·`InputData` 세 config 객체로 흩어집니다.*
+*왼쪽 V2는 `framework_version="1.12.0"`·`py_version="py38"`을 주면 SDK가 내부 lookup 표로 DLC 이미지를 찾아냅니다. 오른쪽 V3는 `training_image`를 직접 넘깁니다. **SDK가 프레임워크를 알 필요가 없어졌습니다.** 나머지 인자는 `SourceCode`·`Compute`·`InputData` 세 config 객체로 흩어집니다.*
 
 `tracks/*/02_train_sft_sagemaker.ipynb`에서 추린 형태입니다. 하이퍼파라미터 dict와 `role`·`sagemaker_session`은 V2와 같은 자리에 남고, **나머지가 전부 config 객체로 이동**합니다.
 
@@ -73,13 +73,13 @@
     print(estimator.latest_training_job.name)
     ```
 
-`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다 — 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)에 있습니다.
+`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다. 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)에 있습니다.
 
 ## ModelTrainer 하나로 합쳐진 estimator들
 
 [![7개 프레임워크 estimator가 ModelTrainer 하나로 수렴하고, 그 옆에 특화 trainer 4종이 별도로 있는 구조](../images/sdkv3_trainer.png)](../images/sdkv3_trainer.png)
 
-*왼쪽 estimator 7종(PyTorch·TensorFlow·HuggingFace·XGBoost·SKLearn·MXNet…)이 **`ModelTrainer` 하나로** 수렴합니다. 오른쪽 아래 초록 상자는 그것과 **별개**입니다 — estimator가 특화 trainer로 바뀐 것이 아니라, 성격이 다른 도구가 옆에 추가된 것입니다.*
+*왼쪽 estimator 7종(PyTorch·TensorFlow·HuggingFace·XGBoost·SKLearn·MXNet…)이 **`ModelTrainer` 하나로** 수렴합니다. 오른쪽 아래 초록 상자는 그것과 **별개**입니다. estimator가 특화 trainer로 바뀐 것이 아니라, 성격이 다른 도구가 옆에 추가된 것입니다.*
 
 둘의 역할이 다릅니다.
 
@@ -103,7 +103,7 @@ from sagemaker.train import SFTTrainer, DPOTrainer, RLAIFTrainer, RLVRTrainer
 
 ## 평가가 SDK 안으로 들어왔습니다
 
-V2에서 파인튜닝 결과를 표준 벤치마크로 재려면 그 인프라를 직접 만들어야 했습니다 — 데이터셋을 찾고, 평가 루프를 쓰고, 메트릭을 계산하고, 결과를 기록하는 것 전부입니다. V3는 evaluator 3종을 제공합니다.
+V2에서 파인튜닝 결과를 표준 벤치마크로 재려면 그 인프라를 직접 만들어야 했습니다: 데이터셋을 찾고, 평가 루프를 쓰고, 메트릭을 계산하고, 결과를 기록하는 것 전부입니다. V3는 evaluator 3종을 제공합니다.
 
 | evaluator | 무엇을 하나 |
 |---|---|
@@ -115,13 +115,13 @@ V2에서 파인튜닝 결과를 표준 벤치마크로 재려면 그 인프라�
 from sagemaker.train import BenchMarkEvaluator, LLMAsJudgeEvaluator, CustomScorerEvaluator
 ```
 
-셋 다 결과를 **MLflow에 자동 기록**합니다. 이 kit은 대신 코스별 메트릭을 직접 계산합니다(`common/eval_utils.py`) — 추출은 arg_f1, 분류는 macro-F1처럼 태스크에 맞춘 지표가 필요해서입니다.
+셋 다 결과를 **MLflow에 자동 기록**합니다. 이 kit은 대신 코스별 메트릭을 직접 계산합니다(`common/eval_utils.py`). 추출은 arg_f1, 분류는 macro-F1처럼 태스크에 맞춘 지표가 필요해서입니다.
 
 ## AI Registry — 데이터셋과 evaluator에 버전을 붙입니다
 
 S3 경로를 주고받으며 "모두 같은 버전을 쓰고 있겠지" 하고 믿는 대신, 데이터셋과 evaluator를 **버전이 붙은 hub content로 등록**합니다.
 
-AI Registry Evaluator는 실행 주체가 아니라 **저장·메타데이터 엔티티**입니다 — SageMaker Hub 안의 버전 레코드이고, 그 안에 평가 로직 참조(reward 프롬프트 문자열 또는 Lambda ARN)를 담습니다. 그래서 reward 프롬프트를 한 번 등록해 두고, `LLMAsJudgeEvaluator`나 `RLAIFTrainer`를 설정할 때 그 ARN으로 가리키는 식으로 씁니다.
+AI Registry Evaluator는 실행 주체가 아니라 **저장·메타데이터 엔티티**입니다. SageMaker Hub 안의 버전 레코드이고, 그 안에 평가 로직 참조(reward 프롬프트 문자열 또는 Lambda ARN)를 담습니다. 그래서 reward 프롬프트를 한 번 등록해 두고, `LLMAsJudgeEvaluator`나 `RLAIFTrainer`를 설정할 때 그 ARN으로 가리키는 식으로 씁니다.
 
 설치본에서는 `sagemaker.ai_registry` 서브패키지가 이 영역을 담당합니다.
 

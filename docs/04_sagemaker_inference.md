@@ -15,12 +15,12 @@
 
 본문에 인용한 실측값은 이 kit의 **코스** 5개에서 나왔습니다(코스가 무엇인지는 [전체 지도](00_overview.md)에 있습니다).
 
-리포지토리 디렉터리 이름은 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`·`--track` 같은 코드 식별자도 바뀌지 않았습니다 — 본문의 "코스"와 코드의 `track`은 같은 것을 가리킵니다.
+리포지토리 디렉터리 이름은 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`·`--track` 같은 코드 식별자도 바뀌지 않았습니다. 본문의 "코스"와 코드의 `track`은 같은 것을 가리킵니다.
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID·DLC 이미지 태그·SDK 버전·리전·서비스 한도(payload/timeout/cold start)·GA 상태는 분기마다 바뀝니다.
-    이 문서의 구체 수치와 태그는 전부 **실행 직전 재확인** 대상입니다 — 각 주장 옆에 붙은 공식 문서 링크가 최종 확인처입니다.
-    계정 ID·시크릿·절대경로는 하드코딩하지 마세요 — 전부 env로 주입합니다.
+    이 문서의 구체 수치와 태그는 전부 **실행 직전 재확인** 대상입니다. 각 주장 옆에 붙은 공식 문서 링크가 최종 확인처입니다.
+    계정 ID·시크릿·절대경로는 하드코딩하지 마세요. 전부 env로 주입합니다.
 
 ---
 
@@ -30,11 +30,11 @@
 
 정리하면 다음과 같습니다.
 
-1. **Serverless Inference에는 GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이것이 이 kit이 Real-time을 선택한 근본 이유입니다 — [왜 Real-time인가](#왜-real-time인가--추론-4옵션-비교).
-2. **endpoint 호출은 Bedrock 호출과 다릅니다.** endpoint는 `sagemaker-runtime.invoke_endpoint()`, Bedrock Claude는 `bedrock-runtime.converse()`로 부르는 **별개 서비스·별개 클라이언트**입니다 — [서비스 경계](#서비스-경계--endpoint--bedrock).
-3. **서빙 컨테이너는 하나로 모든 상황을 해결할 수 없습니다.** 이 kit은 vLLM(기본) / SGLang / DJL LMI 세 경로를 env로 전환합니다 — [서빙 컨테이너와 DLC 이미지](#서빙-컨테이너와-dlc-이미지).
-4. **24GB GPU에서는 엔진 기본값 그대로 배포하면 CUDA OOM으로 endpoint가 `Failed`합니다.** `max_num_seqs`를 낮춰야 합니다 — [24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값).
-5. **Real-time은 삭제하기 전까지 시간당(GPU) 요금이 계속 부과됩니다.** 실습이 끝나면 반드시 `99_cleanup`을 실행하세요 — [비용과 cleanup](#비용과-cleanup).
+1. **Serverless Inference에는 GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이것이 이 kit이 Real-time을 선택한 근본 이유입니다([왜 Real-time인가](#왜-real-time인가--추론-4옵션-비교)).
+2. **endpoint 호출은 Bedrock 호출과 다릅니다.** endpoint는 `sagemaker-runtime.invoke_endpoint()`, Bedrock Claude는 `bedrock-runtime.converse()`로 부르는 **별개 서비스·별개 클라이언트**입니다([서비스 경계](#서비스-경계--endpoint--bedrock)).
+3. **서빙 컨테이너는 하나로 모든 상황을 해결할 수 없습니다.** 이 kit은 vLLM(기본) / SGLang / DJL LMI 세 경로를 env로 전환합니다([서빙 컨테이너와 DLC 이미지](#서빙-컨테이너와-dlc-이미지)).
+4. **24GB GPU에서는 엔진 기본값 그대로 배포하면 CUDA OOM으로 endpoint가 `Failed`합니다.** `max_num_seqs`를 낮춰야 합니다([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)).
+5. **Real-time은 삭제하기 전까지 시간당(GPU) 요금이 계속 부과됩니다.** 실습이 끝나면 반드시 `99_cleanup`을 실행하세요([비용과 cleanup](#비용과-cleanup)).
 
 ---
 
@@ -65,7 +65,7 @@ AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.c
 
 [![네 가지 배포 모드의 요청 흐름 비교 — 실시간과 서버리스는 클라이언트가 endpoint에서 응답을 곧바로 되받지만, 비동기와 배치 변환은 결과가 S3로 떨어지고 별도의 알림 리스너가 완료를 통보한다](images/sm_inference_option.png)](images/sm_inference_option.png)
 
-*네 옵션의 차이는 "무엇을 지원하는가"가 아니라 응답이 어느 경로로 돌아오는가입니다 — 왼쪽 둘은 HTTP 왕복, 오른쪽 둘은 S3 + 알림. 패널 안의 작은 글씨는 그림을 클릭해 원본 크기로 보세요.*
+*네 옵션의 차이는 "무엇을 지원하는가"가 아니라 응답이 어느 경로로 돌아오는가입니다: 왼쪽 둘은 HTTP 왕복, 오른쪽 둘은 S3 + 알림. 패널 안의 작은 글씨는 그림을 클릭해 원본 크기로 보세요.*
 
 !!! warning "그림의 “최대 15분”은 과거 한도입니다"
     비동기 추론 패널에 적힌 `긴 처리 시간이 필요한 모델에 이상적(최대 15분)`은 촬영 시점의 값이고, **현행 한도는 1시간**입니다([Async 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html)). 그림과 아래 표가 어긋나면 표와 링크를 믿으세요. 나머지 수치(`Max 요청 페이로드: 6 MB` / `4 MB`, `타임아웃: 60초`, S3 객체 포인터 `최대 1GB`)는 현행과 일치합니다.
@@ -73,7 +73,7 @@ AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.c
 이 그림에서 표가 담지 못하는 부분은 **화살표의 개수**이고, 이 토폴로지 차이가 곧 호출 코드의 차이입니다.
 
 - 실시간·서버리스 패널은 `추론 요청` → `추론 결과` 왕복 화살표 하나로 끝납니다.
-- 비동기·배치 패널은 화살표가 세 갈래로 갈라집니다 — 즉시 돌아오는 **요청 확인**(접수증), S3로 떨어지는 **결과**, 알림 리스너로 가는 **완료 통보**.
+- 비동기·배치 패널은 화살표가 세 갈래로 갈라집니다: 즉시 돌아오는 **요청 확인**(접수증), S3로 떨어지는 **결과**, 알림 리스너로 가는 **완료 통보**.
 
 - **Asynchronous**는 payload를 먼저 S3에 올리고 `invoke_endpoint_async(InputLocation=...)`로 **포인터만** 넘깁니다. 응답으로는 결과가 아니라 `OutputLocation`이 돌아오고, 완료 통보는 SNS로 받습니다(`AsyncInferenceConfig.OutputConfig.NotificationConfig`의 `SuccessTopic`/`ErrorTopic` — [결과 확인 방법](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference-check-predictions.html)).
 - **Batch Transform**은 호출 API 자체가 없습니다. `CreateTransformJob`으로 Job을 띄우고 결과를 S3에서 회수합니다. 상태 변화는 EventBridge `SageMaker Transform Job State Change` 이벤트로 받습니다([SageMaker EventBridge 이벤트](https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html)).
@@ -116,13 +116,13 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 ### 기술적 차이 3가지
 
 1. **인스턴스 상주 여부**: Real-time과 Async는 프로비저닝된 인스턴스가 붙어 있지만, Serverless는 요청이 들어오는 순간에 용량을 할당합니다. 그래서 cold start가 생기고, **가속기(GPU)를 상주 형태로 붙일 수 없어** GPU를 지원하지 못합니다.
-2. **요청-응답 채널**: Real-time은 동기 응답(HTTP), Async는 **S3 입력 → 큐 → S3 출력 + SNS 알림**, Batch는 S3 데이터셋을 Job 단위로 훑습니다. 채널이 다르면 payload/timeout 한도도 달라집니다 — HTTP 왕복에 묶인 Real-time·Serverless는 6 MB/4 MB·60초, S3를 거치는 Async는 1 GB·1시간입니다.
+2. **요청-응답 채널**: Real-time은 동기 응답(HTTP), Async는 **S3 입력 → 큐 → S3 출력 + SNS 알림**, Batch는 S3 데이터셋을 Job 단위로 훑습니다. 채널이 다르면 payload/timeout 한도도 달라집니다. HTTP 왕복에 묶인 Real-time·Serverless는 6 MB/4 MB·60초, S3를 거치는 Async는 1 GB·1시간입니다.
 3. **스케일 바닥값**: Async는 인스턴스를 0까지 축소할 수 있어 유휴 비용을 줄일 수 있지만, Real-time은 (오토스케일을 걸더라도) 통상 1대 이상을 유지합니다. 이것이 바로 **상시 과금**이 발생하는 원인입니다.
 
 ??? question "오개념 — “Serverless가 제일 싸니까 LLM도 Serverless로 하면 되지 않나요?”"
     **아닙니다.** SageMaker Serverless Inference에는 **GPU가 없습니다**(CPU 전용). Gemma 같은 SLM/LLM은 GPU 없이는 사실상 돌아가지 않거나, 돌아가더라도 실용 불가 수준으로 느립니다.
     "간헐적인 트래픽이니 Serverless가 저렴하겠다"는 판단은 CPU 모델(작은 임베딩, 전통 ML)에나 맞는 이야기입니다. LLM/SLM에는 Real-time(또는 GPU가 붙는 Async/Batch)을 쓰세요.
-    GPU는 단독 항목이 아니라 **기능 제외 목록의 첫 줄**입니다 — GPU·Multi-Model Endpoint·VPC 구성·network isolation·data capture·다중 production variant·Model Monitor·inference pipeline이 함께 빠집니다. RAM도 최대 6,144 MB(6 GB)까지만 고를 수 있어서, bf16 E4B 가중치 14.23 GiB는 **애초에 올라가지 않습니다**.
+    GPU는 단독 항목이 아니라 **기능 제외 목록의 첫 줄**입니다. GPU·Multi-Model Endpoint·VPC 구성·network isolation·data capture·다중 production variant·Model Monitor·inference pipeline이 함께 빠집니다. RAM도 최대 6,144 MB(6 GB)까지만 고를 수 있어서, bf16 E4B 가중치 14.23 GiB는 **애초에 올라가지 않습니다**.
     다만 GPU 미지원은 정책성 항목이라 언젠가 바뀔 수 있으니 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)에서 **실행 전 재확인**하시기 바랍니다.
 
 ### 언제 무엇을 고르는가
@@ -177,7 +177,7 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 [![Amazon SageMaker 추론을 모델·컨테이너·인프라 세 레이어로 나눈 그림. 왼쪽의 사용자가 Invoke로 호출하고 스트리밍 또는 비스트리밍 응답을 받으며, 모델 레이어는 단일 모델 배포·멀티 모델 배포·오토스케일링, 컨테이너 레이어는 단일 컨테이너·멀티 컨테이너와 vLLM·SGLang·ONNX·PyTorch·HuggingFace, 인프라 레이어는 Inferentia2·Trainium·GPU(P4/G5/G4dn)·CPU 노드를 담고 있다](images/sm_inference_stack.png)](images/sm_inference_stack.png)
 
-*선택은 레이어별로 나뉘지만 인프라와 컨테이너는 서로 맞물립니다(CUDA 빌드 ↔ Neuron 빌드) — 이 kit의 조합은 "단일 모델 배포 + 단일 컨테이너(vLLM DLC) + GPU 인스턴스"입니다.*
+*선택은 레이어별로 나뉘지만 인프라와 컨테이너는 서로 맞물립니다(CUDA 빌드 ↔ Neuron 빌드). 이 kit의 조합은 "단일 모델 배포 + 단일 컨테이너(vLLM DLC) + GPU 인스턴스"입니다.*
 
 | 레이어 | 고르는 것 | 이 kit의 선택 |
 |---|---|---|
@@ -226,7 +226,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 이 kit은 이 호출을 `aws_utils.stream_sagemaker_chat()`으로 감쌌습니다.
 
-요약 코스 endpoint 실측(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다** — 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
+요약 코스 endpoint 실측(vLLM 0.26.0, 입력 5,996자): **첫 응답 0.42초 vs 완성 대기 16.16초 → 체감 38배**. 단 **완료 시각은 15.9초 vs 16.2초로 사실상 같습니다**. 스트리밍은 첫 토큰 체감만 줄이고, 전체 생성 시간이나 동시 처리량은 그대로입니다.
 
 **SSE 청크 경계는 줄 경계와 일치하지 않습니다.** 실측에서 `PayloadPart` 하나가 JSON 중간에서 끊겨 `..."system_finger` / `print":"vllm..."`로 나뉘어 도착했습니다.
 
@@ -251,7 +251,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 ??? question "오개념 — “내 endpoint도 Bedrock API로 부르면 되지 않나요?”"
     **아닙니다.** endpoint는 `sagemaker-runtime.invoke_endpoint()`로, Bedrock은 `bedrock-runtime.converse()`로 호출하는 **완전히 다른 서비스**입니다.
     이 kit은 `common/llm_gateway.py`(LiteLLM)로 두 백엔드를 하나의 인터페이스처럼 쓰지만, 내부적으로 각각 올바른 서비스로 라우팅하는 것일 뿐 같은 API를 쓰는 것이 아닙니다.
-    Bedrock Claude는 inference-profile prefix(`us.` / `eu.` / `apac.` / `global.`)가 필요합니다. 모델 ID는 **하드코딩 금지, env로 주입** — `common/config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)를 참고하세요.
+    Bedrock Claude는 inference-profile prefix(`us.` / `eu.` / `apac.` / `global.`)가 필요합니다. 모델 ID는 **하드코딩 금지, env로 주입**입니다. `common/config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)를 참고하세요.
 
 ---
 
@@ -304,7 +304,7 @@ Gemma를 서빙할 때 주의할 점은 다음과 같습니다(모두 **실행 �
 - **LoRA 타깃(텍스트)**: all-linear에 `modules_to_save=["lm_head","embed_tokens"]`를 함께 지정합니다.
 - **LoRA 타깃(멀티모달)**: vision/audio proj가 매칭돼 크래시하므로, language_model 한정 `target_modules`에 `modules_to_save=None`을 씁니다.
 
-**gemma-4 E2B/E4B는 저장 시 KV-shared 텐서가 소실되므로 vLLM 로드가 깨집니다 — 이 kit은 복원해서 서빙합니다.**
+**gemma-4 E2B/E4B는 저장 시 KV-shared 텐서가 소실되므로 vLLM 로드가 깨집니다. 이 kit은 복원해서 서빙합니다.**
 
 두 모델은 KV-sharing 레이어를 갖는데, transformers가 그 레이어의 `k_norm`/`k_proj`/`v_proj` 모듈을 아예 만들지 않습니다. 그래서 `save_pretrained` 시 원본 텐서가 사라집니다(E4B 실측 54개).
 
@@ -341,12 +341,12 @@ SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있�
     repository와 tag는 배포 직전 [available_images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 재확인하세요.
     `common/dlc.py`의 `_DEFAULT_TAG` 같은 기본 문자열은 `# TODO verify` 예시일 뿐 현행 값이 아닐 수 있습니다.
     현행 태그 직접 조회: `aws ecr describe-images --registry-id 763104351884 --repository-name vllm --region <region> --query 'reverse(sort_by(imageDetails,&imagePushedAt))[:5].imageTags'`
-    학습 이미지는 **리전별 private ECR만** 허용됩니다 — `public.ecr.aws/...`를 주면 `TrainingImageConfig ... VPC` 에러가 납니다.
+    학습 이미지는 **리전별 private ECR만** 허용됩니다. `public.ecr.aws/...`를 주면 `TrainingImageConfig ... VPC` 에러가 납니다.
 
 컨테이너를 하나로 통일하고 싶은 마음이 들 수 있는데, 실제로는 그렇게 되지 않습니다.
 
 ??? question "오개념 — “서빙 컨테이너 하나면 다 되는 것 아닌가요?”"
-    **아닙니다.** 컨테이너마다 지원 모델, payload 스키마, 스트리밍 방식, 내부 백엔드가 다릅니다. 같은 Gemma라도 OpenAI 호환 서버와 TGI generation 스키마는 payload가 서로 다릅니다 — `_parse_endpoint_response()`가 응답을 방어적으로 파싱하는 이유입니다.
+    **아닙니다.** 컨테이너마다 지원 모델, payload 스키마, 스트리밍 방식, 내부 백엔드가 다릅니다. 같은 Gemma라도 OpenAI 호환 서버와 TGI generation 스키마는 payload가 서로 다릅니다(`_parse_endpoint_response()`가 응답을 방어적으로 파싱하는 이유입니다).
     "한 컨테이너로 모든 것을 해결한다"가 아니라, **모델·처리량·기능 요구에 맞춰 선택**해야 합니다.
     참고로 **DLAMI와 DLC는 다릅니다.** DLAMI는 노드(호스트) 머신 이미지, DLC는 그 위에서 도는 워크로드 컨테이너이며, DLC는 관리형 Job 전용이 아니라 EC2/ECS/EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
 
@@ -386,7 +386,7 @@ SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있�
 - **관측**: `aws_utils.cw_links()`가 SageMaker 콘솔과 CloudWatch Logs(`/aws/sagemaker/Endpoints`)로 가는 바로가기 HTML을 출력합니다.
 - **`%store` 주의**: 전역 `endpoint_name` 키는 다른 코스가 덮어씁니다. 그래서 각 코스는 `ep_extraction` 같은 **코스 전용 키를 함께 저장**하고 복구 시 그쪽을 우선합니다.
 
-`serving_env()`가 "의미 → 엔진별 키"를 한곳에서 매핑하므로, 노트북은 의미만 넘깁니다. 같은 설정을 세 엔진의 서로 다른 키로 세 번 쓰면 값을 하나 바꿀 때 빼먹기 쉽습니다 — 이 kit도 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발한 적이 있습니다.
+`serving_env()`가 "의미 → 엔진별 키"를 한곳에서 매핑하므로, 노트북은 의미만 넘깁니다. 같은 설정을 세 엔진의 서로 다른 키로 세 번 쓰면 값을 하나 바꿀 때 빼먹기 쉽습니다. 이 kit도 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발한 적이 있습니다.
 
 | 의미 | vLLM | SGLang | DJL LMI |
 |---|---|---|---|
@@ -446,7 +446,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 ??? question "오개념 — “호출하지 않으면 endpoint 요금도 안 나오죠?”"
     **아닙니다.** Real-time endpoint는 호출이 0건이어도 **켜져 있는 동안 인스턴스 시간당** 과금됩니다.
-    `endpoint_name`으로 삭제해도 **model은 조용히 남습니다** — `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 생성하기 때문입니다.
+    `endpoint_name`으로 삭제해도 **model은 조용히 남습니다**. `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 생성하기 때문입니다.
     시간당 과금은 endpoint에서만 발생하지만, config/model이 남으면 계정당 개수 제한에 걸립니다. 정리 순서는 [비용과 cleanup](#비용과-cleanup)을 보세요.
 
 ---
@@ -456,7 +456,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 !!! danger "비용과 cleanup"
     **Real-time endpoint는 삭제하기 전까지 시간당(GPU 인스턴스) 요금이 계속 부과됩니다.** 호출이 전혀 없어도 켜져 있는 한 비용이 발생합니다.
     실습이 끝나면 **반드시 `99_cleanup.ipynb`를 실행**하거나 endpoint를 직접 삭제하세요.
-    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다 — 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하세요.
+    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다. 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하세요.
     다른 리전에도 띄운 적이 있다면 그 리전의 endpoint 목록도 확인해야 합니다.
 
 `common/aws_utils.COST_WARNING`이 노트북에서 출력하는 내용과 같습니다.
@@ -490,7 +490,7 @@ sm.list_endpoints()   # 이 코스 prefix가 비어 있으면 그 코스 과금�
 
 확인할 때는 prefix로 나눠서 보는 편이 낫습니다. 계정 전체 목록만 보면 다른 코스의 endpoint를 보고 "이 코스가 안 지워졌다"고 오해하게 됩니다.
 
-로컬 vLLM을 종료할 때는 `kill <pid>`로 정밀하게 하세요 — `pkill -f vllm`은 실행 중인 셸이나 노트북까지 죽일 수 있습니다.
+로컬 vLLM을 종료할 때는 `kill <pid>`로 정밀하게 하세요. `pkill -f vllm`은 실행 중인 셸이나 노트북까지 죽일 수 있습니다.
 
 ---
 

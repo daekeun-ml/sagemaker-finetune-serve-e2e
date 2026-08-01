@@ -35,13 +35,13 @@
 
 ## TL;DR
 
-**이 kit은 SageMaker 파인튜닝 두 경로(JumpStart vs 자체 스크립트) 중 DLC 컨테이너 + TRL `SFTTrainer` + PEFT LoRA/QLoRA를 담은 self-contained `scripts/train.py`를 택했습니다 — 커스텀 학습 로직과 최신 Gemma를 즉시 쓰기 위해서입니다.**
+**이 kit은 SageMaker 파인튜닝 두 경로(JumpStart vs 자체 스크립트) 중 DLC 컨테이너 + TRL `SFTTrainer` + PEFT LoRA/QLoRA를 담은 self-contained `scripts/train.py`를 택했습니다. 커스텀 학습 로직과 최신 Gemma를 즉시 쓰기 위해서입니다.**
 
-1. **JumpStart가 아니라 커스텀 스크립트인 이유** — JumpStart는 정해진 모델을 정해진 레시피로 빠르게 돌리는 데 최적입니다. 다만 최신 Gemma 릴리스 반영과 커스텀 SFT 로직(chat template 처리, LoRA 타깃 제한, 텍스트 re-export)의 제어가 어렵습니다 — [왜 커스텀 train.py 경로인가](#왜-커스텀-trainpy-경로인가).
-2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker 학습 Job을 겸합니다.** 로컬 GPU에서 파이프라인을 검증한 그 파일이 클라우드에서 그대로 돕니다 — [train.py — 로컬 dry-run과 SageMaker 학습 잡](#trainpy--로컬-dry-run과-sagemaker-학습-job).
-3. **Gemma 관용구 6종은 협상 불가입니다**: chat template 위임, 멀티모달 base는 `language_model` 한정 LoRA, bf16(fp16 금지), `eager` attention, flash-attention 아니면 packing off, boolean 하이퍼는 `str2bool` — [Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구).
-4. **`stopping_condition`을 생략하면 SDK가 1시간을 넣습니다.** 학습이 100% 끝나고 머지 중에 Job이 죽어 배포 불가가 됩니다 — [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정).
-5. **SFT 데이터를 GRPO에 재사용하면 학습이 아예 안 됩니다.** rollout이 전부 만점이 되어 advantage가 0으로 수렴합니다 — [SFT에서 GRPO로 — 데이터를 갈아야 하는 이유](#sft에서-grpo로--데이터를-갈아야-하는-이유).
+1. **JumpStart가 아니라 커스텀 스크립트인 이유** — JumpStart는 정해진 모델을 정해진 레시피로 빠르게 돌리는 데 최적입니다. 다만 최신 Gemma 릴리스 반영과 커스텀 SFT 로직(chat template 처리, LoRA 타깃 제한, 텍스트 re-export)의 제어가 어렵습니다. 자세히는 [왜 커스텀 train.py 경로인가](#왜-커스텀-trainpy-경로인가)를 보세요.
+2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker 학습 Job을 겸합니다.** 로컬 GPU에서 파이프라인을 검증한 그 파일이 클라우드에서 그대로 돕니다. 자세히는 [train.py — 로컬 dry-run과 SageMaker 학습 잡](#trainpy--로컬-dry-run과-sagemaker-학습-job)을 보세요.
+3. **Gemma 관용구 6종은 협상 불가입니다**: chat template 위임, 멀티모달 base는 `language_model` 한정 LoRA, bf16(fp16 금지), `eager` attention, flash-attention 아니면 packing off, boolean 하이퍼는 `str2bool`. 자세히는 [Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)를 보세요.
+4. **`stopping_condition`을 생략하면 SDK가 1시간을 넣습니다.** 학습이 100% 끝나고 머지 중에 Job이 죽어 배포 불가가 됩니다. 자세히는 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)을 보세요.
+5. **SFT 데이터를 GRPO에 재사용하면 학습이 아예 안 됩니다.** rollout이 전부 만점이 되어 advantage가 0으로 수렴합니다. 자세히는 [SFT에서 GRPO로 — 데이터를 갈아야 하는 이유](#sft에서-grpo로--데이터를-갈아야-하는-이유)를 보세요.
 
 ---
 
@@ -78,7 +78,7 @@
 | 진입 난이도 | 낮음 | 중간(대신 투명·이식성) |
 | 언제 고르나 | 표준 레시피로 충분·빠른 baseline | 커스텀 로직 또는 최신 모델이 필요할 때 |
 
-**SDK 버전도 함께 확인하세요 — v3에는 `HuggingFace` estimator가 아예 없습니다.**
+**SDK 버전도 함께 확인하세요. v3에는 `HuggingFace` estimator가 아예 없습니다.**
 [SageMaker Python SDK V3 개요](https://sagemaker.readthedocs.io/en/stable/#migration-from-v2)는 v3가 "Estimator·Model·Predictor 같은 legacy 인터페이스를 `ModelTrainer`/`ModelBuilder`로 대체한다"고 명시합니다.
 `HuggingFace` estimator는 그 `Estimator` 계열의 프레임워크 서브클래스였으므로 **함께 제거**됐습니다.
 그래서 학습은 `ModelTrainer`(+`SourceCode`/`Compute`/`InputData`/`StoppingCondition`)로 정의합니다.
@@ -92,7 +92,7 @@
 
 [![Training Job을 만드는 세 가지 호출 계층 다이어그램. 왼쪽에는 호출 주체로 Dev desktops, App Servers, Amazon EC2, SageMaker Notebooks, Amazon EMR이 세로로 놓이고 각각에서 가운데의 세 계층으로 화살표가 들어간다. 위쪽 AWS SDKs 박스는 CreateTrainingJob()과 CreateModel()을 노출하며 Java·Node·PHP·.NET·Ruby·Python·Go·C++를 지원하고, 가운데 SageMaker Python SDK 박스는 ModelTrainer.train()과 ModelBuilder.deploy()를, 아래쪽 SageMaker Spark Library 박스는 org.apache.spark.ml.Estimator interface를 노출한다. 세 박스에서 나온 화살표는 모두 오른쪽의 같은 대상인 SageMaker AI Training Job으로 모인다](images/sm_sdks.png)](images/sm_sdks.png)
 
-*세 화살표의 도착지가 하나라는 것이 요점입니다 — 어느 계층으로 부르든 AWS가 만드는 리소스는 같은 Training Job입니다.*
+*세 화살표의 도착지가 하나라는 것이 요점입니다. 어느 계층으로 부르든 AWS가 만드는 리소스는 같은 Training Job입니다.*
 
 **이 절의 선택은 계층을 갈아타는 결정이 아니라, 같은 계층 안에서 어느 래퍼를 쓸지의 결정입니다.** 위 표의 대안인 JumpStart도 `JumpStartEstimator`라는 같은 계층의 클래스입니다.
 어느 쪽을 골라도 AWS 쪽에 도착하는 것은 `CreateTrainingJob` 하나입니다. 그래서 Job 상태·시간 제한·[경로 규약](01_sagemaker_basics.md#경로-규약--컨테이너-안의-정해진-경로) 같은 규칙은 경로 선택과 무관하게 똑같이 적용됩니다.
@@ -111,7 +111,7 @@
 - 호출 — endpoint 호출은 `sagemaker-runtime`의 `invoke_endpoint`입니다.
 
 Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 내려가면 됩니다.
-그 층은 그림의 언어 목록(Java·Node·Go 등) 어디서나 같아서, 학습 Job 제출을 Java 애플리케이션에서 해도 됩니다 — 그때 없는 것은 `SourceCode`·`Compute` 같은 **편의 래퍼뿐**입니다.
+그 층은 그림의 언어 목록(Java·Node·Go 등) 어디서나 같아서, 학습 Job 제출을 Java 애플리케이션에서 해도 됩니다. 그때 없는 것은 `SourceCode`·`Compute` 같은 **편의 래퍼뿐**입니다.
 아래 줄의 SageMaker Spark Library는 EMR/Spark 파이프라인용이라 이 kit에는 등장하지 않습니다.
 
 ### 기술적 차이 3가지
@@ -146,7 +146,7 @@ Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 �
 - **마커를 손으로 조립하지 마세요.** Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 `SFTTrainer`가 **자동으로 `apply_chat_template`을 적용**합니다. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
 - **system role은 실행 전 재확인 대상입니다.** Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 납니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있습니다.
 - **자동 복구는 없습니다.** `common/gemma_format.py`의 `render_prompt`는 `apply_chat_template`을 그대로 호출할 뿐 try/except 재시도를 하지 않습니다. 폴백 함수(`fold_system_into_user`)는 제공되지만 **호출은 사용자 몫**입니다.
-- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker 학습 Job 안에서** 터집니다 — 용량 대기 + DLC pull + GPU 과금을 다 치른 뒤입니다.
+- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker 학습 Job 안에서** 터집니다(용량 대기 + DLC pull + GPU 과금을 다 치른 뒤).
 
 ??? info "더 읽을 거리 — 템플릿 원본 문서"
     템플릿이 실제로 뱉는 `<start_of_turn>`/`<end_of_turn>` 마커 구조는 [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/core/prompt-structure)가 원본입니다.
@@ -182,13 +182,13 @@ LoraConfig(
 
 - 텍스트 전용 base라면 [PEFT `LoraConfig` API 문서](https://huggingface.co/docs/peft/en/package_reference/lora)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다.
-- 이름 리스트나 `all-linear`를 주면 **크래시합니다.** language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다 — `ValueError: Target module ... is not supported`.
+- 이름 리스트나 `all-linear`를 주면 **크래시합니다.** language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다: `ValueError: Target module ... is not supported`.
 - 그래서 멀티모달에서는 **정규식으로 `language_model` 경로만 한정**합니다. 실측에서는 language의 `nn.Linear` 258개만 매칭됐고(ClippableLinear 0개), `get_peft_model`이 성공해 `lora_A` 516개가 부착됐습니다.
 - 멀티모달에서는 embed/lm_head를 `modules_to_save`로 두면 vision 임베딩까지 얽힐 수 있어 생략합니다(순수 텍스트 LoRA).
 
 ### bf16 필수, fp16 금지
 
-`SFTConfig(bf16=True)`로 학습하고 모델은 `dtype=torch.bfloat16`으로 로드합니다. **fp16 금지** — Gemma에서 오버플로/NaN을 일으킵니다.
+`SFTConfig(bf16=True)`로 학습하고 모델은 `dtype=torch.bfloat16`으로 로드합니다. **fp16 금지**입니다. fp16은 Gemma에서 오버플로/NaN을 일으킵니다.
 bf16을 지원하지 않는 GPU라면 QLoRA의 `bnb_4bit_compute_dtype=torch.bfloat16` 경로를 쓰되 하드웨어 호환성을 먼저 확인하세요.
 `transformers` 5.x부터는 `torch_dtype`이 `dtype`으로 이름이 바뀌었습니다(구 이름은 deprecation 경고).
 
@@ -242,7 +242,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 [![ModelTrainer 코드와 그 코드가 세우는 인프라의 대응 다이어그램. 왼쪽은 35줄짜리 ModelTrainer 스니펫이고, 점선 화살표 두 개가 오른쪽으로 나갑니다. 위쪽 점선은 `image_uris.retrieve(...)` 블록에서 Amazon ECR의 PyTorch Training Container Image로, 아래쪽 점선은 `estimator.train(input_data_config=[...])` 줄에서 Amazon SageMaker Managed Cluster로 이어집니다. 클러스터 안에는 Instance 1(Training container + EBS Volume)과 인스턴스 두 개가 더 있고, 오른쪽 실선은 `os.env('SM_MODEL_DIR')`이 s3://bucket/path/to/model로 나가는 방향, `os.env('SM_CHANNEL_TRAINING')`과 `SM_CHANNEL_TESTING`이 S3에서 EBS Volume으로 들어오는 방향을 나타냅니다.](images/sm_training.png)](images/sm_training.png)
 
-*코드 한 줄이 어떤 인프라를 세우는지가 화살표로 드러납니다 — 점선 둘은 `image_uris.retrieve()`가 ECR 이미지를, `estimator.train()`이 클러스터를 지정하는 방향이고, 오른쪽 실선은 컨테이너와 S3가 `SM_*` 환경변수로 주고받는 방향입니다.*
+*코드 한 줄이 어떤 인프라를 세우는지가 화살표로 드러납니다. 점선 둘은 `image_uris.retrieve()`가 ECR 이미지를, `estimator.train()`이 클러스터를 지정하는 방향이고, 오른쪽 실선은 컨테이너와 S3가 `SM_*` 환경변수로 주고받는 방향입니다.*
 
 이 그림을 이 kit의 값으로 옮기면 이렇습니다.
 
@@ -252,7 +252,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 | 아래쪽 점선 — 클러스터 | `Compute(instance_type=..., instance_count=1)` — 인스턴스 박스 셋 중 하나만 뜨고, 여러 노드를 묶는 `distributed=Torchrun()`도 안 씀 |
 | 오른쪽 실선 — `s3://bucket/path/to/model` | `output_data_config`를 생략해 SDK 기본 출력 경로에 맡기고, Job이 끝난 뒤 `job.model_artifacts.s3_model_artifacts`로 URI를 읽어 배포에 넘김 |
 
-그리고 그림이 흘리기 쉬운 사실 하나 — 오른쪽의 env 이름은 SageMaker가 정해 주는 상수가 아니라 **내가 붙인 채널 이름에서 파생**됩니다.
+그리고 그림이 흘리기 쉬운 사실이 하나 있습니다. 오른쪽의 env 이름은 SageMaker가 정해 주는 상수가 아니라 **내가 붙인 채널 이름에서 파생**됩니다.
 그림은 채널이 둘(`training`·`testing`)이라 `SM_CHANNEL_TRAINING`/`SM_CHANNEL_TESTING`입니다. 이 kit은 `InputData(channel_name='train', ...)` 하나만 넘기므로 컨테이너에 심기는 이름은 `SM_CHANNEL_TRAIN` 하나입니다.
 평가 채널이 필요하면 `InputData`를 하나 더 넣고 `train.py`에서 그 이름의 env를 읽으면 됩니다.
 
@@ -321,10 +321,10 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 | `26B-A4B` | `google/gemma-4-26B-A4B-it` | MoE total 25.2B / active 3.8B | `ml.g5.12xlarge` | >= 5.5.0 |
 | `31B` | `google/gemma-4-31B-it` | 31.27B dense | `ml.g6e.12xlarge` | >= 5.5.0 |
 
-- 이 kit의 `.env`는 `TRAIN_INSTANCE_TYPE=ml.g6.2xlarge`로 프리셋을 덮어씁니다 — `ml.g5.2xlarge`의 용량 대기가 길어서입니다.
+- 이 kit의 `.env`는 `TRAIN_INSTANCE_TYPE=ml.g6.2xlarge`로 프리셋을 덮어씁니다(`ml.g5.2xlarge`의 용량 대기가 길어서).
 - `InsufficientInstanceCapacity`로 막히면 `AWS_REGION`이나 인스턴스 타입만 바꿔 재시도하세요.
 - **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지·re-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다).
-- `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다 — E4B peak RAM은 약 **17.5GB**로 실측됐습니다. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
+- `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다. E4B peak RAM은 약 **17.5GB**로 실측됐습니다. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
 - 정확한 GPU 메모리·인스턴스 스펙·리전 가용성은 **실행 전 SageMaker 인스턴스 문서에서 재확인**하세요.
 - 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`를 쓰되, **`StoppingCondition(max_wait_time_in_seconds=...)`와 체크포인트 설정을 반드시 함께** 넘기세요. 빠뜨리면 `CreateTrainingJob`이 `ValidationException`으로 거부합니다.
 - `max_wait_time_in_seconds`는 "Spot 용량 대기 시간 + 실행 시간"의 상한이고 **`max_runtime_in_seconds`보다 크거나 같아야** 합니다(SDK 3.16.0 `MaxWaitTimeInSeconds` 규약). 이 kit 코드에는 이 값이 설정돼 있지 않으므로(SDK 기본 `None`) spot을 켤 때 직접 추가해야 합니다. 절감 폭은 리전·수급에 따라 달라지므로 절대값으로 약속하지 마세요.
@@ -416,7 +416,7 @@ trainer = ModelTrainer(
 - **env에 시크릿을 넣지 않는 쪽을 권장합니다** — `hf auth login`만 해도 kit이 토큰을 인식합니다. 조회 순서는 (1) env `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` → (2) `hf auth login`이 저장한 파일 토큰(`$HF_HOME/token`)입니다(`common/config.py`의 `get_hf_token()`). ungated 모델에는 토큰을 넣지 않아도 되고, 넣어도 무해합니다.
 - 서빙 쪽은 다릅니다. 이 kit의 endpoint는 학습 산출 모델(S3 `model_data`)을 서빙하므로 HF에서 가중치를 당기지 않습니다. 토큰을 서빙 env에 실으면 `describe_endpoint` 같은 리소스 메타데이터에 평문으로 남으므로, `get_serving_hf_token()`은 **`MODEL_IS_GATED=1`일 때만** 토큰을 반환합니다.
 - **라이선스 전파** — Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다.
-- gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 쓰려는 모델의 카드에서 라이선스 배너를 다시 확인하세요 — 옵션 경로라면 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it), 기본 경로라면 [`gemma-4-E4B-it` 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)입니다.
+- gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 쓰려는 모델의 카드에서 라이선스 배너를 다시 확인하세요. 옵션 경로라면 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it), 기본 경로라면 [`gemma-4-E4B-it` 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)입니다.
 
 시드 데이터셋은 전부 permissive한 것으로 골랐습니다. 세부는 `common/config.py`의 `TRACKS`를 참조하세요.
 
@@ -491,7 +491,7 @@ def _to_grpo(example):
     추출 코스 실측에서는 제약 없이 합성하면 8건 전부 인자 0개였습니다(시드 분포가 인자 없는 함수 94%).
     제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고, 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다.
 
-프로덕션에서는 하나가 더 있습니다 — **실제 트래픽 로그**. 분포가 진짜라서 가장 가치 있지만 공개 데이터로 재현할 수 없어 이 kit에는 넣지 않았습니다.
+프로덕션에서는 하나가 더 있습니다: **실제 트래픽 로그**. 분포가 진짜라서 가장 가치 있지만 공개 데이터로 재현할 수 없어 이 kit에는 넣지 않았습니다.
 held-out 분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율--합성으로-평가-금지)을 참고하세요.
 
 ### 왜 추출·분류 코스에만 GRPO가 있나
@@ -532,7 +532,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 ??? question "오개념 — “DLC 이미지 태그는 최신으로 아무거나 넣으면 되지 않나요?”"
     그렇지 않습니다. DLC 태그는 **AWS가 게시한 조합만** 유효합니다.
     `common/dlc.py`는 `DLC_IMAGE_URI`(완전 URI) → `DLC_REPOSITORY`+`DLC_TAG` → SDK `image_uris.retrieve` 순으로 해석합니다. ECR 계정은 `763104351884`(대부분의 리전 공용), 패턴은 `763104351884.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>`이며 현행 태그는 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/) 페이지에서 확인하세요. 태그는 자주 갱신되므로 **실행 직전에 다시 확인**해야 합니다.
-    학습 이미지는 **리전별 private ECR만** 허용됩니다 — `public.ecr.aws/...` URI를 주면 실패하고, 리전을 옮길 때는 `AWS_REGION`과 URI의 리전을 함께 바꿔야 합니다.
+    학습 이미지는 **리전별 private ECR만** 허용됩니다. `public.ecr.aws/...` URI를 주면 실패하고, 리전을 옮길 때는 `AWS_REGION`과 URI의 리전을 함께 바꿔야 합니다.
 
 이미지 종류를 혼동하는 경우도 흔합니다.
 
@@ -544,7 +544,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 ??? question "오개념 — “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.
-    SageMaker 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 kit은 real-time endpoint를 씁니다 — [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교).
+    SageMaker 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 kit은 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)를 보세요.
 
 ---
 
@@ -563,5 +563,5 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 | Bedrock (GRPO `synth` prompt 생성) | 입력·출력 토큰당 과금 | 상시 리소스 없음. `N_GRPO`로 총량 제어 |
 
 managed spot(`Compute(enable_managed_spot_training=True)`)을 쓰면 학습 비용을 줄일 수 있습니다.
-단 **`StoppingCondition(max_wait_time_in_seconds=...)`(>= `max_runtime_in_seconds`)와 체크포인트 설정이 필수**입니다 — 빠뜨리면 Job 생성이 `ValidationException`으로 거부됩니다([인스턴스 사이징](#인스턴스-사이징--gpu와-호스트-ram) 참고).
+단 **`StoppingCondition(max_wait_time_in_seconds=...)`(>= `max_runtime_in_seconds`)와 체크포인트 설정이 필수**입니다. 빠뜨리면 Job 생성이 `ValidationException`으로 거부됩니다([인스턴스 사이징](#인스턴스-사이징--gpu와-호스트-ram) 참고).
 절감 수치는 리전·수급에 따라 다르므로 절대값으로 약속하지 마세요.

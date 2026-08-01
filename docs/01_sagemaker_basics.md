@@ -13,7 +13,7 @@
       추론 옵션 상세는 [SageMaker 추론](04_sagemaker_inference.md),
       학습 상세는 [파인튜닝](03_finetuning.md)
 
-이 문서는 두 개념만 확실히 잡는 것을 목표로 합니다 — **학습은 Job, 서빙은 endpoint**.
+이 문서는 두 개념만 확실히 잡는 것을 목표로 합니다: **학습은 Job, 서빙은 endpoint**.
 
 !!! warning "빠르게 바뀌는 값"
     인스턴스 요금·리전 가용성·서비스 한도·GA 상태·Serverless의 GPU 지원 여부는 분기마다 바뀝니다.
@@ -27,13 +27,13 @@ SageMaker AI에서 기억할 개념은 사실상 두 개입니다. Training Job�
 
 정리하면 다음과 같습니다.
 
-1. **Training Job은 넘긴 것을 돌리고 스스로 사라집니다.** 컨테이너 이미지 + 내 스크립트 + S3 데이터 위치 + 실행 role을 넘기면 SageMaker가 머신을 띄우고 스크립트를 돌린 뒤 머신을 파괴합니다. 과금은 Job 단위이며 끝나면 자동으로 멈춥니다 — [Training Job](#training-job--끝나면-컴퓨팅-리소스까지-사라집니다).
-2. **넷 중 role만 값을 채우는 것으로 끝나지 않습니다.** Job이 그 role을 assume해 S3·ECR에 접근하므로, 권한이 붙어 있지 않으면 Job 중간에 실패합니다 — [실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr).
-3. **입력과 출력은 컨테이너 안의 정해진 경로로 주고받습니다.** 입력은 `SM_CHANNEL_TRAIN`(`/opt/ml/input/data/train`), 출력은 `SM_MODEL_DIR`(`/opt/ml/model`)이고, 후자에 남은 것만 `model.tar.gz`가 되어 S3로 올라갑니다 — [경로 규약](#경로-규약--컨테이너-안의-정해진-경로).
-4. **`MaxRuntimeInSeconds`는 학습 코드 시간이 아니라 Job이 도는 전 구간을 덮습니다**(데이터 복사 → 이미지 pull → 학습 → 저장). 용량 대기(`Pending`)는 별도 파라미터가 덮습니다. 이 kit은 이 한도 때문에 **학습이 100% 끝난 Job을 잃은 적이 있습니다** — [MaxRuntimeInSeconds가 덮는 시간 창](#maxruntimeinseconds가-덮는-시간-창).
-5. **Endpoint는 상시 HTTP 서버입니다. 호출이 0건이어도 삭제 전까지 시간당 과금됩니다.** 초심자에게 가장 비싼 오해가 바로 이 지점입니다 — [Endpoint](#endpoint--삭제할-때까지-켜져-있는-서버).
-6. **SageMaker AI / HyperPod / EC2 / on-prem은 "무엇을 내가 소유하는가"로 갈립니다.** Job 단위로 빌릴지, 클러스터를 유지할지, 인프라까지 직접 만들지의 선택입니다 — [SageMaker vs HyperPod vs EC2 vs on-prem](#sagemaker-vs-hyperpod-vs-ec2-vs-on-prem).
-7. **티어 비교는 시간당 단가가 아니라 세 칸(인프라 + 운영 + 규정 준수)으로 해야 합니다.** 관리형이 인프라 단가에서 지는 것은 맞고, 뒤의 두 칸을 세지 않은 비교라는 것도 맞습니다 — [인프라 비용은 TCO의 한 칸일 뿐입니다](00_overview.md#인프라-비용은-tco의-한-칸일-뿐입니다).
+1. **Training Job은 넘긴 것을 돌리고 스스로 사라집니다.** 컨테이너 이미지 + 내 스크립트 + S3 데이터 위치 + 실행 role을 넘기면 SageMaker가 머신을 띄우고 스크립트를 돌린 뒤 머신을 파괴합니다. 과금은 Job 단위이며 끝나면 자동으로 멈춥니다([Training Job](#training-job--끝나면-컴퓨팅-리소스까지-사라집니다)).
+2. **넷 중 role만 값을 채우는 것으로 끝나지 않습니다.** Job이 그 role을 assume해 S3·ECR에 접근하므로, 권한이 붙어 있지 않으면 Job 중간에 실패합니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)).
+3. **입력과 출력은 컨테이너 안의 정해진 경로로 주고받습니다.** 입력은 `SM_CHANNEL_TRAIN`(`/opt/ml/input/data/train`), 출력은 `SM_MODEL_DIR`(`/opt/ml/model`)이고, 후자에 남은 것만 `model.tar.gz`가 되어 S3로 올라갑니다([경로 규약](#경로-규약--컨테이너-안의-정해진-경로)).
+4. **`MaxRuntimeInSeconds`는 학습 코드 시간이 아니라 Job이 도는 전 구간을 덮습니다**(데이터 복사 → 이미지 pull → 학습 → 저장). 용량 대기(`Pending`)는 별도 파라미터가 덮습니다. 이 kit은 이 한도 때문에 **학습이 100% 끝난 Job을 잃은 적이 있습니다**([MaxRuntimeInSeconds가 덮는 시간 창](#maxruntimeinseconds는-어디까지-세는가)).
+5. **Endpoint는 상시 HTTP 서버입니다. 호출이 0건이어도 삭제 전까지 시간당 과금됩니다.** 초심자에게 가장 비싼 오해가 바로 이 지점입니다([Endpoint](#endpoint--삭제할-때까지-켜져-있는-서버)).
+6. **SageMaker AI / HyperPod / EC2 / on-prem은 "무엇을 내가 소유하는가"로 갈립니다.** Job 단위로 빌릴지, 클러스터를 유지할지, 인프라까지 직접 만들지의 선택입니다([SageMaker vs HyperPod vs EC2 vs on-prem](#sagemaker-vs-hyperpod-vs-ec2-vs-on-prem)).
+7. **티어 비교는 시간당 단가가 아니라 세 칸(인프라 + 운영 + 규정 준수)으로 해야 합니다.** 관리형이 인프라 단가에서 지는 것은 맞고, 뒤의 두 칸을 세지 않은 비교라는 것도 맞습니다([인프라 비용은 TCO의 한 칸일 뿐입니다](00_overview.md#인프라-비용은-tco의-한-칸일-뿐입니다)).
 
 ---
 
@@ -46,7 +46,7 @@ SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같
 - "Job 상태가 `Failed`도 아니고 **`Stopped`인데 에러 로그가 없습니다.**" — 시간 제한(`MaxRuntimeExceeded`)에 걸린 것이며, 학습이 성공했어도 산출물이 불완전할 수 있습니다.
 - "**테스트만 했는데 다음 날 청구서가 왔습니다.**" — Training Job과 Endpoint의 수명을 같다고 생각한 결과입니다. 전자는 자동으로 멈추지만 후자는 멈추지 않습니다.
 - "**HyperPod가 더 좋은 거 아닌가요?**" — 더 좋은 것이 아니라 다른 층입니다. Job 하나를 돌리려고 클러스터를 만들면 운영 부담만 늘어납니다.
-- "**그냥 EC2에 vLLM 띄우는 게 더 싸고 간단한데요?**" — 시간당 단가만 보면 맞습니다. 다만 인프라 비용은 TCO의 한 칸일 뿐이고, 셋업 노력·필요한 팀 스킬·장애 대응이 함께 계산되어야 합니다 — [운영 관점 비교](#운영-관점-비교).
+- "**그냥 EC2에 vLLM 띄우는 게 더 싸고 간단한데요?**" — 시간당 단가만 보면 맞습니다. 다만 인프라 비용은 TCO의 한 칸일 뿐이고, 셋업 노력·필요한 팀 스킬·장애 대응이 함께 계산되어야 합니다([운영 관점 비교](#운영-관점-비교)).
 - "회사에 GPU 서버가 있는데 **굳이 클라우드를 쓸 이유**가 있나요?" — 사용률과 데이터 소재 요건에 따라 실제로 없을 수도 있습니다. 이 문서는 그 판단 기준을 제시합니다.
 
 이 문서는 위 일곱 가지를 개념 층위에서 해소합니다.
@@ -60,21 +60,21 @@ SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같
     SageMaker가 차를 빌려 오고, 운행이 끝나면 트렁크에 실린 것만 창고(S3)에 옮긴 뒤 차를 반납합니다.
     차는 사라지므로 **트렁크에 넣지 않은 것은 전부 버려집니다.** 요금은 운행한 시간만큼입니다.
 
-한 장으로 줄이면 Training Job은 **화살표 세 칸**입니다 — S3에 있는 입력, Job이 도는 동안만 존재하는 계산 클러스터, 그리고 다시 S3로 나가는 출력.
+한 장으로 줄이면 Training Job은 **화살표 세 칸**입니다: S3에 있는 입력, Job이 도는 동안만 존재하는 계산 클러스터, 그리고 다시 S3로 나가는 출력.
 
 [![Training Job 해부도. 바깥에서 "Invoke API (예: CreateTrainingJob())" 화살표가 아래로 내려와 Job 하나를 나타내는 큰 박스로 들어가고, 박스 안에서는 왼쪽의 Job Inputs(예: S3 버킷 내 훈련 데이터)가 가운데의 Ephemeral Compute Cluster로, 거기서 다시 오른쪽의 Job Outputs(예: S3 버킷 내 모델 아티팩트)로 화살표를 따라 흐른다. 가운데 클러스터에는 "Job code and runtime as Docker container(s)"라는 설명이 붙어 있다](images/sm_job_anatomy.png)](images/sm_job_anatomy.png)
 
-*가운데 칸의 이름이 그대로 결론입니다 — Ephemeral, 즉 Job과 함께 생겼다가 Job과 함께 사라집니다.*
+*가운데 칸의 이름이 그대로 결론입니다. Ephemeral, 즉 Job과 함께 생겼다가 Job과 함께 사라집니다.*
 
 이 그림에서 정작 중요한 것은 **박스 바깥에서 들어오는 화살표**입니다. 가운데 클러스터는 내가 미리 만들어 두는 리소스가 아니라 `CreateTrainingJob` 호출이 만들어 내는 것입니다. 그 호출이 만든 Job이 끝나면 클러스터도 함께 사라집니다.
 
 이 kit에서 그 호출을 실제로 하는 코드는 `02_train_sft_sagemaker.ipynb`의 `trainer.train(...)` 한 줄입니다. `ModelTrainer`(SageMaker Python SDK v3)는 이 API **위에 얹힌 래퍼**이고, 그래서 노트북 어디에도 "클러스터를 만드는 셀"이 없습니다(래퍼와 raw API의 계층 관계는 [JumpStart vs 자체 train.py](03_finetuning.md#jumpstart-vs-자체-trainpy)에 그림으로 있습니다).
 
-클러스터의 규모도 Job을 정의할 때 함께 정해집니다 — `Compute(instance_type=..., instance_count=1)`. 그림의 클러스터는 여러 노드를 담을 수 있지만 이 kit은 단일 인스턴스입니다.
+클러스터의 규모도 Job을 정의할 때 함께 정해집니다: `Compute(instance_type=..., instance_count=1)`. 그림의 클러스터는 여러 노드를 담을 수 있지만 이 kit은 단일 인스턴스입니다.
 
 양쪽 끝이 모두 **S3**라는 점이 임시 클러스터를 마음 놓고 쓸 수 있게 만듭니다. 입력은 S3에서 컨테이너로 복사되고(이 kit은 `train` 채널 하나), 출력은 컨테이너에서 다시 S3로 올라갑니다.
 
-즉 Job보다 오래 사는 것은 그림 양 끝의 두 S3 위치뿐이고, 가운데 칸에만 남긴 것은 회수할 방법이 없습니다. 아래의 [경로 규약](#경로-규약--컨테이너-안의-정해진-경로)이 "컨테이너의 어느 경로가 오른쪽 S3로 올라가는가"를 정하는 규칙입니다.
+즉 Job이 끝난 뒤에도 남는 것은 그림 좌우의 두 S3 위치뿐이고, 가운데 인스턴스에만 남긴 것은 되찾을 수 없습니다. 아래의 [경로 규약](#경로-규약--컨테이너-안의-정해진-경로)이 "컨테이너의 어느 경로가 오른쪽 S3로 올라가는가"를 정하는 규칙입니다.
 
 뒤에서 다룰 Endpoint와의 대조도 여기서 나옵니다. Endpoint에는 이 그림의 가운데 칸에 해당하는 것이 **삭제 전까지 상시로** 떠 있습니다.
 
@@ -85,7 +85,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 | **컨테이너 이미지** | 학습 환경(파이썬·CUDA·프레임워크)이 들어 있는 Docker 이미지 | AWS가 게시한 PyTorch **DLC**(Deep Learning Containers — AWS가 미리 빌드해 ECR에 올려 둔 학습/추론용 컨테이너 이미지, `.env`의 `DLC_IMAGE_URI`) |
 | **내 코드** | 진입 스크립트와 `requirements.txt`가 든 디렉터리 | `SourceCode(source_dir='scripts', entry_script='train.py')` |
 | **데이터 위치** | S3 URI. **채널**(= 컨테이너 안에서 데이터가 마운트될 이름) 이름과 함께 지정 | `InputData(channel_name='train', data_source=train_s3)` |
-| **실행 role** | Job이 내 대신 S3·ECR·CloudWatch에 접근할 때 쓰는 IAM 신분 | `role=config.resolve_sagemaker_role(sess)`(`SAGEMAKER_ROLE_ARN`). 넘기는 것 중 유일하게 값을 채우는 것만으로 끝나지 않습니다 — 아래 [실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr) |
+| **실행 role** | Job이 내 대신 S3·ECR·CloudWatch에 접근할 때 쓰는 IAM 신분 | `role=config.resolve_sagemaker_role(sess)`(`SAGEMAKER_ROLE_ARN`). 넘기는 것 중 유일하게 값을 채우는 것만으로 끝나지 않습니다 — 아래 [실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근) |
 
 그러면 SageMaker가 순서대로 다음을 합니다.
 
@@ -100,7 +100,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 
 상태 이름에서 두 가지를 오해하기 쉽습니다. `Downloading`은 이미지가 아니라 **데이터**를 받는 구간이고(`File` 입력 모드에서 S3 → ML 스토리지 볼륨), **이미지 다운로드에는 전용 상태가 없습니다.** 이미지 pull은 `SecondaryStatus = Training` 안에서 일어납니다.
 
-5번 `Uploading`이 이 kit이 실제로 다친 구간입니다 — 뒤의 [시간 제한](#maxruntimeinseconds가-덮는-시간-창)을 보세요.
+5번 `Uploading`에서 이 kit이 실제로 사고를 겪었습니다. 뒤의 [시간 제한](#maxruntimeinseconds는-어디까지-세는가)을 보세요.
 
 ??? info "더 읽을 거리 — 위 단계 구분의 근거"
     구간 정의는 [`DescribeTrainingJob`의 secondary status 정의](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_DescribeTrainingJob.html)에 있습니다.
@@ -115,27 +115,27 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 - **`train.py`는 `common/`을 import하지 않는 self-contained 파일이어야 합니다.** SageMaker가 컨테이너에 올리는 것은 `source_dir` 하나뿐입니다([train.py 상세](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)).
 - **과금 대상 시간은 학습 시간보다 넓습니다.** AWS 문서 기준으로 **데이터 다운로드 시간**과 **모델 아티팩트 압축·업로드 시간**도 billable time에 포함됩니다. 즉 "학습 5분"이 "요금 5분"은 아닙니다.
 
-### 실행 role이 매개하는 것 — S3와 ECR
+### 실행 role로 무엇을 하는가 — S3와 ECR 접근
 
 위 표의 네 번째 항목만 성격이 다릅니다. `SAGEMAKER_ROLE_ARN`은 **내가 쓰는 자격증명이 아니라 SageMaker에게 빌려주는 신분**이고, Job이 도는 동안 S3와 ECR에 실제로 손을 뻗는 주체는 내 IAM user가 아니라 그 role입니다.
 
-[![SageMaker 학습 Job의 IAM role 매개 구조 다이어그램. 왼쪽 위에는 ModelTrainer 스니펫에서 role_arn='[Your SageMaker-compatible IAM role]' 한 인자가 강조되어 있고, 거기서 아래로 점선이 내려가 IAM role 박스와 그에 붙은 Permissions 목록(허용은 체크, 거부는 x 표시)으로 이어진다. 가운데 Amazon SageMaker AI 박스 안에는 Cluster → Instance 1 → Processing container가 중첩되어 있고, 클러스터에서 IAM role 박스로 "Assume role"이라고 적힌 점선 화살표가 나간다. 오른쪽에는 컨테이너가 권한을 통과해 접근하는 대상이 나열된다 — 체크된 s3:GetObject는 s3://bucket/path/to/training/data와 s3://bucket/path/to/test/data로, 체크된 s3:PutObject는 s3://bucket/path/to/model로 이어진다. 오른쪽 위에는 PyTorch Container Image를 담은 Amazon ECR 박스가 있다](images/sm_security.png)](images/sm_security.png)
+[![SageMaker 학습 Job의 IAM role 매개 구조 다이어그램. 왼쪽 위에는 ModelTrainer 스니펫에서 role_arn='[Your SageMaker-compatible IAM role]' 한 인자가 강조되어 있고, 거기서 아래로 점선이 내려가 IAM role 박스와 그에 붙은 Permissions 목록(허용은 체크, 거부는 x 표시)으로 이어진다. 가운데 Amazon SageMaker AI 박스 안에는 Cluster → Instance 1 → Processing container가 중첩되어 있고, 클러스터에서 IAM role 박스로 "Assume role"이라고 적힌 점선 화살표가 나간다. 오른쪽에는 컨테이너가 권한을 통과해 접근하는 대상이 나열된다. 체크된 s3:GetObject는 s3://bucket/path/to/training/data와 s3://bucket/path/to/test/data로, 체크된 s3:PutObject는 s3://bucket/path/to/model로 이어진다. 오른쪽 위에는 PyTorch Container Image를 담은 Amazon ECR 박스가 있다](images/sm_security.png)](images/sm_security.png)
 
-*체크 표시가 붙은 두 줄이 요점입니다 — 컨테이너가 S3를 읽고 쓸 수 있는 이유는 내 자격증명이 아니라 role의 정책에 그 action이 허용되어 있기 때문입니다.*
+*체크 표시가 붙은 두 줄이 요점입니다. 컨테이너가 S3를 읽고 쓸 수 있는 이유는 내 자격증명이 아니라 role의 정책에 그 action이 허용되어 있기 때문입니다.*
 
 그림에서 가장 중요한 화살표는 클러스터에서 IAM 박스로 거꾸로 올라가는 **Assume role**입니다. Job을 만들 때 role ARN 하나를 넘기면, SageMaker가 세운 클러스터가 그 role을 **대신 맡아(assume)** 컨테이너에 임시 자격증명을 심습니다. 덕분에 컨테이너 안의 `train.py`는 자격증명 코드를 한 줄도 갖지 않고도 S3에서 데이터를 받고 아티팩트를 올립니다.
 
-이 kit에서 그 한 인자는 `02_train_sft_sagemaker`의 `ModelTrainer(..., role=role, ...)`이고, 값은 `config.resolve_sagemaker_role(sess)`가 해석합니다(SDK v3의 인자 이름은 그림의 `role_arn`이 아니라 `role`입니다). 같은 role이 배포에서 한 번 더 쓰입니다 — endpoint도 아티팩트를 읽고 서빙 이미지를 pull할 때 이 role을 assume합니다(아래 [배포 3단계](#배포-3단계--무엇을-어떤-순서로-넘기는가)의 IAM 역할 칸).
+이 kit에서 그 한 인자는 `02_train_sft_sagemaker`의 `ModelTrainer(..., role=role, ...)`이고, 값은 `config.resolve_sagemaker_role(sess)`가 해석합니다(SDK v3의 인자 이름은 그림의 `role_arn`이 아니라 `role`입니다). 같은 role이 배포에서 한 번 더 쓰입니다. endpoint도 아티팩트를 읽고 서빙 이미지를 pull할 때 이 role을 assume합니다(아래 [배포 3단계](#배포-3단계--무엇을-어떤-순서로-넘기는가)의 IAM 역할 칸).
 
 **이것이 권한 부족이 제출 시점이 아니라 Job 중간에 드러나는 이유입니다.** `CreateTrainingJob`은 role ARN의 형식과 내 `iam:PassRole`만 확인하고 Job을 받아들입니다. 그림 오른쪽의 `s3:GetObject`·`s3:PutObject`·ECR pull은 클러스터가 뜬 **뒤에야** 시도되기 때문입니다.
 
 그래서 권한이 모자라도 Job 접수는 정상으로 보이다가, 용량 대기(`Pending`)와 인스턴스 프로비저닝 요금을 다 치른 뒤 `Downloading`/`Training` 구간에서 `Failed`로 떨어집니다. 원인을 볼 수 있는 곳은 노트북 출력이 아니라 CloudWatch 로그입니다(runbook의 [자주 막히는 곳](RUN_E2E.md#e2e-흐름에서-자주-막히는-곳) "학습 Job이 시작 직후 실패" 행이 이 증상입니다).
 
-그림의 Permissions 목록에 x 표시가 함께 있는 것도 그대로 읽어야 합니다 — role이 **있다**는 것과 role에 **필요한 권한이 붙어 있다**는 것은 다릅니다. `resolve_sagemaker_role()`은 role을 네 단계로 찾는데, 뒤의 두 단계에 각각 함정이 있습니다.
+그림의 Permissions 목록에 x 표시가 함께 있는 것도 그대로 읽어야 합니다. role이 **있다**는 것과 role에 **필요한 권한이 붙어 있다**는 것은 다릅니다. `resolve_sagemaker_role()`은 role을 네 단계로 찾는데, 뒤의 두 단계에 각각 함정이 있습니다.
 
 - **env → `get_execution_role()` → IAM 자동 탐지 → (opt-in) `AmazonSageMaker-DefaultRole` 생성** 순입니다.
 - 3단계의 자동 탐지가 보는 것은 **`sagemaker.amazonaws.com`을 신뢰하는지**(즉 assume이 가능한지)뿐입니다. S3·ECR 권한이 실제로 붙어 있는지는 확인하지 않으므로, 자동으로 잡힌 role이라도 첫 완주 전에 정책을 한 번 열어 보세요.
-- 4단계는 반대 방향입니다. `AmazonSageMakerFullAccess`를 붙인 role을 만들기 때문에 기본이 opt-in(`SAGEMAKER_CREATE_DEFAULT_ROLE=1`)입니다 — 편의와 최소 권한이 정확히 반대 방향인 지점입니다.
+- 4단계는 반대 방향입니다. `AmazonSageMakerFullAccess`를 붙인 role을 만들기 때문에 기본이 opt-in(`SAGEMAKER_CREATE_DEFAULT_ROLE=1`)입니다. 편의와 최소 권한이 정확히 반대 방향인 지점입니다.
 
 그림의 일반형과 이 kit의 값이 갈리는 곳은 두 군데입니다.
 
@@ -185,13 +185,13 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 
 !!! danger "여기에 저장하지 않으면 결과가 사라집니다"
     `/opt/ml/model`에 없는 것은 **Job이 끝날 때 인스턴스와 함께 삭제됩니다.** `/tmp`나 현재 디렉터리에 저장한 모델은 회수할 방법이 없습니다.
-    반대로 `/opt/ml/model`에 **필요 없는 것을 두면 손해**입니다. 이 디렉터리 전체가 압축되므로 중간 체크포인트가 쌓이면 업로드 시간이 늘고, 그 시간은 요금과 [시간 제한](#maxruntimeinseconds가-덮는-시간-창)을 함께 잡아먹습니다. 이 kit이 `SFTConfig(save_total_limit=1)`을 쓰는 이유입니다(체크포인트 3개 = 0.7GB, 전부 서빙에 불필요).
+    반대로 `/opt/ml/model`에 **필요 없는 것을 두면 손해**입니다. 이 디렉터리 전체가 압축되므로 중간 체크포인트가 쌓이면 업로드 시간이 늘고, 그 시간은 요금과 [시간 제한](#maxruntimeinseconds는-어디까지-세는가)을 함께 잡아먹습니다. 이 kit이 `SFTConfig(save_total_limit=1)`을 쓰는 이유입니다(체크포인트 3개 = 0.7GB, 전부 서빙에 불필요).
 
 이 경로는 학습에서 끝나지 않고 **서빙까지 이어집니다.** `/opt/ml/model`은 배포 시 추론 컨테이너가 모델을 읽는 경로이기도 합니다.
 
 그래서 이 kit의 `train.py`는 머지된 모델을 하위 폴더가 아니라 **아티팩트 루트**에 저장합니다. 루트에 완전한 HF 모델(`config.json` + 가중치)이 없으면 vLLM이 엔진을 감지하지 못합니다([merge_adapter 상세](03_finetuning.md#merge_adapter--서빙-단순화)).
 
-### MaxRuntimeInSeconds가 덮는 시간 창
+### MaxRuntimeInSeconds는 어디까지 세는가
 
 `StoppingCondition(max_runtime_in_seconds=...)`은 **폭주 방지 상한**입니다. [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)에 따르면 Job이 이 시간을 넘기면 SageMaker가 `SIGTERM`을 보내고 **120초를 준 뒤** Job을 종료합니다.
 
@@ -213,7 +213,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 ??? info "더 읽을 거리 — 업로드가 창 안인지 밖인지는 문서가 갈립니다"
     같은 API 문서가 "메트릭 발행과 **중지된 뒤의** 모델 아카이브·업로드까지 포함한 총 실행 시간 상한은 30일"이라고 적고 있어, 업로드를 `MaxRuntime` 컷오프 **밖**의 시간으로 기술합니다. AWS는 `TrainingStartTime`을 시계의 기점으로 명시하지도 않습니다.
 
-    다만 실무에 필요한 결론은 이 해석과 무관합니다 — 후처리가 창 안이라는 사실만으로 한도 설정 기준은 정해집니다.
+    다만 실무에 필요한 결론은 이 해석과 무관합니다. 후처리가 창 안이라는 사실만으로 한도 설정 기준은 정해집니다.
 
 이 kit은 실제로 이 함정에 빠졌습니다. `stopping_condition`을 생략하면 SDK가 1시간을 자동으로 넣는데(SDK 3.16.0 실측), 189/189 step을 전부 마친 Job이 **LoRA 머지 도중** 강제 종료되어 아티팩트에 어댑터와 체크포인트만 남았습니다.
 
@@ -242,9 +242,9 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 !!! abstract "쉽게 말하면"
     Endpoint는 렌터카가 아니라 **월세 가게**입니다. SageMaker가 GPU 인스턴스를 띄우고 그 위에 서빙 컨테이너를 올려
     HTTP를 받는 상태로 **계속 유지**합니다. 손님이 하루에 한 명도 안 와도 월세는 나갑니다.
-    이 kit의 구성(`ModelBuilder` + 평범한 production variant)에서 문을 닫는 방법은 하나뿐입니다 — **삭제**.
+    이 kit의 구성(`ModelBuilder` + 평범한 production variant)에서 문을 닫는 방법은 하나뿐입니다: **삭제**.
 
-배포는 세 리소스로 이루어집니다 — `Model`(어떤 가중치를 어떤 컨테이너로), `EndpointConfig`(어떤 인스턴스로 몇 대), `Endpoint`(실제로 떠 있는 서버). 이 3층 구조와 `invoke_endpoint` 호출 스키마는 [Endpoint 3층 구조와 호출](04_sagemaker_inference.md#endpoint-3층-구조와-호출)에서 자세히 다루므로 여기서는 반복하지 않습니다.
+배포는 세 리소스로 이루어집니다: `Model`(어떤 가중치를 어떤 컨테이너로), `EndpointConfig`(어떤 인스턴스로 몇 대), `Endpoint`(실제로 떠 있는 서버). 이 3층 구조와 `invoke_endpoint` 호출 스키마는 [Endpoint 3층 구조와 호출](04_sagemaker_inference.md#endpoint-3층-구조와-호출)에서 자세히 다루므로 여기서는 반복하지 않습니다.
 
 ### 배포 3단계 — 무엇을 어떤 순서로 넘기는가
 
@@ -260,7 +260,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 |---|---|---|
 | **1. 모델 준비 완료** | 모델 아티팩트 | Training Job이 S3에 올린 `model.tar.gz` = `model_data`. **학습과 서빙을 잇는 유일한 매개** |
 | | 컨테이너 이미지 | AWS가 사전 구축한 서빙 DLC(`.env`의 `VLLM_IMAGE_URI` / `SGLANG_IMAGE_URI` / `LMI_IMAGE_URI`). 직접 준비(BYOC)도 되지만 아래 컨테이너 규약을 내가 구현해야 합니다 |
-| | IAM 역할 | `role_arn`. endpoint가 **S3 아티팩트를 읽고 ECR 이미지를 pull하고 CloudWatch에 로그를 쓸 때** assume하는 신분이며, 학습 Job에 넘긴 것과 같은 role입니다([실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr)) |
+| | IAM 역할 | `role_arn`. endpoint가 **S3 아티팩트를 읽고 ECR 이미지를 pull하고 CloudWatch에 로그를 쓸 때** assume하는 신분이며, 학습 Job에 넘긴 것과 같은 role입니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)) |
 | **2. 엔드포인트 구성** | 1단계의 매개변수 | 위 셋이 그대로 `Model`이 됩니다 |
 | | 배포 모드 | 추론 4옵션 중 **Real-time**(Serverless에 GPU가 없어서). SDK v3에는 이와 별개로 실행 위치를 고르는 `Mode` 축(`IN_PROCESS` · `LOCAL_CONTAINER` · `SAGEMAKER_ENDPOINT`)이 있습니다 |
 | | 컴퓨팅·GPU 선택 | `.env`의 `INFER_INSTANCE_TYPE=ml.g6.2xlarge`(L4 24GB) × `initial_instance_count=1` |
@@ -273,7 +273,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 
     - AWS는 auto scaling을 쓰려면 "**이미 endpoint를 만들어 두었어야 한다**"고 명시합니다([auto scaling 사전 조건](https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling-prerequisites.html)).
     - 정책은 `EndpointConfig`의 필드가 아니라 **Application Auto Scaling API**(scalable target 등록 → 정책 정의 → 적용)로 endpoint가 뜬 **뒤에** 붙입니다.
-    - `EndpointConfig` 안에 스케일링 범위가 들어가는 길은 하나 있습니다 — production variant의 [`ManagedInstanceScaling`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProductionVariant.html)(`MinInstanceCount`/`MaxInstanceCount`). 다만 그 **최솟값을 0으로** 내리려면 inference component 기반 구성이 필요하고, 그 이야기는 이 문서 뒤쪽의 「0 인스턴스까지 내리는 길은 따로 있습니다」가 다룹니다.
+    - `EndpointConfig` 안에 스케일링 범위가 들어가는 길은 하나 있습니다: production variant의 [`ManagedInstanceScaling`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProductionVariant.html)(`MinInstanceCount`/`MaxInstanceCount`). 다만 그 **최솟값을 0으로** 내리려면 inference component 기반 구성이 필요하고, 그 이야기는 이 문서 뒤쪽의 「0 인스턴스까지 내리는 길은 따로 있습니다」가 다룹니다.
 
 ### 컨테이너 규약 — 모델 아티팩트와 ping health check
 
@@ -315,7 +315,7 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 
 지금까지 본 Endpoint는 정확히는 **Real-time endpoint**이고, SageMaker 추론에는 이 밖에 **Serverless · Asynchronous · Batch Transform**이 더 있습니다. 넷의 비교표와 선택 기준, 그리고 이 kit이 Real-time을 고른 이유(Serverless에는 GPU가 없습니다)는 앵커 문서인 [왜 Real-time인가 — 추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)에 있습니다.
 
-넷을 찾을 때 문서가 한 곳에 모여 있지 않다는 점만 알아 두세요. [모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)의 "endpoint에 모델 배포" 목록에는 **endpoint 3종(Real-time · Serverless · Asynchronous)만** 있고, **Batch Transform은 별도 문서**로 다뤄집니다 — endpoint를 만들지 않는 옵션이라 계열이 다릅니다.
+넷을 찾을 때 문서가 한 곳에 모여 있지 않다는 점만 알아 두세요. [모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)의 "endpoint에 모델 배포" 목록에는 **endpoint 3종(Real-time · Serverless · Asynchronous)만** 있고, **Batch Transform은 별도 문서**로 다뤄집니다. endpoint를 만들지 않는 옵션이라 계열이 다릅니다.
 
 "Serverless에는 GPU가 없다"는 것은 현시점의 정책성 항목이라 언젠가 바뀔 수 있습니다. 설계를 확정하기 전에 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)에서 **실행 전 재확인**하세요.
 
@@ -363,17 +363,17 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
     **그것만으로는 차별점이 아닙니다.** AWS ParallelCluster도 `clustermgtd`로 불건전 노드를 감지해 교체합니다(CloudWatch 대시보드에 `Unhealthy Instance Errors` 지표가 있고, static 노드에는 `node_replacement_timeout`이 있습니다).
     HyperPod의 실제 차별점은 세 가지입니다.
 
-    1. **노드 감지·복구 컨트롤 플레인을 AWS가 소유**합니다 — cluster agent, Health Monitoring Agent, Node Recovery System. ParallelCluster에서 같은 역할을 하는 `clustermgtd`는 내 head 노드에서 도는 것이 차이입니다. 다만 **Slurm 컨트롤 플레인 자체(`slurmctld`·`slurmdbd`)는 내 인스턴스 그룹**([`SlurmConfig.NodeType: Controller`](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-ref.html))이고 deep health check 대상도 아니며, 컨트롤러 HA는 내가 설계하는 아키텍처입니다.
+    1. **노드 감지·복구 컨트롤 플레인을 AWS가 소유**합니다: cluster agent, Health Monitoring Agent, Node Recovery System. ParallelCluster에서 같은 역할을 하는 `clustermgtd`는 내 head 노드에서 도는 것이 차이입니다. 다만 **Slurm 컨트롤 플레인 자체(`slurmctld`·`slurmdbd`)는 내 인스턴스 그룹**([`SlurmConfig.NodeType: Controller`](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-ref.html))이고 deep health check 대상도 아니며, 컨트롤러 HA는 내가 설계하는 아키텍처입니다.
     2. **deep health check의 깊이** — `stress-ng`·DCGM 레벨 4·EFA loopback·다중 노드 NCCL `all_reduce`까지 돌려 통과하지 못한 노드는 워크로드를 받기 전에 격리·교체합니다. 단 기본 동작이 아니라 인스턴스 그룹별 `OnStartDeepHealthChecks` **옵트인**이고 노드당 두 시간 가까이 걸려 그 동안 노드가 막히므로, AWS는 소규모 클러스터에서는 끄기를 권장합니다.
     3. **중단된 학습 Job의 [auto-resume](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency-slurm-auto-resume.html)** — 노드를 교체한 뒤 Job을 재개합니다. 정확히는 HyperPod가 `srun` 스텝을 다시 띄워 주고 **체크포인트를 읽어 오는 것은 여전히 학습 스크립트의 몫**입니다. GPU 클러스터에서 흔한 GRES가 노드에 붙어 있으면 체크포인트가 아니라 **처음부터 다시 시작**하는 예외도 문서화돼 있습니다.
 
     즉 "노드를 살리는 것"이 아니라 **"진행 중인 학습을 살리는 것"**이 초점입니다.
 
-복원력이 정리되면 다음 혼동은 배포 기능의 귀속입니다.
+복원력을 정리했으면, 다음으로 헷갈리는 것은 **어떤 배포 기능이 어느 서비스 것인지**입니다.
 
 ??? question "오개념 — “HyperPod로 올리면 blue/green이나 canary 배포도 되겠지”"
-    **가드레일은 아닙니다.** HyperPod에도 [추론 플랫폼](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment.html)이 있어 프로덕션 트래픽을 받을 수 있습니다. 하지만 blue/green·canary·rolling 배포 가드레일과 production variant A/B는 **SageMaker AI Inference endpoint**의 기능입니다 — `CreateEndpoint`/`UpdateEndpoint`의 `EndpointConfig` 교체를 기반으로, CloudWatch 알람으로 baking 기간을 감시하며 자동 롤백까지 하는 메커니즘입니다. 적용 대상은 real-time과 asynchronous이고 serverless는 제외됩니다. [제외 목록](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails-exclusions.html)은 **Marketplace 컨테이너와 Inf1(Inferentia) 인스턴스 endpoint**이며(rolling 배포는 추가로 serverless·multi-variant endpoint 제외), inference component는 제외 대상이 **아닙니다.** 그리고 제외 기능을 쓰는 endpoint라고 해서 가드레일을 아예 못 쓰는 것이 아니라, **"all at once 트래픽 전환 + baking 기간 없음"의 blue/green으로 폴백**됩니다.
-    HyperPod EKS에서 같은 목적을 달성하려면 Kubernetes rolling update로 직접 구성해야 합니다. 기능을 찾을 때는 **"어느 서비스의 기능인가"를 먼저 확인**하세요 — 티어 간 기능 귀속 오류가 아키텍처 결정을 가장 크게 망칩니다.
+    **가드레일은 아닙니다.** HyperPod에도 [추론 플랫폼](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment.html)이 있어 프로덕션 트래픽을 받을 수 있습니다. 하지만 blue/green·canary·rolling 배포 가드레일과 production variant A/B는 **SageMaker AI Inference endpoint**의 기능입니다. `CreateEndpoint`/`UpdateEndpoint`의 `EndpointConfig` 교체를 기반으로, CloudWatch 알람으로 baking 기간을 감시하며 자동 롤백까지 하는 메커니즘입니다. 적용 대상은 real-time과 asynchronous이고 serverless는 제외됩니다. [제외 목록](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails-exclusions.html)은 **Marketplace 컨테이너와 Inf1(Inferentia) 인스턴스 endpoint**이며(rolling 배포는 추가로 serverless·multi-variant endpoint 제외), inference component는 제외 대상이 **아닙니다.** 그리고 제외 기능을 쓰는 endpoint라고 해서 가드레일을 아예 못 쓰는 것이 아니라, **"all at once 트래픽 전환 + baking 기간 없음"의 blue/green으로 폴백**됩니다.
+    HyperPod EKS에서 같은 목적을 달성하려면 Kubernetes rolling update로 직접 구성해야 합니다. 기능을 찾을 때는 **"어느 서비스의 기능인가"를 먼저 확인**하세요. 다른 서비스 기능으로 착각하는 것이 아키텍처 결정을 가장 크게 망칩니다.
 
 HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입니다.
 
@@ -419,7 +419,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 | 노트북 | 만드는 SageMaker 리소스 | 개념 |
 |---|---|---|
-| `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role이-매개하는-것--s3와-ecr)) |
+| `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)) |
 | `01_data_and_synthetic.ipynb` | 없음(로컬 `data/train.jsonl` 생성) | 학습 입력 준비 |
 | `02_train_sft_sagemaker.ipynb` | ✅ 생성 — **Training Job** (`ModelTrainer.train()`) | 데이터 S3 업로드 → Job 제출 → `model_data` 확보 |
 | `02a_train_grpo_sagemaker.ipynb` (선택) | ✅ 생성 — **Training Job** (SFT→GRPO 정련) | 추출·분류 코스만 제공 |
@@ -432,7 +432,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 - Training Job을 만드는 노트북은 `02`(및 선택 `02a`)이고, **끝나면 인스턴스가 자동 해제**되므로 별도 정리가 필요 없습니다. 남는 것은 S3 아티팩트와 CloudWatch 로그(용량당 과금)입니다.
 - Endpoint를 만드는 노트북은 `03`이며, **삭제하는 노트북은 `99`뿐입니다.** 삭제 순서가 정해져 있고(Endpoint → EndpointConfig → Model), `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 만들기 때문에 `endpoint_name`만으로 지우면 Model이 조용히 남습니다.
-- 멀티모달 코스(`tracks/05_multimodal_extraction/`)는 노트북 세트가 짧습니다 — Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`.
+- 멀티모달 코스(`tracks/05_multimodal_extraction/`)는 노트북 세트가 짧습니다: Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`.
 - 학습 스크립트는 `tracks/*/scripts/train.py` 하나로, 로컬 `--dry_run`과 SageMaker Training Job에서 **같은 파일**이 돕니다. 먼저 로컬에서 파이프라인을 검증하고 클라우드로 제출하는 것이 이 kit의 규율입니다([시작하기](getting_started.md)의 방식 B).
 
 다음 단계는 [실행 runbook](RUN_E2E.md)입니다. 개념을 잡았다면 그 문서의 순서를 그대로 따라가면 됩니다.

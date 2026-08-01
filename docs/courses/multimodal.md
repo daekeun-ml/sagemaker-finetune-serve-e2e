@@ -52,7 +52,7 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 읽어 둘 만한 변환 규칙이 셋 있습니다.
 
 - **`gt_parse.menu`만 남깁니다.** `_simplify_gt()`가 `nm`/`cnt`/`price` → `name`/`count`/`price`로 이름을 바꾸고 `sub_total`·`total`은 버립니다("핵심 필드만, 학습 안정").
-- **값은 전부 문자열이고 빈 문자열이 흔합니다.** 리포에 커밋된 정답을 보면 `{"name": "J.STB PROMO", "count": "", "price": "17500"}`처럼 `cnt`가 없는 항목이 그대로 `count: ""`가 됩니다. 가격도 `"17500"`과 `"13,000"`이 섞여 있어(콤마 유무) 정규화는 하지 않습니다 — 원본 표기를 그대로 재현하도록 학습합니다.
+- **값은 전부 문자열이고 빈 문자열이 흔합니다.** 리포에 커밋된 정답을 보면 `{"name": "J.STB PROMO", "count": "", "price": "17500"}`처럼 `cnt`가 없는 항목이 그대로 `count: ""`가 됩니다. 가격도 `"17500"`과 `"13,000"`이 섞여 있어(콤마 유무) 정규화는 하지 않습니다. 원본 표기를 그대로 재현하도록 학습합니다.
 - **지시문은 system role이 아니라 첫 user 턴 텍스트입니다.** Gemma chat template이 system role을 거부하므로 `INSTRUCTION`을 user 텍스트에 접어 넣습니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오개념 — “이미지는 messages content 안에 넣는 거 아닌가요?”"
@@ -92,9 +92,9 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 !!! warning "이 코스에는 `04_evaluate` 노트북이 없습니다 — 검증은 눈으로 대조하는 단계까지입니다"
     `03_deploy_mm_endpoint`가 `samples/`의 영수증을 endpoint에 보내고, `show_image_inference()`로 이미지와 예측 JSON을 나란히 렌더한 뒤 `ground_truth`를 함께 출력해 **육안 대조**하도록 합니다. 정량 지표를 내는 자동 노트북은 이 코스에 포함돼 있지 않습니다.
 
-    직접 붙일 때 알아 둘 것: `common/eval_utils.py`의 `eval_extraction()`은 gold를 `{"name", "arguments"}` 형태로 가정하고 `valid_json_rate`를 그 구조 유효성으로 계산합니다. 즉 함수호출 추출(01 코스) 전용이며 `{"menu": [...]}`에는 그대로 쓸 수 없습니다 — held-out 이미지로 채점하려면 `menu` 항목 집합에 대한 F1을 별도로 짜야 합니다. `TrackSpec`의 `eval_kind="extraction"`이 이 코스 spec에도 들어 있지만, 이 값을 읽는 코드(`_c06` = `04_evaluate` 빌더)를 05가 호출하지 않으므로 실제로는 쓰이지 않습니다.
+    직접 붙일 때 알아 둘 것: `common/eval_utils.py`의 `eval_extraction()`은 gold를 `{"name", "arguments"}` 형태로 가정하고 `valid_json_rate`를 그 구조 유효성으로 계산합니다. 즉 함수호출 추출(01 코스) 전용이며 `{"menu": [...]}`에는 그대로 쓸 수 없습니다. held-out 이미지로 채점하려면 `menu` 항목 집합에 대한 F1을 별도로 짜야 합니다. `TrackSpec`의 `eval_kind="extraction"`이 이 코스 spec에도 들어 있지만, 이 값을 읽는 코드(`_c06` = `04_evaluate` 빌더)를 05가 호출하지 않으므로 실제로는 쓰이지 않습니다.
 
-held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
+held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
 
 ---
 
@@ -123,7 +123,7 @@ held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지�
 학습 데이터를 S3에 올리는 채널도 없습니다. `train_mm.py`가 컨테이너 안에서 `load_dataset(seed_dataset, split="train")`으로 이미지를 직접 받으므로, `02` 노트북은 `input_data` 채널 없이 하이퍼파라미터만 넘깁니다.
 
 !!! tip "먼저 DRY_RUN으로 한 바퀴 도세요"
-    `train_mm.py --dry_run`은 앞 16건 · 1 epoch로 파이프라인 형태만 빠르게 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북도 `MAX_TRAIN_SAMPLES=200`으로 시작하도록 되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 쓰입니다(무제한이 아닙니다 — 더 쓰려면 숫자를 명시하세요). 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인)에 정리돼 있습니다.
+    `train_mm.py --dry_run`은 앞 16건 · 1 epoch로 파이프라인 형태만 빠르게 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북도 `MAX_TRAIN_SAMPLES=200`으로 시작하도록 되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 쓰입니다(무제한이 아닙니다. 더 쓰려면 숫자를 명시하세요). 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인)에 정리돼 있습니다.
 
 ---
 
@@ -140,10 +140,10 @@ held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지�
 | `freeze_vision` | `True` (기본) | vision/audio 파라미터를 `requires_grad=False`로 두고 language LoRA만 학습합니다 |
 | `use_qlora` · `merge_adapter` | 둘 다 `True` | 4bit nf4로 학습하고, 머지는 base(bf16)를 CPU에 다시 올려 수행합니다. 멀티모달 full 모델은 vision+audio를 포함해 특히 커서 호스트 RAM 여유가 필요합니다 |
 
-`scripts/requirements.txt`에 텍스트 코스에 없는 한 줄이 있습니다 — `torchvision>=0.20.0`(Gemma4 image processor 의존). 이것이 빠지면 processor 로드부터 실패합니다.
+`scripts/requirements.txt`에 텍스트 코스에 없는 한 줄이 있습니다: `torchvision>=0.20.0`(Gemma4 image processor 의존). 이것이 빠지면 processor 로드부터 실패합니다.
 
 !!! warning "`multimodal=True`를 읽고 분기하는 코드는 없습니다"
-    이 필드는 레지스트리를 볼 때 코스 성격을 알려 주는 표식이고, 파이프라인 동작을 바꾸지는 않습니다. 실제 분기는 **코드가 놓인 위치**가 만듭니다 — 합성 단계가 없는 것은 `_build_notebooks.py`의 빌더 목록에 `01_data_and_synthetic`이 아예 없기 때문이고(`build_00/01/02/03/99`), processor 경로는 `train_mm.py`에 `AutoProcessor.from_pretrained`가 그대로 적혀 있기 때문입니다.
+    이 필드는 레지스트리를 볼 때 코스 성격을 알려 주는 표식이고, 파이프라인 동작을 바꾸지는 않습니다. 실제 분기는 **코드가 놓인 위치**가 만듭니다. 합성 단계가 없는 것은 `_build_notebooks.py`의 빌더 목록에 `01_data_and_synthetic`이 아예 없기 때문이고(`build_00/01/02/03/99`), processor 경로는 `train_mm.py`에 `AutoProcessor.from_pretrained`가 그대로 적혀 있기 때문입니다.
     리포 전체에서 이 필드를 읽는 곳은 `02_train_mm_sagemaker`의 확인용 `print` 한 줄과 `tests/test_smoke.py`의 assert뿐입니다. 같은 이유로 `eval_kind="extraction"`도 이 코스에서는 쓰이지 않습니다([성공 기준](#성공-기준) 참고). 값을 바꿔도 노트북 세트는 그대로이므로, 자기 코스를 만들 때 이 플래그만 켜고 빌더를 그대로 두면 아무 일도 일어나지 않습니다.
 
 ### 서빙 — 멀티모달 그대로
@@ -161,9 +161,9 @@ held-out 원칙은 텍스트 코스와 같습니다 — 학습에 쓴 이미지�
 
 !!! danger "기본값으로 배포하면 24GB GPU에서 endpoint가 Failed합니다"
     멀티모달 아티팩트는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 코스 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV를 4.69 GiB로 과대 배정하면 여유가 0.34 GiB뿐이고, 실제로 더 필요한 양이 1.12 GiB라 **0.78 GiB 부족**으로 CUDA OOM이 납니다. 증상은 `did not pass the ping health check` 한 줄뿐이고 진짜 원인은 CloudWatch 로그 안에 있습니다.
-    범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다 — 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](../05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
+    범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다. 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](../05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
 
-호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일) — real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](../04_sagemaker_inference.md)).
+호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일). real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](../04_sagemaker_inference.md)).
 
 ---
 

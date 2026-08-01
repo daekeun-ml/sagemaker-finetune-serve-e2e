@@ -40,7 +40,7 @@ python pipelines/run_extraction.py --stages all --dry-run
 스테이지는 `data → train → grpo → deploy → eval → cleanup` 순이고, `--stages all`은
 **cleanup을 제외**합니다(실수로 방금 만든 endpoint를 지우지 않게).
 
-GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부합니다 — 요약·QA는
+GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부합니다. 요약·QA는
 reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 되고 advantage가 0이 됩니다.
 
 에이전트 단계(`05_agentic_strands`, `06_agentcore_deploy`)는 노트북에만 있습니다. 질의를
@@ -79,12 +79,12 @@ reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 �
 MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 ```
 
-`config.yaml`이 없어도 동작합니다 — `_config.py`의 기본값이 같은 값을 씁니다.
+`config.yaml`이 없어도 동작합니다. `_config.py`의 기본값이 같은 값을 씁니다.
 
 ## --dry-run이 보장하는 것
 
 과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 Job·endpoint뿐 아니라
-**Bedrock 호출도 하지 않습니다** — Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 +
+**Bedrock 호출도 하지 않습니다.** Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 +
 critique 약 100회가 실제로 청구됩니다. dry-run은 시드를 복제해 형식만 검증하고,
 GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 
@@ -98,7 +98,7 @@ GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 | `_common.py` | 스테이지 구현 + 상태 저장 + 실행 드라이버 |
 | `run_*.py` | 코스별 진입점. 코스 특이값만 선언하고 드라이버에 넘깁니다 |
 
-`tracks/*/scripts/`와 혼동하지 마세요 — 그쪽은 **SageMaker 컨테이너 안에서** 도는
+`tracks/*/scripts/`와 혼동하지 마세요. 그쪽은 **SageMaker 컨테이너 안에서** 도는
 `train.py`이고, 여기는 그것을 **제출하는** 쪽입니다.
 
 ## 이어서 볼 문서

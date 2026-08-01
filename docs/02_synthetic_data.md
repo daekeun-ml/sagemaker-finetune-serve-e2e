@@ -32,11 +32,11 @@
 
 **합성은 "자유 생성"이 아니라 seed에 grounded하고 critique/refine로 걸러낸 데이터만 채택하는 방식이며, 기본 경로는 외부 SDG 라이브러리가 0개인 `bedrock_synth.py`(boto3 Bedrock Converse)입니다.**
 
-1. **근거 없는 자유 생성은 hallucination과 distribution drift를 학습셋에 주입합니다.** 그래서 생성을 seed 도메인·라벨공간에 묶고, LLM critique(groundedness·relevance)로 임계값 미달 예시를 폐기합니다 — [왜 자유 생성이 아니라 grounded인가](#왜-자유-생성이-아니라-grounded인가).
-2. **기본 경로는 무의존성입니다.** `generate_grounded()`는 boto3만 쓰고, 생성 → PII/중복 필터 → critique → `messages` JSONL 순으로 동작합니다 — [기본 경로 — 무의존성 bedrock_synth](#기본-경로--무의존성-bedrock_synth).
-3. **몇 개 생성할지는 USER가 결정합니다.** 기본값은 `config.NUM_SYNTHETIC`(200)이고, 이 kit의 `.env`는 100으로 낮춰 둔 상태입니다 — [생성 건수 결정 — NUM_SYNTHETIC 기본값](#생성-건수-결정--num_synthetic-기본값).
-4. **합성 데이터로는 평가하지 마세요.** 증강 이전 seed에서 held-out을 먼저 분리한 뒤 나머지만 증강합니다 — [held-out 규율 — 합성으로 평가 금지](#held-out-규율--합성으로-평가-금지).
-5. **라이브러리는 활발히 유지보수되는 것만 권장합니다.** Kiln(native Bedrock)과 Bespoke Curator(LiteLLM 경유)이고, distilabel은 배제합니다 — [라이브러리 대안](#라이브러리-대안).
+1. **근거 없는 자유 생성은 hallucination과 distribution drift를 학습셋에 주입합니다.** 그래서 생성을 seed 도메인·라벨공간에 묶고, LLM critique(groundedness·relevance)로 임계값 미달 예시를 폐기합니다([왜 자유 생성이 아니라 grounded인가](#왜-자유-생성이-아니라-grounded인가)).
+2. **기본 경로는 무의존성입니다.** `generate_grounded()`는 boto3만 쓰고, 생성 → PII/중복 필터 → critique → `messages` JSONL 순으로 동작합니다([기본 경로 — 무의존성 bedrock_synth](#기본-경로--무의존성-bedrock_synth)).
+3. **몇 개 생성할지는 USER가 결정합니다.** 기본값은 `config.NUM_SYNTHETIC`(200)이고, 이 kit의 `.env`는 100으로 낮춰 둔 상태입니다([생성 건수 결정 — NUM_SYNTHETIC 기본값](#생성-건수-결정--num_synthetic-기본값)).
+4. **합성 데이터로는 평가하지 마세요.** 증강 이전 seed에서 held-out을 먼저 분리한 뒤 나머지만 증강합니다([held-out 규율 — 합성으로 평가 금지](#held-out-규율--합성으로-평가-금지)).
+5. **라이브러리는 활발히 유지보수되는 것만 권장합니다.** Kiln(native Bedrock)과 Bespoke Curator(LiteLLM 경유)이고, distilabel은 배제합니다([라이브러리 대안](#라이브러리-대안)).
 
 ---
 
@@ -113,7 +113,7 @@ save_jsonl → {"messages":[...]} JSONL  →  SFTTrainer conversational 입력
 
 PII/중복 필터가 critique **앞**에 있는 순서가 중요합니다. 탈락이 확정된 후보에 critique 호출(= 토큰 비용)을 쓰지 않기 위한 배치입니다.
 
-생성 배치와 critique는 모두 `ThreadPoolExecutor`로 병렬 처리됩니다 — Bedrock 호출이 I/O 바운드이기 때문입니다.
+생성 배치와 critique는 모두 `ThreadPoolExecutor`로 병렬 처리됩니다. Bedrock 호출이 I/O 바운드이기 때문입니다.
 
 ### 핵심 호출
 
@@ -132,7 +132,7 @@ synth = bs.generate_grounded(
 )
 ```
 
-- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다 — [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
+- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다. [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
 - **출력은 `{"messages":[...]}` JSONL입니다.** `gemma_format.build_messages`로 만든 표준 messages이므로 [TRL `SFTTrainer`](https://huggingface.co/docs/trl/en/sft_trainer)의 conversational 포맷에 바로 들어갑니다(학습 경로는 `tracks/*/scripts/train.py`).
 - **병렬 호출이 많으면 Bedrock throttling(429)이 납니다.** boto3 클라이언트는 `mode="adaptive"` 재시도로 구성되어 있고, 시도 횟수는 `BEDROCK_MAX_ATTEMPTS`(기본 8)로 조정합니다. 그래도 429가 계속되면 `SYNTH_MAX_WORKERS`를 낮추세요.
 
@@ -164,7 +164,7 @@ synth = bs.generate_grounded(
 
 - `config.NUM_SYNTHETIC`의 기본값은 **200/코스**이고, env `NUM_SYNTHETIC`으로 오버라이드합니다. 이 kit의 `.env`는 **100**으로 낮춰 둔 상태입니다.
     - 낮춘 이유는 요약 코스(`03_summarization`)의 호출당 지연입니다. seed 1건이 중앙값 1,651자로 추출 코스의 475자보다 크고, 배치 프롬프트가 약 10,900자까지 갑니다.
-    - 잘림은 아니고 순수 지연입니다 — 출력 2,554 토큰으로 `max_tokens` 4,500 안쪽입니다.
+    - 잘림은 아니고 순수 지연입니다(출력 2,554 토큰으로 `max_tokens` 4,500 안쪽).
 - seed 샘플 수는 `config.NUM_SEED_SAMPLES`(기본 300)로 따로 잡습니다. 합성 건수와 seed 건수는 별개 값입니다.
 - **언제 늘리나요** — seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
 - **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
