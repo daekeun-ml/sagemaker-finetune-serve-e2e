@@ -22,8 +22,7 @@ pipelines/run_benchmark.py — 배포된 endpoint 의 속도를 잰다 (TTFT / T
   2. config.yaml 의 benchmark 섹션을 sm-endpoint-bmt 의 CLI 인자로 옮긴다
   3. 그 도구를 부른다. `--` 뒤에 준 인자는 그대로 전달되어 위 설정을 덮는다
 
-sm-endpoint-bmt 는 코어 의존성이라 `uv sync` 로 함께 설치된다. 단 그 도구는 Python 3.12+ 이고
-kit 은 3.10 부터 지원하므로, 3.10/3.11 에서는 마커에 걸려 빠진다(pyproject 주석 참고).
+sm-endpoint-bmt 는 코어 의존성이라 `uv sync` 로 함께 설치된다.
 """
 from __future__ import annotations
 
@@ -49,10 +48,7 @@ from pipelines._config import load_config  # noqa: E402
 _INSTALL_HINT = (
     "sm-endpoint-bmt 를 import 할 수 없습니다.\n"
     f"  현재 파이썬: {sys.version.split()[0]}\n"
-    "  🔴 이 도구는 Python 3.12 이상을 요구합니다. kit 은 3.10 부터 지원하므로 pyproject 에\n"
-    "     python_version >= '3.12' 마커가 달려 있고, 그 아래 버전에서는 설치되지 않습니다.\n"
-    "     3.12+ 환경에서 다시 실행하세요:  uv venv --python 3.12 && uv sync\n"
-    "  3.12 인데도 없다면 동기화가 안 된 것입니다:  uv sync\n"
+    "  코어 의존성이므로 동기화하면 설치됩니다:  uv sync\n"
     "  리포: https://github.com/daekeun-ml/sm-endpoint-bmt"
 )
 

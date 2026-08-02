@@ -21,7 +21,8 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 python pipelines/run_benchmark.py --course classification --print-command
 ```
 
-이미 도는 endpoint를 호출할 뿐이라 리소스를 만들지 않습니다.
+이미 도는 endpoint를 호출할 뿐이라 리소스를 만들지 않습니다. 측정 도구는 코어 의존성이라
+`uv sync`로 함께 설치됩니다.
 
 !!! warning "그래도 과금은 계속됩니다"
     real-time endpoint는 요청이 없어도 삭제 전까지 시간당 과금됩니다. 측정이 끝나면
@@ -179,8 +180,3 @@ vLLM의 표에 없는 절이 하나 더 나옵니다. AWS 경계에서만 생기
 | usage 프레임이 없던 요청 수 | 그러면 출력 토큰 수가 추정치가 되고, TPOT도 근사가 됩니다 |
 | 예외별 오류 분포 | 실패가 throttling인지 타임아웃인지 갈립니다 |
 
-## 설치
-
-sm-endpoint-bmt는 코어 의존성이라 `uv sync`로 함께 설치됩니다. 단 그 도구는 **Python 3.12 이상**이고
-이 kit은 3.10부터 지원하므로, 3.10/3.11 환경에서는 설치되지 않습니다. `run_benchmark.py`가 그 경우를
-감지해 무엇이 빠졌는지 알려 줍니다.
