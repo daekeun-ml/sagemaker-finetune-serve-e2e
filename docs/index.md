@@ -115,3 +115,10 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 | GitHub | [github.com/daekeun-ml](https://github.com/daekeun-ml) |
 | Hugging Face | [huggingface.co/daekeun-ml](https://huggingface.co/daekeun-ml) |
 | 기술 블로그 | [housekdk.gitbook.io](https://housekdk.gitbook.io/) |
+
+## License
+
+코드와 문서는 [MIT](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/LICENSE)입니다.
+모델과 데이터셋 라이선스는 별개이니 재배포·서빙 전에 각 모델 카드에서 확인하세요 —
+gemma-4는 apache-2.0 + ungated지만, gemma-3/2는 커스텀 Gemma Terms + gated이고 use-restriction이
+파인튜닝 산출물까지 전파됩니다.

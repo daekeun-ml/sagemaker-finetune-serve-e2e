@@ -3,6 +3,11 @@ name = "sagemaker-finetune-serve-e2e"
 version = "0.1.0"
 description = "Production-oriented E2E SageMaker fine-tuning toolkit for Gemma SLMs (data→synthetic→train→endpoint→agentic)"
 requires-python = ">=3.10"
+# 🔴 이 kit 은 배포 패키지가 아니지만(tool.uv package = false) 라이선스는 선언한다 —
+#    LICENSE 파일이 없으면 공개 리포라도 법적으로는 모든 권리 유보이고, GitHub 도 라이선스를
+#    표시하지 못한다. 모델·데이터셋 라이선스는 별개다(README 의 라이선스 절 참고).
+license = "MIT"
+license-files = ["LICENSE"]
 
 # 버전 floor(>=)는 PyPI 실측 최신(2026-07-19). `uv lock --upgrade` 로 언제든 상위로 갱신 가능.
 dependencies = [

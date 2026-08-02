@@ -314,7 +314,10 @@ export DRY_RUN=1     # 먼저 파이프라인만 검증
 - Bedrock Converse는 토큰 단위 과금입니다 (대량 합성 시 비용 발생). AgentCore Runtime도 배포해 두면 과금됩니다.
 - 각 노트북은 학습·배포 직후 CloudWatch 다이렉트 링크를 출력합니다.
 
-## License notes
+## License
+
+이 리포의 코드와 문서는 [MIT](LICENSE)입니다. 아래는 **그와 별개로** 확인해야 하는 모델·데이터셋
+라이선스입니다.
 
 - **Gemma 4** = apache-2.0 + ungated. 토큰 없이 받을 수 있고 use-restriction이 없습니다.
 - **Gemma 3 / 2 / 3n** = 커스텀 Gemma Terms + gated. HF 토큰과 약관 수락이 필요하고, 파인튜닝·서빙 산출물까지 use-restriction이 전파됩니다.
