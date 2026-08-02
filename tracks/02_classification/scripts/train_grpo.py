@@ -323,7 +323,13 @@ def _resolve_sft_base(base_model_dir: str | None, logger) -> str | None:
         os.makedirs(dest, exist_ok=True)
         logger.info("SFT 아티팩트 압축 해제: %s → %s", src, dest)
         with tarfile.open(src, "r:gz") as tf:
-            tf.extractall(dest)          # noqa: S202 — 우리가 만든 학습 산출물이다
+            # filter="data" 는 심볼릭 링크·절대 경로·상위 경로 탈출을 막는다. Python 3.12+ 에서
+            # 지원하고 3.14 부터는 생략하면 경고가 뜬다. 우리가 만든 아티팩트라 위험은 없지만
+            # 명시해 두면 컨테이너의 파이썬이 올라가도 그대로 돈다.
+            try:
+                tf.extractall(dest, filter="data")
+            except TypeError:            # 3.11 이하 — filter 인자가 없다
+                tf.extractall(dest)      # noqa: S202 — 우리가 만든 학습 산출물이다
     if os.path.isfile(os.path.join(dest, "config.json")):
         return dest
     logger.warning("압축은 풀었지만 config.json 이 없습니다: %s", dest)
