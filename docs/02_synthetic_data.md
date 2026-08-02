@@ -2,7 +2,7 @@
 
 !!! info "Scope"
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다.
-    Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
+    Bedrock/Amazon SageMaker AI를 처음 다뤄도 괜찮습니다.
 
     - **선행 조건**: 없습니다. 이 문서에 대응하는 노트북이 각 코스의 첫 단계
       (`01_data_and_synthetic.ipynb`)입니다
@@ -14,9 +14,9 @@
 - `common/synth/bedrock_synth.py`: grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
 - `common/synth/README.md`: 기본 경로와 오픈 라이브러리 대안의 선택 근거
 - `common/config.py`: 모델 ID·리전·`NUM_SYNTHETIC` 등 env 기반 설정
-- `common/aws_utils.py`: Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker/Bedrock 서비스 경계
+- `common/aws_utils.py`: Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker AI/Bedrock 서비스 경계
 - `common/gemma_format.py`: 코스별 raw row → 표준 `messages` 변환(`build_messages`)
-- `common/llm_gateway.py`: LiteLLM 경유로 Bedrock과 SageMaker endpoint를 단일 인터페이스로 호출(대안 경로)
+- `common/llm_gateway.py`: LiteLLM 경유로 Bedrock과 SageMaker AI endpoint를 단일 인터페이스로 호출(대안 경로)
 - `common/eval_utils.py`: 코스별 held-out 평가 메트릭
 
 노트북 순서: 각 코스의 `01_data_and_synthetic.ipynb`(생성) → (학습·배포) → `04_evaluate.ipynb`(held-out 전용)
@@ -132,7 +132,7 @@ synth = bs.generate_grounded(
 )
 ```
 
-- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다. [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
+- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker AI endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다. [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
 - **출력은 `{"messages":[...]}` JSONL입니다.** `gemma_format.build_messages`로 만든 표준 messages이므로 [TRL `SFTTrainer`](https://huggingface.co/docs/trl/en/sft_trainer)의 conversational 포맷에 바로 들어갑니다(학습 경로는 `tracks/*/scripts/train.py`).
 - **병렬 호출이 많으면 Bedrock throttling(429)이 납니다.** boto3 클라이언트는 `mode="adaptive"` 재시도로 구성되어 있고, 시도 횟수는 `BEDROCK_MAX_ATTEMPTS`(기본 8)로 조정합니다. 그래도 429가 계속되면 `SYNTH_MAX_WORKERS`를 낮추세요.
 
@@ -245,8 +245,8 @@ seed 전체
 
 ## 자주 나오는 오개념
 
-??? question "오개념 — “합성 데이터 생성이 곧 SageMaker endpoint 호출 아닌가요?”"
-    아닙니다. 합성 생성은 **Bedrock**(`bedrock-runtime`의 `converse`)으로 teacher LLM(Claude)을 부르는 것이고, 학습된 SLM 서빙은 **SageMaker**([`sagemaker-runtime`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime.html)의 `invoke_endpoint`, 스트리밍은 `invoke_endpoint_with_response_stream`)로 처리합니다.
+??? question "오개념 — “합성 데이터 생성이 곧 SageMaker AI endpoint 호출 아닌가요?”"
+    아닙니다. 합성 생성은 **Bedrock**(`bedrock-runtime`의 `converse`)으로 teacher LLM(Claude)을 부르는 것이고, 학습된 SLM 서빙은 **SageMaker AI**([`sagemaker-runtime`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime.html)의 `invoke_endpoint`, 스트리밍은 `invoke_endpoint_with_response_stream`)로 처리합니다.
     둘은 서로 다른 서비스이고, IAM 권한도 요금 체계도 따로입니다.
 
 같은 서비스 혼동이 "대량 생성" 쪽에서 한 번 더 나타납니다.
@@ -255,7 +255,7 @@ seed 전체
     아닙니다. 합성 대량 생성은 Bedrock API를 반복 호출하는 작업입니다.
     [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다).
     GPU가 기능 제외 목록에 있다는 근거는 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)입니다. 정책성 항목이라 바뀔 수 있으니 설계 확정 전에 그 페이지에서 현행 스펙을 다시 보세요.
-    자세한 비교는 [SageMaker 추론](04_sagemaker_inference.md)을 참고하세요.
+    자세한 비교는 [SageMaker AI 추론](04_sagemaker_inference.md)을 참고하세요.
 
 서비스 경계를 정리했다면, 다음은 grounded라는 말 자체에 대한 오해입니다.
 
@@ -280,8 +280,8 @@ seed 전체
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
 | Bedrock Converse (생성 + critique) | 입력·출력 토큰당 과금, 호출 시에만 발생 | 상시 리소스 없음. `NUM_SYNTHETIC`으로 총량 제어 |
-| SageMaker 학습 Job | 인스턴스 시간당 과금, Job 종료 시 자동 중지 | 자동 종료. 실패 Job은 콘솔에서 확인 |
-| SageMaker endpoint | 인스턴스 시간당 **상시** 과금 | `99_cleanup.ipynb`로 반드시 삭제 |
+| SageMaker AI 학습 Job | 인스턴스 시간당 과금, Job 종료 시 자동 중지 | 자동 종료. 실패 Job은 콘솔에서 확인 |
+| SageMaker AI endpoint | 인스턴스 시간당 **상시** 과금 | `99_cleanup.ipynb`로 반드시 삭제 |
 | S3 (합성 JSONL, 모델 아티팩트) | 저장 용량당 과금 | `99_cleanup.ipynb` |
 
 합성 생성 자체는 상시 리소스를 남기지 않습니다. 다만 같은 노트북 흐름의 endpoint와 학습 Job은 별개이므로 `99_cleanup.ipynb`로 정리하세요.

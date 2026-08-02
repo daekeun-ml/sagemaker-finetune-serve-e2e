@@ -80,7 +80,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 
 | | 무엇인가 |
 |---|---|
-| **추론 컨테이너** | Docker 이미지. OS·Python·CUDA 드라이버·프레임워크 라이브러리·모델 서버 소프트웨어가 한 이미지에 구워져 있고, SageMaker가 ML 인스턴스에서 실제로 실행하는 것 |
+| **추론 컨테이너** | Docker 이미지. OS·Python·CUDA 드라이버·프레임워크 라이브러리·모델 서버 소프트웨어가 한 이미지에 구워져 있고, Amazon SageMaker AI가 ML 인스턴스에서 실제로 실행하는 것 |
 | **모델 서버** | 그 컨테이너 **안에서 도는 HTTP 애플리케이션**. 포트를 열고 모델을 메모리에 올리고 요청을 받아 추론해 응답 |
 
 같은 프레임워크라도 이미지에 따라 서버가 다릅니다. PyTorch DLC는 TorchServe를 싣고, 같은 PyTorch용 다른 이미지는 DJL Serving이나 Triton을 쓸 수 있습니다.
@@ -94,7 +94,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 | Triton | 멀티 프레임워크, 고처리량 | Triton DLC |
 | TF Serving | TensorFlow/Keras 모델 | TensorFlow DLC |
 | MMS (Multi-Model Server) | 경량·다중 모델 호스팅 | MXNet/범용 DLC |
-| SMD | 커스텀 orchestrator | SageMaker 관리형 DLC |
+| SMD | 커스텀 orchestrator | SageMaker AI 관리형 DLC |
 
 이 kit은 이 표에 없는 조합을 씁니다: vLLM·SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
 
@@ -105,8 +105,8 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 | 모드 | 쓸 때 | 한계 |
 |---|---|---|
 | **in-process** | 빠른 프로토타이핑, 추론 로직 디버깅, `InferenceSpec` 코드 테스트. Docker 불필요, 수 초에 시작 | 모델 서버도 컨테이너 격리도 없어 **실제 서빙 스택을 검증하지 못합니다.** JumpStart 모델은 불가 |
-| **local container** | SageMaker에 올리기 전 **전체 서빙 스택** 검증. 실제 컨테이너 이미지·모델 서버·직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 당기고 컨테이너를 띄우므로 in-process보다 느림 |
-| **SageMaker endpoint** | 프로덕션과 부하 테스트. 전 추론 유형(real-time·serverless·async·batch), 오토스케일링, 멀티 모델 endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
+| **local container** | SageMaker AI에 올리기 전 **전체 서빙 스택** 검증. 실제 컨테이너 이미지·모델 서버·직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 당기고 컨테이너를 띄우므로 in-process보다 느림 |
+| **SageMaker AI endpoint** | 프로덕션과 부하 테스트. 전 추론 유형(real-time·serverless·async·batch), 오토스케일링, 멀티 모델 endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
 
 **이 kit은 local container를 프리플라이트로 씁니다.** 코스별 `02b_local_serve` 노트북이 그 단계이고, endpoint를 띄우기 전에 이미지·엔진·체크포인트 조합이 실제로 뜨는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 그 절차가 있습니다).
 
@@ -195,4 +195,4 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
 
 - [SDK V3 개요](index.md): V2→V3 매핑표와 마이그레이션 함정
 - [SDK V3 학습](training.md): `ModelTrainer`로 학습 Job 제출
-- [SageMaker 추론](../04_sagemaker_inference.md): endpoint 구조와 추론 옵션
+- [SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 구조와 추론 옵션

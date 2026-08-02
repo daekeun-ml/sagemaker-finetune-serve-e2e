@@ -1,7 +1,7 @@
 # 시작하기
 
 이 kit이 처음이라면 **이 문서 하나만 위에서 아래로** 따라 하면 됩니다.
-"노트북은 어디?", "dry-run 어떻게?", "SageMaker는 어떻게 돌려?"에 순서대로 답합니다.
+"노트북은 어디?", "dry-run 어떻게?", "Amazon SageMaker AI는 어떻게 돌려?"에 순서대로 답합니다.
 
 !!! info "이 문서의 범위"
     설치부터 첫 학습까지를 다룹니다. kit 전체 구조는 [전체 지도](00_overview.md),
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | **A. 스모크 테스트** | 순수 로직 검증(데이터 어댑터·포맷터·메트릭) | ❌ 아무것도 불필요 | 코드가 멀쩡한지 5초 확인 |
 | **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량·짧게 실제 학습 | ✅ 필요 — GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
-| **C. SageMaker E2E** | 태스크별 실습 코스(노트북 한 세트)로 클라우드 학습→배포→agentic 완주 | ✅ 필요 — AWS 계정 + 과금 | 진짜 파인튜닝·서빙 |
+| **C. SageMaker AI E2E** | 태스크별 실습 코스(노트북 한 세트)로 클라우드 학습→배포→agentic 완주 | ✅ 필요 — AWS 계정 + 과금 | 진짜 파인튜닝·서빙 |
 
 **초심자 추천 순서: A → B → C** (아래에서 그대로 따라 하면 됩니다.)
 
@@ -60,7 +60,7 @@ python tests/test_smoke.py
 
 ## 방식 B — 로컬 GPU dry-run
 
-**"파이썬 dry-run"이 바로 이겁니다.** `scripts/train.py`는 self-contained라 로컬과 SageMaker에서
+**"파이썬 dry-run"이 바로 이겁니다.** `scripts/train.py`는 self-contained라 로컬과 SageMaker AI에서
 같은 파일이 돕니다. `--dry_run`이면 소량(≤32행)·1 epoch·짧은 시퀀스로 파이프라인만 검증합니다.
 
 ### HF 캐시 위치 지정 (선택)
@@ -95,7 +95,7 @@ python tracks/01_extraction_to_json/scripts/train.py \
 
 ---
 
-## 방식 C — SageMaker E2E
+## 방식 C — SageMaker AI E2E
 
 **"초심자를 위한 주피터 노트북"이 바로 이겁니다.** kit에는 태스크 하나를 데이터 준비부터 학습·배포·평가·정리까지
 끝내는 **실습 코스가 5개** 있고, 각 텍스트 코스 폴더에
@@ -107,7 +107,7 @@ python tracks/01_extraction_to_json/scripts/train.py \
 tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
 ├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
 ├── 01_data_and_synthetic.ipynb   ② 데이터 준비 + grounded 합성
-├── 02_train_sft_sagemaker.ipynb      ③ SageMaker 학습 Job (+ 로컬 dry-run 셀 포함)
+├── 02_train_sft_sagemaker.ipynb      ③ SageMaker AI 학습 Job (+ 로컬 dry-run 셀 포함)
 ├── 02a_train_grpo_sagemaker.ipynb    (선택) SFT→GRPO 정련 (RLHF) — 추출·분류 코스만
 ├── 02b_local_serve.ipynb             (선택) 배포 전 로컬 vLLM 검증
 ├── 03_deploy_endpoint.ipynb      ④ real-time endpoint 배포 (vLLM 기본)
@@ -126,7 +126,7 @@ tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
 tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 코스와 별개 구조)
 ├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
 ├── 01_data_explore.ipynb         ② cord-v2 영수증 이미지 + 구조화 JSON 탐색 (합성 단계 없음)
-├── 02_train_mm_sagemaker.ipynb   ③ SageMaker 학습 (vision tower 동결 + language LoRA)
+├── 02_train_mm_sagemaker.ipynb   ③ SageMaker AI 학습 (vision tower 동결 + language LoRA)
 ├── 03_deploy_mm_endpoint.ipynb   ④ 멀티모달 endpoint 배포 (이미지 입력 허용, 텍스트 전용 re-export 아님)
 └── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
 ```
@@ -183,10 +183,10 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 문서는 파일명 번호가 곧 읽는 순서입니다. 처음이라면 00부터 차례로, 특정 단계만 필요하면 해당 항목으로 가세요.
 
 - [전체 지도](00_overview.md): 전체 지도. 노트북과 문서 매핑
-- [SageMaker 기초](01_sagemaker_basics.md): 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
+- [SageMaker AI 기초](01_sagemaker_basics.md): 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
 - [합성 데이터](02_synthetic_data.md): 데이터 준비. grounded 합성과 critique/refine
 - [파인튜닝](03_finetuning.md): 학습. PyTorch DLC + TRL LoRA/QLoRA
-- [SageMaker 추론](04_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
+- [SageMaker AI 추론](04_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
 - [서빙 컨테이너](05_serving_containers.md): 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
 - [Agentic loop](06_agentic.md): 활용. Strands + Bedrock Claude, AgentCore 배포
 - [실행 runbook](RUN_E2E.md): E2E 완주 runbook. 단계별 핸드오프와 비용 가드

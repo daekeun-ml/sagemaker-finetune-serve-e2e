@@ -1,5 +1,5 @@
-site_name: SageMaker Fine-tuning & Serving E2E
-site_description: Gemma 4를 Amazon SageMaker에서 합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop까지 잇는 한국어 핸즈온
+site_name: SageMaker AI Fine-tuning & Serving E2E
+site_description: Gemma 4를 Amazon SageMaker AI에서 합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop까지 잇는 한국어 핸즈온
 site_url: https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/
 repo_url: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
 repo_name: daekeun-ml/sagemaker-finetune-serve-e2e
@@ -77,11 +77,11 @@ nav:
   # 파일명 번호(00~06)는 그대로 읽는 순서입니다.
   - 개념부터 이해하기:
       - 00 전체 지도: 00_overview.md
-      - 01 SageMaker 기초: 01_sagemaker_basics.md
+      - 01 SageMaker AI 기초: 01_sagemaker_basics.md
   - 파인튜닝 · 서빙 가이드:
       - 02 합성 데이터: 02_synthetic_data.md
       - 03 파인튜닝: 03_finetuning.md
-      - 04 SageMaker 추론: 04_sagemaker_inference.md
+      - 04 SageMaker AI 추론: 04_sagemaker_inference.md
       - 05 서빙 컨테이너: 05_serving_containers.md
       - 06 Agentic loop: 06_agentic.md
   # 코스 페이지는 파일명에 번호가 없습니다(가이드 번호와 섞이지 않게). nav 라벨 순서 = 코스 번호 01→05.

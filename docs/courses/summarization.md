@@ -4,11 +4,11 @@
     긴 문서 하나를 넣으면 짧은 요약이 나오는 SLM을 만들고 싶은 분을 위한
     코스입니다(`tracks/03_summarization`).
 
-    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
-      SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
+    - **선행 조건**: AWS 자격증명과 Amazon SageMaker AI 실행 role (`00_setup`이 확인).
+      SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
+      배포·서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
     - **다른 코스**: 자유서술 답변은 [도메인 QA](domain_qa.md).
       대화체 요약(회의록·상담 로그)은 시드를 바꿔야 합니다(아래 시드 절 참고)
@@ -105,7 +105,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 |---|---|
 | `00_setup` | 자격증명·리전·role 확인, 의존성 설치 |
 | `01_data_and_synthetic` | 시드 300건 + 합성 → `data/train.jsonl`(리포 커밋본은 500건), 토큰 길이 EDA |
-| `02_train_sft_sagemaker` | SageMaker Training Job(`scripts/train.py`, QLoRA) → 머지된 모델 아티팩트(S3), `%store md_summarization` |
+| `02_train_sft_sagemaker` | SageMaker AI Training Job(`scripts/train.py`, QLoRA) → 머지된 모델 아티팩트(S3), `%store md_summarization` |
 | `02b_local_serve` | **(선택)** 내 GPU의 vLLM로 프리플라이트 — 배포 5~15분 왕복을 줄입니다 |
 | `03_deploy_endpoint` | `gemma-summarization-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_summarization` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
@@ -151,7 +151,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 - [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
 - [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
 - [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지·re-export
-- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
+- [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 

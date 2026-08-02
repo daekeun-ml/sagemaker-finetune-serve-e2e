@@ -1,14 +1,14 @@
-# SageMaker Fine-tuning & Serving E2E
+# SageMaker AI Fine-tuning & Serving E2E
 
 [Quick start](#quick-start) | [Courses](#courses) | [Why this kit](#why-this-kit) | [Setup](#setup) | [Docs](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/) | [Cost & cleanup](#cost--cleanup)
 
-Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
+Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 ### 📘 [가이드북 바로가기 →](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/)
 
 **코드를 따라 치는 대신, 왜 그렇게 하는지 이해하고 넘어가려는 분을 위한 가이드북입니다.**
-SageMaker가 처음이어도 읽을 수 있게 개념부터 시작하고, 각 절이 **어디서 막히는지(pain point) → 왜 그런지(why) → 그래서 이 값·이 구조인지**로 이어집니다.
+SageMaker AI가 처음이어도 읽을 수 있게 개념부터 시작하고, 각 절이 **어디서 막히는지(pain point) → 왜 그런지(why) → 그래서 이 값·이 구조인지**로 이어집니다.
 학습 Job이 왜 머지 도중 죽었는지, 24GB GPU에서 서빙이 왜 안 떴는지 같은 것들이 원인과 함께 정리돼 있습니다.
 
 ---
@@ -85,7 +85,7 @@ jupyter lab
 - 관리형 레시피가 **이미 지원하는 조합**이라면 → SageMaker AI model customization / SageMaker Recipes가 운영 부담이 적습니다.
 - 멀티노드 대규모 사전학습 → SageMaker HyperPod 영역입니다. 이 kit은 단일 GPU LoRA/QLoRA 기준입니다.
 
-전제 지식은 Python과 Jupyter 사용 경험 정도면 충분합니다. SageMaker·Bedrock 개념은 노트북에서 설명합니다.
+전제 지식은 Python과 Jupyter 사용 경험 정도면 충분합니다. SageMaker AI·Bedrock 개념은 노트북에서 설명합니다.
 
 ## Requirements
 
@@ -94,7 +94,7 @@ jupyter lab
 
 | Item | Notes |
 |---|---|
-| AWS 계정 | SageMaker 학습 잡·엔드포인트를 만들 수 있는 계정 (과금 발생) |
+| AWS 계정 | SageMaker AI 학습 잡·엔드포인트를 만들 수 있는 계정 (과금 발생) |
 | IAM 실행 role | `AmazonSageMaker-ExecutionRole-*` 또는 동급 권한. 없으면 코드가 IAM에서 자동 탐지 |
 | 서비스 쿼터 | 학습·추론용 GPU 인스턴스 (기본 `ml.g6.2xlarge`). 신규 계정은 **쿼터가 0일 수 있어 미리 증설 신청**이 필요합니다 |
 | 리전 | 기본 `us-west-2`. GPU 용량과 Bedrock 모델 가용성이 리전마다 달라, 막히면 리전을 바꾸는 것이 가장 빠릅니다 |
@@ -109,7 +109,7 @@ jupyter lab
 
 ## Why this kit
 
-**"SageMaker가 Gemma 4를 지원하지 않나?"** — 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
+**"SageMaker AI가 Gemma 4를 지원하지 않나?"** — 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
 
 AWS가 관리해 주는 방식(JumpStart, model customization, Recipes)은 지원 모델·기법·리전 목록이 정해져 있고, 같은 모델이라도 사이즈에 따라 갈립니다. 이 kit은 그 목록에 없는 조합을 맡습니다.
 
@@ -143,13 +143,13 @@ AWS가 관리해 주는 방식(JumpStart, model customization, Recipes)은 지�
 |---|---|
 | 데이터 | 공개 permissive 시드 + Bedrock Converse로 grounded 합성 (critique/refine 루프) |
 | 학습 | PyTorch DLC + TRL `SFTTrainer` + PEFT LoRA/QLoRA. 추출·분류 코스는 SFT→GRPO 정련 선택 가능 |
-| 서빙 | SageMaker real-time endpoint — vLLM(기본) / SGLang / DJL LMI 중 선택 (셋 다 OpenAI 호환) |
+| 서빙 | SageMaker AI real-time endpoint — vLLM(기본) / SGLang / DJL LMI 중 선택 (셋 다 OpenAI 호환) |
 | 평가 | held-out 세트로 endpoint를 직접 호출해 코스별 지표 산출 (합성·학습셋 사용 금지) |
 | Agent | Strands Agent — reasoning은 Bedrock Claude, 파인튜닝한 SLM은 tool로 호출. AgentCore Runtime 배포까지 |
 
 기본 모델은 `google/gemma-4-E4B-it`(apache-2.0, ungated)입니다. `MODEL_SIZE` 환경변수로 `E2B` / `E4B` / `12B` / `26B-A4B` / `31B`를 고르거나, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
 
-학습 스크립트(`scripts/train.py`)는 self-contained이며 **로컬 GPU `--dry_run`과 SageMaker 학습 잡에서 같은 파일**을 씁니다. 클라우드에 제출하기 전에 로컬에서 파이프라인을 먼저 검증할 수 있습니다.
+학습 스크립트(`scripts/train.py`)는 self-contained이며 **로컬 GPU `--dry_run`과 SageMaker AI 학습 잡에서 같은 파일**을 씁니다. 클라우드에 제출하기 전에 로컬에서 파이프라인을 먼저 검증할 수 있습니다.
 
 ## Courses
 
@@ -242,7 +242,7 @@ sagemaker-finetune-serve-e2e/
 | File | Role |
 |---|---|
 | `track_data.py` | 시드 데이터셋 로드 + `{input, output}` → messages 변환 (코스마다 다름) |
-| `scripts/train.py` | SFT. 로컬 `--dry_run`과 SageMaker 학습 잡에서 같은 파일을 씁니다 |
+| `scripts/train.py` | SFT. 로컬 `--dry_run`과 SageMaker AI 학습 잡에서 같은 파일을 씁니다 |
 | `scripts/train_grpo.py` | SFT→GRPO 정련. reward를 프로그램으로 채점하는 추출·분류 코스에서 사용 |
 | `scripts/serve_local_vllm.sh` | 배포 전 로컬 vLLM으로 모델 로드 확인 |
 | `scripts/bench_local_vllm.sh` | 로컬 처리량·지연 측정 |
@@ -273,7 +273,7 @@ uv lock --upgrade-package transformers    # 특정 패키지만 최신으로
 
 pip만 쓸 경우: `pip install -r requirements.txt` (같은 floor 핀).
 
-로컬 `transformers` 버전과 SageMaker 컨테이너 안의 버전은 **별개**입니다. 컨테이너 쪽은 `tracks/*/scripts/requirements.txt`가 설치하고, 이미지 자체는 `.env`의 `DLC_IMAGE_URI`가 결정합니다.
+로컬 `transformers` 버전과 SageMaker AI 컨테이너 안의 버전은 **별개**입니다. 컨테이너 쪽은 `tracks/*/scripts/requirements.txt`가 설치하고, 이미지 자체는 `.env`의 `DLC_IMAGE_URI`가 결정합니다.
 
 ### 2) 설정과 시크릿
 
@@ -297,7 +297,7 @@ MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 # HF 토큰 — gated 모델(gemma-3/2 등)을 쓸 때만 필요. gemma-4 계열은 불필요
 hf auth login
 
-# SageMaker 실행 role — 비워 두면 IAM에서 자동 탐지
+# SageMaker AI 실행 role — 비워 두면 IAM에서 자동 탐지
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
 
 # Bedrock 모델 ID (inference-profile prefix 필수). 기본값은 common/config.py 참고
@@ -325,7 +325,7 @@ export DRY_RUN=1     # 먼저 파이프라인만 검증
 
 기본 설계와 의사 코드(pseudo code)는 직접 작성했고, 이를 바탕으로 Claude Code로 노트북과 스크립트를 생성했습니다.
 
-**백지에서 시작한 것이 아닙니다.** 그동안 직접 만들어 온 SageMaker 실습 에셋들에서 얻은 판단 기준 — 어떤 순서로 가르쳐야 이해되는지, 어디서 사람들이 막히는지, 어떤 값을 기본으로 둬야 안전한지 — 을 컨텍스트로 넣었습니다. 그 축적이 없으면 "돌아가는 코드"는 나오지만 "실습에 쓸 수 있는 코드"는 나오지 않습니다.
+**백지에서 시작한 것이 아닙니다.** 그동안 직접 만들어 온 SageMaker AI 실습 에셋들에서 얻은 판단 기준 — 어떤 순서로 가르쳐야 이해되는지, 어디서 사람들이 막히는지, 어떤 값을 기본으로 둬야 안전한지 — 을 컨텍스트로 넣었습니다. 그 축적이 없으면 "돌아가는 코드"는 나오지만 "실습에 쓸 수 있는 코드"는 나오지 않습니다.
 
 **그리고 한 번 생성해서 끝난 것도 아닙니다.** human-in-the-loop으로 돌렸습니다 — 생성 → 실제 실행 → 문제 발견 → 지시 수정 → 재생성을 반복했고, 그 과정에서 나온 판단 기준은 다시 규칙으로 정리해 다음 생성에 반영했습니다.
 

@@ -1,7 +1,7 @@
-# 01 · SageMaker 기초 — Training Job과 Endpoint
+# 01 · SageMaker AI 기초 — Training Job과 Endpoint
 
 !!! info "Scope"
-    Python은 쓰고 Jupyter도 써 봤지만 **SageMaker는 처음**인 ML 엔지니어를 위한 문서입니다.
+    Python은 쓰고 Jupyter도 써 봤지만 **Amazon SageMaker AI는 처음**인 ML 엔지니어를 위한 문서입니다.
     AWS 인프라 지식은 필요 없습니다.
 
     - **선행 조건**: 없습니다. [시작하기](getting_started.md)로 설치를 마쳤다면
@@ -9,8 +9,8 @@
       노트북이 무엇을 하고 있는지 보입니다
     - **여기서 다루는 것**: **Training Job**과 **Endpoint** 두 가지 개념 · 실행 role ·
       컨테이너 경로 규약 · 시간 제한 · HyperPod / EC2 / on-prem과의 차이
-    - **여기서 다루지 않는 것**: SageMaker의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등).
-      추론 옵션 상세는 [SageMaker 추론](04_sagemaker_inference.md),
+    - **여기서 다루지 않는 것**: SageMaker AI의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등).
+      추론 옵션 상세는 [SageMaker AI 추론](04_sagemaker_inference.md),
       학습 상세는 [파인튜닝](03_finetuning.md)
 
 이 문서는 두 개념만 확실히 잡는 것을 목표로 합니다: **학습은 Job, 서빙은 endpoint**.
@@ -27,21 +27,21 @@ SageMaker AI에서 기억할 개념은 사실상 두 개입니다. Training Job�
 
 정리하면 다음과 같습니다.
 
-1. **Training Job은 넘긴 것을 돌리고 스스로 사라집니다.** 컨테이너 이미지 + 내 스크립트 + S3 데이터 위치 + 실행 role을 넘기면 SageMaker가 머신을 띄우고 스크립트를 돌린 뒤 머신을 파괴합니다. 과금은 Job 단위이며 끝나면 자동으로 멈춥니다([Training Job](#training-job--끝나면-컴퓨팅-리소스까지-사라집니다)).
+1. **Training Job은 넘긴 것을 돌리고 스스로 사라집니다.** 컨테이너 이미지 + 내 스크립트 + S3 데이터 위치 + 실행 role을 넘기면 SageMaker AI가 머신을 띄우고 스크립트를 돌린 뒤 머신을 파괴합니다. 과금은 Job 단위이며 끝나면 자동으로 멈춥니다([Training Job](#training-job--끝나면-컴퓨팅-리소스까지-사라집니다)).
 2. **넷 중 role만 값을 채우는 것으로 끝나지 않습니다.** Job이 그 role을 assume해 S3·ECR에 접근하므로, 권한이 붙어 있지 않으면 Job 중간에 실패합니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)).
 3. **입력과 출력은 컨테이너 안의 정해진 경로로 주고받습니다.** 입력은 `SM_CHANNEL_TRAIN`(`/opt/ml/input/data/train`), 출력은 `SM_MODEL_DIR`(`/opt/ml/model`)이고, 후자에 남은 것만 `model.tar.gz`가 되어 S3로 올라갑니다([경로 규약](#경로-규약--컨테이너-안의-정해진-경로)).
 4. **`MaxRuntimeInSeconds`는 학습 코드 시간이 아니라 Job이 도는 전 구간을 덮습니다**(데이터 복사 → 이미지 pull → 학습 → 저장). 용량 대기(`Pending`)는 별도 파라미터가 덮습니다. 이 kit은 이 한도 때문에 **학습이 100% 끝난 Job을 잃은 적이 있습니다**([MaxRuntimeInSeconds가 덮는 시간 창](#maxruntimeinseconds는-어디까지-세는가)).
 5. **Endpoint는 상시 HTTP 서버입니다. 호출이 0건이어도 삭제 전까지 시간당 과금됩니다.** 초심자에게 가장 비싼 오해가 바로 이 지점입니다([Endpoint](#endpoint--삭제할-때까지-켜져-있는-서버)).
-6. **SageMaker AI / HyperPod / EC2 / on-prem은 "무엇을 내가 소유하는가"로 갈립니다.** Job 단위로 빌릴지, 클러스터를 유지할지, 인프라까지 직접 만들지의 선택입니다([SageMaker vs HyperPod vs EC2 vs on-prem](#sagemaker-vs-hyperpod-vs-ec2-vs-on-prem)).
+6. **SageMaker AI / HyperPod / EC2 / on-prem은 "무엇을 내가 소유하는가"로 갈립니다.** Job 단위로 빌릴지, 클러스터를 유지할지, 인프라까지 직접 만들지의 선택입니다([SageMaker AI vs HyperPod vs EC2 vs on-prem](#sagemaker-ai-vs-hyperpod-vs-ec2-vs-on-prem)).
 7. **티어 비교는 시간당 단가가 아니라 세 칸(인프라 + 운영 + 규정 준수)으로 해야 합니다.** 관리형이 인프라 단가에서 지는 것은 맞고, 뒤의 두 칸을 세지 않은 비교라는 것도 맞습니다([인프라 비용은 TCO의 한 칸일 뿐입니다](00_overview.md#인프라-비용은-tco의-한-칸일-뿐입니다)).
 
 ---
 
 ## 기존 Pain Point
 
-SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같습니다.
+SageMaker AI를 처음 여는 분들이 실제로 막히는 지점은 다음과 같습니다.
 
-- "노트북에서 `trainer.train()`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**": 로컬 커널이 아니라 SageMaker가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
+- "노트북에서 `trainer.train()`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**": 로컬 커널이 아니라 SageMaker AI가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
 - "학습 결과가 **어디로 갔는지** 모르겠습니다.": `/opt/ml/model`에 쓴 것만 S3로 올라갑니다. 다른 곳에 저장하면 Job이 끝날 때 인스턴스와 함께 사라집니다.
 - "Job 상태가 `Failed`도 아니고 **`Stopped`인데 에러 로그가 없습니다.**": 시간 제한(`MaxRuntimeExceeded`)에 걸린 것이며, 학습이 성공했어도 산출물이 불완전할 수 있습니다.
 - "**테스트만 했는데 다음 날 청구서가 왔습니다.**": Training Job과 Endpoint의 수명을 같다고 생각한 결과입니다. 전자는 자동으로 멈추지만 후자는 멈추지 않습니다.
@@ -57,7 +57,7 @@ SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같
 
 !!! abstract "쉽게 말하면"
     Training Job은 **렌터카**에 가깝습니다. 차를 사는 것이 아니라, 목적지(스크립트)와 짐(데이터)을 주면
-    SageMaker가 차를 빌려 오고, 운행이 끝나면 트렁크에 실린 것만 창고(S3)에 옮긴 뒤 차를 반납합니다.
+    SageMaker AI가 차를 빌려 오고, 운행이 끝나면 트렁크에 실린 것만 창고(S3)에 옮긴 뒤 차를 반납합니다.
     차는 사라지므로 **트렁크에 넣지 않은 것은 전부 버려집니다.** 요금은 운행한 시간만큼입니다.
 
 한 장으로 줄이면 Training Job은 **화살표 세 칸**입니다: S3에 있는 입력, Job이 도는 동안만 존재하는 계산 클러스터, 그리고 다시 S3로 나가는 출력.
@@ -78,7 +78,7 @@ SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같
 
 뒤에서 다룰 Endpoint와의 대조도 여기서 나옵니다. Endpoint에는 이 그림의 가운데 칸에 해당하는 것이 **삭제 전까지 상시로** 떠 있습니다.
 
-AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.com/sagemaker/latest/dg/how-it-works-training.html)으로 문서화합니다. 그림 왼쪽 칸으로 들어가는 준비물, 즉 내가 SageMaker에 넘기는 것은 네 가지입니다.
+AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.com/sagemaker/latest/dg/how-it-works-training.html)으로 문서화합니다. 그림 왼쪽 칸으로 들어가는 준비물, 즉 내가 SageMaker AI에 넘기는 것은 네 가지입니다.
 
 | 넘기는 것 | 무엇 | 이 kit에서는 |
 |---|---|---|
@@ -87,7 +87,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 | **데이터 위치** | S3 URI. **채널**(= 컨테이너 안에서 데이터가 마운트될 이름) 이름과 함께 지정 | `InputData(channel_name='train', data_source=train_s3)` |
 | **실행 role** | Job이 내 대신 S3·ECR·CloudWatch에 접근할 때 쓰는 IAM 신분 | `role=config.resolve_sagemaker_role(sess)`(`SAGEMAKER_ROLE_ARN`). 넘기는 것 중 유일하게 값을 채우는 것만으로 끝나지 않습니다 — 아래 [실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근) |
 
-그러면 SageMaker가 순서대로 다음을 합니다.
+그러면 SageMaker AI가 순서대로 다음을 합니다.
 
 ```
 1. 인스턴스 프로비저닝        (상태: Pending — GPU 용량을 기다리는 구간)
@@ -112,18 +112,18 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 여기서 초심자가 놓치기 쉬운 것이 셋 있습니다.
 
 - **내 코드는 로컬 커널이 아니라 격리된 컨테이너에서 돕니다.** 그래서 노트북 옆의 파일을 열 수 없고, 데이터를 미리 S3에 올려야 합니다(이 kit의 `02_train_sft_sagemaker`가 `upload_if_changed()`로 처리합니다).
-- **`train.py`는 `common/`을 import하지 않는 self-contained 파일이어야 합니다.** SageMaker가 컨테이너에 올리는 것은 `source_dir` 하나뿐입니다([train.py 상세](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)).
+- **`train.py`는 `common/`을 import하지 않는 self-contained 파일이어야 합니다.** SageMaker AI가 컨테이너에 올리는 것은 `source_dir` 하나뿐입니다([train.py 상세](03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-ai-학습-job)).
 - **과금 대상 시간은 학습 시간보다 넓습니다.** AWS 문서 기준으로 **데이터 다운로드 시간**과 **모델 아티팩트 압축·업로드 시간**도 billable time에 포함됩니다. 즉 "학습 5분"이 "요금 5분"은 아닙니다.
 
 ### 실행 role로 무엇을 하는가 — S3와 ECR 접근
 
-위 표의 네 번째 항목만 성격이 다릅니다. `SAGEMAKER_ROLE_ARN`은 **내가 쓰는 자격증명이 아니라 SageMaker에게 빌려주는 신분**이고, Job이 도는 동안 S3와 ECR에 실제로 손을 뻗는 주체는 내 IAM user가 아니라 그 role입니다.
+위 표의 네 번째 항목만 성격이 다릅니다. `SAGEMAKER_ROLE_ARN`은 **내가 쓰는 자격증명이 아니라 SageMaker AI에게 빌려주는 신분**이고, Job이 도는 동안 S3와 ECR에 실제로 손을 뻗는 주체는 내 IAM user가 아니라 그 role입니다.
 
 [![SageMaker 학습 Job의 IAM role 매개 구조 다이어그램. 왼쪽 위에는 ModelTrainer 스니펫에서 role_arn='[Your SageMaker-compatible IAM role]' 한 인자가 강조되어 있고, 거기서 아래로 점선이 내려가 IAM role 박스와 그에 붙은 Permissions 목록(허용은 체크, 거부는 x 표시)으로 이어진다. 가운데 Amazon SageMaker AI 박스 안에는 Cluster → Instance 1 → Processing container가 중첩되어 있고, 클러스터에서 IAM role 박스로 "Assume role"이라고 적힌 점선 화살표가 나간다. 오른쪽에는 컨테이너가 권한을 통과해 접근하는 대상이 나열된다. 체크된 s3:GetObject는 s3://bucket/path/to/training/data와 s3://bucket/path/to/test/data로, 체크된 s3:PutObject는 s3://bucket/path/to/model로 이어진다. 오른쪽 위에는 PyTorch Container Image를 담은 Amazon ECR 박스가 있다](images/sm_security.png)](images/sm_security.png)
 
 *체크 표시가 붙은 두 줄이 요점입니다. 컨테이너가 S3를 읽고 쓸 수 있는 이유는 내 자격증명이 아니라 role의 정책에 그 action이 허용되어 있기 때문입니다.*
 
-그림에서 가장 중요한 화살표는 클러스터에서 IAM 박스로 거꾸로 올라가는 **Assume role**입니다. Job을 만들 때 role ARN 하나를 넘기면, SageMaker가 세운 클러스터가 그 role을 **대신 맡아(assume)** 컨테이너에 임시 자격증명을 심습니다. 덕분에 컨테이너 안의 `train.py`는 자격증명 코드를 한 줄도 갖지 않고도 S3에서 데이터를 받고 아티팩트를 올립니다.
+그림에서 가장 중요한 화살표는 클러스터에서 IAM 박스로 거꾸로 올라가는 **Assume role**입니다. Job을 만들 때 role ARN 하나를 넘기면, SageMaker AI가 세운 클러스터가 그 role을 **대신 맡아(assume)** 컨테이너에 임시 자격증명을 심습니다. 덕분에 컨테이너 안의 `train.py`는 자격증명 코드를 한 줄도 갖지 않고도 S3에서 데이터를 받고 아티팩트를 올립니다.
 
 이 kit에서 그 한 인자는 `02_train_sft_sagemaker`의 `ModelTrainer(..., role=role, ...)`이고, 값은 `config.resolve_sagemaker_role(sess)`가 해석합니다(SDK v3의 인자 이름은 그림의 `role_arn`이 아니라 `role`입니다). 같은 role이 배포에서 한 번 더 쓰입니다. endpoint도 아티팩트를 읽고 서빙 이미지를 pull할 때 이 role을 assume합니다(아래 [배포 3단계](#배포-3단계--무엇을-어떤-순서로-넘기는가)의 IAM 역할 칸).
 
@@ -144,7 +144,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 
 ### 경로 규약 — 컨테이너 안의 정해진 경로
 
-SageMaker와 내 코드는 **경로로 주고받습니다.** 어느 디렉터리에 두면 S3로 올라가고 어느 디렉터리는 버려지는지가 미리 정해져 있어서, **이 kit의 모든 노트북이 이 규약을 전제로 동작합니다.** SageMaker는 컨테이너 안의 정해진 경로를 통해서만 데이터를 주고받고, 각 경로에 대응하는 환경변수를 심어 줍니다. 경로별 역할은 [학습 스토리지 경로 매핑](https://docs.aws.amazon.com/sagemaker/latest/dg/model-train-storage.html) 문서에 정의돼 있습니다.
+SageMaker AI와 내 코드는 **경로로 주고받습니다.** 어느 디렉터리에 두면 S3로 올라가고 어느 디렉터리는 버려지는지가 미리 정해져 있어서, **이 kit의 모든 노트북이 이 규약을 전제로 동작합니다.** SageMaker AI는 컨테이너 안의 정해진 경로를 통해서만 데이터를 주고받고, 각 경로에 대응하는 환경변수를 심어 줍니다. 경로별 역할은 [학습 스토리지 경로 매핑](https://docs.aws.amazon.com/sagemaker/latest/dg/model-train-storage.html) 문서에 정의돼 있습니다.
 
 | 컨테이너 경로 | 환경변수 | 용도 | Job이 끝날 때 |
 |---|---|---|---|
@@ -193,7 +193,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 
 ### MaxRuntimeInSeconds는 어디까지 세는가
 
-`StoppingCondition(max_runtime_in_seconds=...)`은 **폭주 방지 상한**입니다. [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)에 따르면 Job이 이 시간을 넘기면 SageMaker가 `SIGTERM`을 보내고 **120초를 준 뒤** Job을 종료합니다.
+`StoppingCondition(max_runtime_in_seconds=...)`은 **폭주 방지 상한**입니다. [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)에 따르면 Job이 이 시간을 넘기면 SageMaker AI가 `SIGTERM`을 보내고 **120초를 준 뒤** Job을 종료합니다.
 
 중요한 것은 **이 시계가 학습 코드만 재지 않는다**는 점입니다. 문서로 확인되는 사실은 세 가지입니다.
 
@@ -232,7 +232,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
     - **[Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)**: `EnableManagedSpotTraining=True` + `MaxWaitTimeInSeconds`(≥ `MaxRuntimeInSeconds`)로 켭니다. 절감률은 AWS 문서끼리도 수치가 갈리므로(DG는 "최대 90%", `CreateTrainingJob` API는 "최대 80%") 절대값으로 약속하지 말고 **Job이 끝난 뒤 실측**하세요 — `(1 - BillableTimeInSeconds / TrainingTimeInSeconds) * 100`이 그 Job의 실제 절감률입니다. Spot은 중단될 수 있으므로 체크포인트를 남기는 것이 권장 구성인데, `/opt/ml/checkpoints`에 쓰는 것만으로는 부족하고 **`CheckpointConfig(S3Uri=...)`를 함께 지정**해야 S3로 동기화됩니다(지정하지 않으면 그냥 로컬 디스크라 인스턴스와 함께 사라집니다). 참고로 Spot과 warm pool은 함께 쓸 수 없습니다.
     - **[Warm pool](https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html)**: `keep_alive_period_in_seconds`(잡당 최대 3,600초)를 켜면 Job이 끝난 뒤에도 인스턴스가 살아 있어 다음 Job의 프로비저닝을 건너뜁니다. **살아 있는 동안 계속 과금되는 리소스**이므로, "Training Job은 끝나면 과금이 멈춘다"는 원칙의 유일한 예외입니다.
     - **[`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)**: `InternalServerError`로 실패한 Job을 자동 재시도합니다(`MaximumRetryAttempts` 1~30). 단 `RetryStrategy`를 쓰면 `MaxRuntimeInSeconds`는 **개별 시도가 아니라 전체 시도 합계**에 적용됩니다.
-    - **[`InfraCheckConfig`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)**: `EnableInfraCheck=True`로 켜면 학습 시작 전에 SageMaker가 인스턴스 하드웨어와 클러스터 네트워크 연결을 점검합니다(SDK v3에서는 `ModelTrainer.with_infra_check_config()`). 검증 깊이는 공개되지 않아 HyperPod의 deep health check만큼 상세하다고 보기는 어렵습니다.
+    - **[`InfraCheckConfig`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)**: `EnableInfraCheck=True`로 켜면 학습 시작 전에 SageMaker AI가 인스턴스 하드웨어와 클러스터 네트워크 연결을 점검합니다(SDK v3에서는 `ModelTrainer.with_infra_check_config()`). 검증 깊이는 공개되지 않아 HyperPod의 deep health check만큼 상세하다고 보기는 어렵습니다.
     - **`MaxRuntimeInSeconds` 자체의 범위**: API 기본값은 1일, 최대 28일입니다(메트릭 발행·아티팩트 업로드까지 포함한 총 실행 시간 상한은 30일). 1시간은 API가 아니라 **SDK 쪽 기본값**입니다.
 
 ---
@@ -240,7 +240,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 ## Endpoint — 삭제할 때까지 켜져 있는 서버
 
 !!! abstract "쉽게 말하면"
-    Endpoint는 렌터카가 아니라 **월세 가게**입니다. SageMaker가 GPU 인스턴스를 띄우고 그 위에 서빙 컨테이너를 올려
+    Endpoint는 렌터카가 아니라 **월세 가게**입니다. SageMaker AI가 GPU 인스턴스를 띄우고 그 위에 서빙 컨테이너를 올려
     HTTP를 받는 상태로 **계속 유지**합니다. 손님이 하루에 한 명도 안 와도 월세는 나갑니다.
     이 kit의 구성(`ModelBuilder` + 평범한 production variant)에서 문을 닫는 방법은 하나뿐입니다: **삭제**.
 
@@ -279,7 +279,7 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 
 Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학습 쪽 규약과 **한 지점에서 맞물립니다.**
 
-- **모델 아티팩트는 `/opt/ml/model`에 풀립니다.** [추론 컨테이너 규약 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)대로 SageMaker가 S3의 `model.tar.gz`를 내려받아 컨테이너 시작 **전에** 이 경로로 압축을 풉니다. 컨테이너는 이 디렉터리에 **읽기 전용**으로 접근합니다. 서빙 엔진에게는 "그 경로를 모델로 로드하라"고 알려 주면 됩니다(이 kit은 `SM_VLLM_MODEL=/opt/ml/model`).
+- **모델 아티팩트는 `/opt/ml/model`에 풀립니다.** [추론 컨테이너 규약 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)대로 SageMaker AI가 S3의 `model.tar.gz`를 내려받아 컨테이너 시작 **전에** 이 경로로 압축을 풉니다. 컨테이너는 이 디렉터리에 **읽기 전용**으로 접근합니다. 서빙 엔진에게는 "그 경로를 모델로 로드하라"고 알려 주면 됩니다(이 kit은 `SM_VLLM_MODEL=/opt/ml/model`).
 - **컨테이너는 8080 포트에서 `/invocations`와 `/ping`을 받아야 합니다.** `/invocations`가 추론, `/ping`이 health check입니다. AWS DLC(vLLM(기본)·SGLang·DJL LMI)는 이 규약을 이미 구현하고 있으므로 직접 만들 일은 거의 없습니다. 셋 중 무엇을 쓸지는 `.env`의 `SERVING_ENGINE`으로 고르며, 비교는 [서빙 컨테이너](05_serving_containers.md)가 다룹니다.
 - **컨테이너 시작 후 일정 시간 안에 `/ping`이 200을 돌려주지 못하면 배포가 실패합니다.** 기본값 8분은 고정된 상한이 아니라 [`ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProductionVariant.html)(60~3,600초)로 올릴 수 있습니다. vLLM 엔진 초기화 + 가중치 로드는 8분을 넘기기 쉬우므로 AWS도 LMI 계열에서는 올리라고 권장합니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 같은 범위에서 함께 올립니다).
 - **실패 원인은 노트북에 안 보입니다.** 개별 `/ping` 요청 자체의 타임아웃은 2초이고, 배포 실패 메시지가 종종 `did not pass the ping health check`로만 보이는 이유입니다. 실제 원인(예: CUDA OOM)은 **CloudWatch endpoint 로그에만** 남습니다([24GB GPU CUDA OOM](04_sagemaker_inference.md#24gb-gpu-cuda-oom--max_num_seqs-기본값)).
@@ -313,7 +313,7 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 
 ## 추론 4옵션은 어디에 있나
 
-지금까지 본 Endpoint는 정확히는 **Real-time endpoint**이고, SageMaker 추론에는 이 밖에 **Serverless · Asynchronous · Batch Transform**이 더 있습니다. 넷의 비교표와 선택 기준, 그리고 이 kit이 Real-time을 고른 이유(Serverless에는 GPU가 없습니다)는 앵커 문서인 [왜 Real-time인가 — 추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)에 있습니다.
+지금까지 본 Endpoint는 정확히는 **Real-time endpoint**이고, SageMaker AI 추론에는 이 밖에 **Serverless · Asynchronous · Batch Transform**이 더 있습니다. 넷의 비교표와 선택 기준, 그리고 이 kit이 Real-time을 고른 이유(Serverless에는 GPU가 없습니다)는 앵커 문서인 [왜 Real-time인가 — 추론 4옵션 비교](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)에 있습니다.
 
 넷을 찾을 때 문서가 한 곳에 모여 있지 않다는 점만 알아 두세요. [모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)의 "endpoint에 모델 배포" 목록에는 **endpoint 3종(Real-time · Serverless · Asynchronous)만** 있고, **Batch Transform은 별도 문서**로 다뤄집니다. endpoint를 만들지 않는 옵션이라 계열이 다릅니다.
 
@@ -323,7 +323,7 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 
 ---
 
-## SageMaker vs HyperPod vs EC2 vs on-prem
+## SageMaker AI vs HyperPod vs EC2 vs on-prem
 
 !!! abstract "쉽게 말하면"
     같은 GPU 학습을 하더라도 **내가 어디까지 소유하는가**가 다릅니다.
@@ -339,7 +339,7 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 |---|---|---|---|---|
 | **컨트롤 플레인 소유** | AWS. 클러스터라는 개념 자체가 노출되지 않음 | AWS가 클러스터를 프로비저닝·복구. **Slurm이면 컨트롤러 노드가 클러스터 안**, **EKS면 EKS 컨트롤 플레인 1:1 연결**(HyperPod은 워커 노드) | 전부 내 것(head 노드·스케줄러 설정·AMI) | 전부 내 것(+ 전원·냉각·네트워크) |
 | **오래 사는 클러스터** | ❌ 없음(잡마다 생성·파괴) | ✅ 있음(persistent) | ✅ 있음 | ✅ 있음 |
-| **노드가 죽으면** | 실행 중이면 해당 Job이 실패 → [`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)로 재시도(`InternalServerError` 대상). 단 **기동 시점의 불건전 노드는 SageMaker가 조용히 교체**합니다([`Starting` status message](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_SecondaryStatusTransition.html)에 `"Launched instance was unhealthy, replacing it!"`, `"Insufficient capacity error from EC2 while launching instances, retrying!"`) | health monitoring agent + basic/deep health check가 감지 → **자동 재부팅·교체**(recovery `Automatic`이 기본) + **학습 Job auto-resume**([Slurm](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency.html)은 `srun --auto-resume=1`, [EKS](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-resiliency.html)는 job auto-resume) | ParallelCluster의 [`clustermgtd`](https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3-cluster-health-metrics.html)도 **불건전 노드를 감지해 교체합니다**. 다만 감지 깊이·재시도 정책은 내가 설계·튜닝 | 사람이 대응. 예비 부품 재고가 곧 SLA |
+| **노드가 죽으면** | 실행 중이면 해당 Job이 실패 → [`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)로 재시도(`InternalServerError` 대상). 단 **기동 시점의 불건전 노드는 SageMaker AI가 조용히 교체**합니다([`Starting` status message](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_SecondaryStatusTransition.html)에 `"Launched instance was unhealthy, replacing it!"`, `"Insufficient capacity error from EC2 while launching instances, retrying!"`) | health monitoring agent + basic/deep health check가 감지 → **자동 재부팅·교체**(recovery `Automatic`이 기본) + **학습 Job auto-resume**([Slurm](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency.html)은 `srun --auto-resume=1`, [EKS](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-resiliency.html)는 job auto-resume) | ParallelCluster의 [`clustermgtd`](https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3-cluster-health-metrics.html)도 **불건전 노드를 감지해 교체합니다**. 다만 감지 깊이·재시도 정책은 내가 설계·튜닝 | 사람이 대응. 예비 부품 재고가 곧 SLA |
 | **하드웨어 검증 깊이** | [`InfraCheckConfig(EnableInfraCheck=True)`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)로 인스턴스 하드웨어 + 클러스터 네트워크 점검 가능(깊이는 비공개) | **[deep health check](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency-slurm-deep-health-checks.html)** — `stress-ng`, DCGM 레벨 4 진단, EFA loopback, 다중 노드 NCCL `all_reduce`. 실패 노드는 격리·교체. 단 `OnStartDeepHealthChecks` 옵트인 | EC2 status check 수준이 기본. DCGM·NCCL 검증은 내가 붙임 | 직접 구축 |
 | **셋업 노력** | 가장 낮음. SDK 몇 줄 | 중간. VPC·lifecycle script·(EKS면) 클러스터 구성 | 높음. AMI·드라이버·스케줄러·공유 파일시스템 | 가장 높음. 조달 리드타임 포함 |
 | **비용 모델** | **Job 실행 시간**(학습) / **인스턴스 시간**(endpoint, 삭제 전까지) | 클러스터가 떠 있는 동안 인스턴스 시간 | 인스턴스 시간(+ EBS/FSx 등) | CapEx + 전력·상면·인건비 |
@@ -384,7 +384,7 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 마지막은 컨테이너 이미지와 호스트 이미지를 같은 층으로 보는 착각입니다.
 
-??? question "오개념 — “DLC는 SageMaker 전용이다”"
+??? question "오개념 — “DLC는 SageMaker AI 전용이다”"
     **아닙니다.** DLC(Deep Learning Containers)는 **워크로드 컨테이너 이미지**라서 EC2·ECS·EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
     비교 대상으로 자주 등장하는 **DLAMI는 노드(호스트) 머신 이미지**이며 층이 다릅니다. "관리형이니까 DLC, 자체 구성이니까 DLAMI"라는 대응은 성립하지 않습니다.
 
@@ -417,9 +417,9 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 디렉터리와 코드 식별자는 초기 이름 그대로 `tracks/`·`TRACKS`를 씁니다. 경로에 `track`이 보이면 문서에서 말하는 코스와 같은 것으로 읽으세요.
 
-| 노트북 | 만드는 SageMaker 리소스 | 개념 |
+| 노트북 | 만드는 SageMaker AI 리소스 | 개념 |
 |---|---|---|
-| `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)) |
+| `00_setup.ipynb` | 없음(자격증명·role·버킷 확인) | 사전 준비. **role**은 SageMaker AI가 내 S3·ECR·CloudWatch에 접근할 때 assume하는 IAM 신분입니다([실행 role이 매개하는 것](#실행-role로-무엇을-하는가--s3와-ecr-접근)) |
 | `01_data_and_synthetic.ipynb` | 없음(로컬 `data/train.jsonl` 생성) | 학습 입력 준비 |
 | `02_train_sft_sagemaker.ipynb` | ✅ 생성 — **Training Job** (`ModelTrainer.train()`) | 데이터 S3 업로드 → Job 제출 → `model_data` 확보 |
 | `02a_train_grpo_sagemaker.ipynb` (선택) | ✅ 생성 — **Training Job** (SFT→GRPO 정련) | 추출·분류 코스만 제공 |
@@ -427,13 +427,13 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 | `03_deploy_endpoint.ipynb` | ✅ 생성 — **Endpoint** (+ `EndpointConfig` + `Model`) | `model_data` → 상시 서버. **여기서 시간당 과금이 시작됩니다** |
 | `04_evaluate.ipynb` | 없음(endpoint 호출) | held-out 평가 |
 | `05_agentic_strands.ipynb` | 없음(endpoint + Bedrock 호출) | agentic loop |
-| `06_agentcore_deploy.ipynb` | AgentCore Runtime(SageMaker와 별개 과금) | 프로덕션 배포 |
+| `06_agentcore_deploy.ipynb` | AgentCore Runtime(SageMaker AI와 별개 과금) | 프로덕션 배포 |
 | `99_cleanup.ipynb` | **삭제** — Endpoint → EndpointConfig → Model | **과금 중지. 반드시 실행** |
 
 - Training Job을 만드는 노트북은 `02`(및 선택 `02a`)이고, **끝나면 인스턴스가 자동 해제**되므로 별도 정리가 필요 없습니다. 남는 것은 S3 아티팩트와 CloudWatch 로그(용량당 과금)입니다.
 - Endpoint를 만드는 노트북은 `03`이며, **삭제하는 노트북은 `99`뿐입니다.** 삭제 순서가 정해져 있고(Endpoint → EndpointConfig → Model), `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 만들기 때문에 `endpoint_name`만으로 지우면 Model이 조용히 남습니다.
 - 멀티모달 코스(`tracks/05_multimodal_extraction/`)는 노트북 세트가 짧습니다: Training Job은 `02_train_mm_sagemaker.ipynb`, Endpoint는 `03_deploy_mm_endpoint.ipynb`, 정리는 동일하게 `99_cleanup.ipynb`.
-- 학습 스크립트는 `tracks/*/scripts/train.py` 하나로, 로컬 `--dry_run`과 SageMaker Training Job에서 **같은 파일**이 돕니다. 먼저 로컬에서 파이프라인을 검증하고 클라우드로 제출하는 것이 이 kit의 규율입니다([시작하기](getting_started.md)의 방식 B).
+- 학습 스크립트는 `tracks/*/scripts/train.py` 하나로, 로컬 `--dry_run`과 SageMaker AI Training Job에서 **같은 파일**이 돕니다. 먼저 로컬에서 파이프라인을 검증하고 클라우드로 제출하는 것이 이 kit의 규율입니다([시작하기](getting_started.md)의 방식 B).
 
 다음 단계는 [실행 runbook](RUN_E2E.md)입니다. 개념을 잡았다면 그 문서의 순서를 그대로 따라가면 됩니다.
 

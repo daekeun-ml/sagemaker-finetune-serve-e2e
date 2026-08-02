@@ -2,7 +2,7 @@
 
 !!! info "Scope"
     **V2에 익숙한 분**(`HuggingFace` estimator · `estimator.fit()` · `predictor.predict()`로
-    SageMaker를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources`
+    Amazon SageMaker AI를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources`
     같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다.
 
     - **선행 조건**: 없습니다
@@ -11,7 +11,7 @@
       학습·배포·호출·정리 4가지 대표 용법 · V2 코드를 옮길 때 걸리는 함정
     - **여기서 다루지 않는 것**: 학습 하이퍼파라미터·LoRA 설계는
       [파인튜닝](../03_finetuning.md), endpoint 구조와 서빙 엔진은
-      [SageMaker 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md),
+      [SageMaker AI 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md),
       Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다)
 
 이 문서의 동작은 모두 **SDK 3.16.0 설치본에서 실측**한 것이고, 이름·의도는 [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)와 [V3 문서](https://sagemaker.readthedocs.io/en/stable/)를 기준으로 적었습니다. 둘이 어긋나는 지점은 그 자리에서 따로 표시했습니다.
@@ -61,16 +61,16 @@ V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 �
 
 | 레이어 | 무엇인가 | 대표 심볼 | 성격 |
 |---|---|---|---|
-| `sagemaker.core` | SageMaker API에서 **생성된** 저수준 리소스 레이어 | `resources.TrainingJob`·`resources.Endpoint`·`image_uris.retrieve`·`helper.session_helper.Session` | API 필드와 1:1. 넓지만 편의 기능 없음 |
+| `sagemaker.core` | SageMaker AI API에서 **생성된** 저수준 리소스 레이어 | `resources.TrainingJob`·`resources.Endpoint`·`image_uris.retrieve`·`helper.session_helper.Session` | API 필드와 1:1. 넓지만 편의 기능 없음 |
 | `sagemaker.train` / `sagemaker.serve` | 손으로 쓴 **편의 레이어** | `ModelTrainer`·`SFTTrainer`·`ModelBuilder` | 좁지만 기본값·검증·업로드까지 대신함 |
 
 [![sagemaker-core의 995+ shape 클래스, 110+ resource 클래스, 그리고 모든 리소스가 공유하는 표준 메서드 7개](../images/sdkv3_core.png)](../images/sdkv3_core.png)
 
 *오른쪽 `Base` 열이 V2와의 가장 큰 차이입니다. 모든 리소스가 `create()`·`delete()`·`get()`·`refresh()`·`stop()`·`update()`·`wait()`를 같은 이름으로 갖습니다. 리소스마다 전부 있는 것은 아닙니다(Endpoint에는 `stop()`이 필요 없습니다).*
 
-문서상 core는 **resource 클래스 110개 이상, shape 클래스 995개 이상**을 갖습니다. 서비스 API에서 생성했기 때문에 SageMaker가 지원하는 리소스에는 대응 Python 클래스가 있고, `train`·`serve`·`mlops`에 없는 기능은 core에 있습니다(Feature Store가 그런 예입니다).
+문서상 core는 **resource 클래스 110개 이상, shape 클래스 995개 이상**을 갖습니다. 서비스 API에서 생성했기 때문에 SageMaker AI가 지원하는 리소스에는 대응 Python 클래스가 있고, `train`·`serve`·`mlops`에 없는 기능은 core에 있습니다(Feature Store가 그런 예입니다).
 
-core는 공용 기반도 함께 갖습니다: 세션 관리, IAM role 자동 탐지, DLC 이미지 URI 조회, JumpStart 모델 허브, lineage 추적, serializer/deserializer, 그리고 SageMaker 설정 파일을 읽는 intelligent defaults입니다.
+core는 공용 기반도 함께 갖습니다: 세션 관리, IAM role 자동 탐지, DLC 이미지 URI 조회, JumpStart 모델 허브, lineage 추적, serializer/deserializer, 그리고 SageMaker AI 설정 파일을 읽는 intelligent defaults입니다.
 
 **polling이 1급이 됐습니다.** V2에서 `describe_*`를 루프로 돌리던 자리가 `wait()`·`refresh()`입니다.
 
@@ -178,7 +178,7 @@ except ModuleNotFoundError:
 | endpoint 호출 | (SDK 아님) boto3 `sagemaker-runtime` | `common/aws_utils.py` |
 | 삭제·정리 | (SDK 아님) boto3 `sagemaker` client | `99_cleanup` |
 
-세부는 [파인튜닝](../03_finetuning.md)과 [SageMaker 추론](../04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../05_serving_containers.md#이미지-해석-우선순위--commondlcpy)에 있습니다.
+세부는 [파인튜닝](../03_finetuning.md)과 [SageMaker AI 추론](../04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../05_serving_containers.md#이미지-해석-우선순위--commondlcpy)에 있습니다.
 
 **왜 프레임워크 estimator 대신 커스텀 `train.py`인가.** 선택의 여지가 없습니다. V3에 `HuggingFace` estimator가 없습니다. 그리고 AWS가 문서화한 후속 경로가 정확히 이 형태입니다: `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 고르고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 내 스크립트를 얹는 것. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 이제 estimator를 언급하지 않고 "Hugging Face SageMaker AI ModelTrainer"로 안내합니다. 즉 이 kit의 "PyTorch DLC + 내 `train.py`"는 우회로가 아니라 **문서화된 정규 경로**입니다. 부수 효과로 컨테이너 안에서 `requirements.txt`로 최신 `transformers`/`trl`을 맞출 수 있어, 프레임워크 버전이 SDK 릴리스에 묶이지 않습니다([JumpStart vs 자체 train.py](../03_finetuning.md#jumpstart-vs-자체-trainpy)).
 
@@ -204,9 +204,9 @@ except ModuleNotFoundError:
 
 ## 이어서 볼 문서
 
-- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--끝나면-컴퓨팅-리소스까지-사라집니다): `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
+- [01 SageMaker AI 기초](../01_sagemaker_basics.md#training-job--끝나면-컴퓨팅-리소스까지-사라집니다): `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
 - [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정): `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
-- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조, 호출 스키마, cleanup 순서
+- [04 SageMaker AI 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조, 호출 스키마, cleanup 순서
 - [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증): `ModelBuilder`의 `Mode` 3단계와 로컬 검증
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서와 비용 가드
 - [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md) · [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html): V2 지원 종료 일정과 매핑 표

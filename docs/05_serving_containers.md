@@ -28,12 +28,12 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 
 ## TL;DR
 
-**`vLLM`은 엔진이고 `DJL LMI`는 그 엔진을 감싸는 AWS 관리형 SageMaker 컨테이너입니다. 둘은 경쟁 관계가 아니라 레이어가 다릅니다.**
+**`vLLM`은 엔진이고 `DJL LMI`는 그 엔진을 감싸는 AWS 관리형 SageMaker AI 컨테이너입니다. 둘은 경쟁 관계가 아니라 레이어가 다릅니다.**
 **이 kit은 `SERVING_ENGINE` env로 vLLM DLC(기본) / SGLang DLC / DJL LMI 셋 중 하나를 골라 배포합니다. 셋 다 연속 배칭 + OpenAI 호환이라 호출 코드가 같습니다.**
 
 정리하면 다음과 같습니다.
 
-1. **레이어 멘탈 모델**: `엔진(vLLM/TensorRT-LLM)` ⊂ `서빙 컨테이너(vLLM DLC / DJL LMI / TGI / BYOC)` ⊂ `SageMaker endpoint`입니다.
+1. **레이어 멘탈 모델**: `엔진(vLLM/TensorRT-LLM)` ⊂ `서빙 컨테이너(vLLM DLC / DJL LMI / TGI / BYOC)` ⊂ `SageMaker AI endpoint`입니다.
    LMI를 쓴다고 vLLM을 "쓰지 않는" 것이 아닙니다. 자세히는 [왜 레이어가 다른가](#왜-레이어가-다른가--엔진--서빙-컨테이너)를 보세요.
 2. **기본은 vLLM DLC이고, LMI는 관리형 추상화 옵션입니다.**
    LMI는 `OPTION_ROLLING_BATCH`로 내부 백엔드를 고르고 나머지는 `OPTION_*` env로 튜닝합니다. 자세히는 [이 kit의 배포 경로](#이-kit의-배포-경로--03_deploy_endpoint)를 보세요.
@@ -65,7 +65,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 !!! abstract "쉽게 말하면"
     **엔진**(`vLLM`, `TensorRT-LLM`)은 자동차의 엔진입니다. 토큰을 빠르게 뽑는 핵심 로직(PagedAttention, 연속 배칭)을 담당합니다.
     **서빙 컨테이너**(`vLLM DLC`, `DJL LMI`, `TGI`)는 그 엔진을 얹은 완성차입니다. HTTP 서버, 모델 로딩, 배칭, `/ping`, `/invocations`까지 하나로 묶은 것입니다.
-    **SageMaker endpoint**는 그 완성차를 굴리는 도로와 관제입니다(오토스케일·IAM·CloudWatch·인스턴스 관리).
+    **Amazon SageMaker AI endpoint**는 그 완성차를 굴리는 도로와 관제입니다(오토스케일·IAM·CloudWatch·인스턴스 관리).
 
 `DJL LMI`는 AWS가 만든 완성차인데, **엔진을 바꿔 끼울 수 있다**는 점이 특징입니다. 예를 들어 `OPTION_ROLLING_BATCH=vllm`으로 지정하면
 그 안에서 vLLM 엔진이 돕니다.
@@ -100,14 +100,14 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 |---|---|---|
 | `option.max_rolling_batch_size`(`OPTION_MAX_ROLLING_BATCH_SIZE`) | **256** | **32** — vLLM 단독의 `max_num_seqs` 기본값과 같은 숫자라 24GB GPU에서 같은 OOM을 만납니다([24GB GPU CUDA OOM](#24gb-gpu-cuda-oom--max_num_seqs-기본값)) |
 | `option.tensor_parallel_degree`(`OPTION_TENSOR_PARALLEL_DEGREE`) | **1** (TensorRT-LLM 컨테이너는 `max`) | `max` — 그림의 권장값. 단일 GPU에서도 안전하며 다중 GPU 인스턴스로 옮길 때 그대로 동작 |
-| `option.model_loading_timeout`(`OPTION_MODEL_LOADING_TIMEOUT`) | **1800초(30분)** | 기본값 유지. 올릴 때는 SageMaker 쪽 `container_startup_health_check_timeout`도 같이 올려야 합니다 |
+| `option.model_loading_timeout`(`OPTION_MODEL_LOADING_TIMEOUT`) | **1800초(30분)** | 기본값 유지. 올릴 때는 SageMaker AI 쪽 `container_startup_health_check_timeout`도 같이 올려야 합니다 |
 
 또 하나, 그림 오른쪽의 "s5cmd 빠른 모델 다운로드"는 **자동으로 켜지는 기능이 아닙니다.**
 
 - 켜지는 조건: `option.model_id`에 **비압축 S3 prefix**(`s3://...`)를 직접 줄 때만 이 경로를 탑니다.
   그때 DJL이 [s5cmd](https://github.com/peak/s5cmd)로 병렬 다운로드합니다.
   ([djl-serving 모델 구성 문서](https://docs.djl.ai/master/docs/serving/serving/docs/configurations_model.html))
-- 이 kit이 안 쓰는 이유: 학습 산출물을 `model_data`로 넘겨 **SageMaker가** `/opt/ml/model`에 풀게 하고 `HF_MODEL_ID=/opt/ml/model`을 주기 때문입니다.
+- 이 kit이 안 쓰는 이유: 학습 산출물을 `model_data`로 넘겨 **SageMaker AI가** `/opt/ml/model`에 풀게 하고 `HF_MODEL_ID=/opt/ml/model`을 주기 때문입니다.
 - 검토할 때: 수십 GB 모델을 S3에서 직접 당기는 경우입니다.
 
 !!! warning "그림은 스냅샷입니다"
@@ -121,7 +121,7 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ SageMaker real-time endpoint (오토스케일·IAM·CloudWatch)        │  ← 인프라 레이어
+│ SageMaker AI real-time endpoint (오토스케일·IAM·CloudWatch)     │  ← 인프라 레이어
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  서빙 컨테이너 (HTTP + /ping + /invocations + 배칭)        │  │  ← 컨테이너 레이어
 │  │  ┌───────────────┐  ┌───────────────┐  ┌──────────────┐ │  │
@@ -141,7 +141,7 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 
 | 기준 | **[DJL LMI](https://github.com/deepjavalibrary/djl-serving)** | **[단독 vLLM](https://github.com/vllm-project/vllm)** | **[HF TGI](https://github.com/huggingface/text-generation-inference)** |
 |---|---|---|---|
-| 정체 | AWS 관리형 서빙 컨테이너(엔진 wrap) | 엔진 직접 배포(OpenAI 서버/BYOC) | HF 서빙 컨테이너(SageMaker HF DLC) |
+| 정체 | AWS 관리형 서빙 컨테이너(엔진 wrap) | 엔진 직접 배포(OpenAI 서버/BYOC) | HF 서빙 컨테이너(SageMaker AI HF DLC) |
 | 누가 관리 | AWS | 사용자(BYOC) 또는 vLLM 커뮤니티 | HuggingFace + AWS(DLC) |
 | vLLM과의 관계 | 감싼다 | 그 자체 | 별개 백엔드 |
 | 모델 서버 | DJLServing(Netty 프런트엔드 + Python Engine 워커) | vLLM 자체 OpenAI 서버 | TGI 자체 router |
@@ -150,8 +150,8 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 | 백엔드 전환 | `OPTION_ROLLING_BATCH`로 스위칭 | 없음(단일 엔진) | 없음 |
 | 버전 최신성 | AWS 검증 후 반영(한 박자 늦음) | upstream 최신 즉시 | HF 검증 후 반영 |
 | 유지보수 부담 | 낮음(AWS가 이미지·규약 관리) | 높음(이미지·규약·패치 직접) | 낮음(HF/AWS 관리) |
-| SageMaker 통합 | 네이티브(DLC) | BYOC 필요(`/ping`+`/invocations`) 또는 어댑터 | 네이티브(HF DLC) |
-| 스트리밍 | ✅ 지원(SageMaker 응답 스트림) | ✅ 지원(구현/규약에 의존) | ✅ 지원 |
+| SageMaker AI 통합 | 네이티브(DLC) | BYOC 필요(`/ping`+`/invocations`) 또는 어댑터 | 네이티브(HF DLC) |
+| 스트리밍 | ✅ 지원(SageMaker AI 응답 스트림) | ✅ 지원(구현/규약에 의존) | ✅ 지원 |
 | 언제 고르나 | 관리형·빠른 시작·백엔드 스위칭 | vLLM 최신 기능/플래그가 당장 필요할 때 | 이미 HF `{inputs}` 파이프라인에 묶였을 때 |
 
 !!! warning "표의 값은 재확인 대상"
@@ -167,7 +167,7 @@ HF TGI는 대조 대상으로만 다룹니다.
    반면 단독 vLLM은 엔진이 곧 컨테이너이므로 스위칭이라는 개념 자체가 없습니다. TGI는 자체 백엔드로 고정되어 있습니다.
 2. **최신성과 안정성의 트레이드오프**: 단독 vLLM은 upstream 릴리스를 바로 당겨 쓸 수 있어 **최신 기능을 가장 빠르게** 반영합니다.
    반면 LMI/TGI는 AWS나 HF가 특정 버전을 검증해 이미지로 굽기 때문에 **한 박자 늦지만 그만큼 검증되어** 있습니다.
-3. **SageMaker 규약을 누가 처리하는가**: 세 DLC 모두 `/ping`, `/invocations`, 모델 로딩이 **이미 구현**돼 있어
+3. **SageMaker AI 규약을 누가 처리하는가**: 세 DLC 모두 `/ping`, `/invocations`, 모델 로딩이 **이미 구현**돼 있어
    직접 맞출 것이 없습니다. vLLM은 [본체에 SageMaker용 라우터](https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/serve/sagemaker/api_router.py)가
    들어 있고(`/ping`·`/invocations`), AWS vLLM DLC의
    [`sagemaker_entrypoint.sh`](https://github.com/aws/deep-learning-containers/blob/master/vllm/build_artifacts/sagemaker_entrypoint.sh)가
@@ -188,14 +188,14 @@ HF TGI는 대조 대상으로만 다룹니다.
 
 | 규약 항목 | 값 | 지키는 쪽 |
 |---|---|---|
-| 컨테이너 실행 | `docker run <image> serve` (`CMD`를 덮어씀) | SageMaker |
-| 모델 아티팩트 | S3의 `model.tar.gz`를 풀어 **`/opt/ml/model`**에 넣음(읽기 전용) | SageMaker |
-| 로그 | 컨테이너 stdout/stderr → CloudWatch Logs | SageMaker |
+| 컨테이너 실행 | `docker run <image> serve` (`CMD`를 덮어씀) | SageMaker AI |
+| 모델 아티팩트 | S3의 `model.tar.gz`를 풀어 **`/opt/ml/model`**에 넣음(읽기 전용) | SageMaker AI |
+| 로그 | 컨테이너 stdout/stderr → CloudWatch Logs | SageMaker AI |
 | 웹 서버 | **포트 8080**에서 `/invocations`·`/ping` 수신 | 컨테이너(=DLC) |
 | health check | `/ping` 요청 타임아웃 **2초** | 컨테이너(=DLC) |
 | 추론 응답 | `/invocations` **60초** 이내 응답(모델 처리 시간 상한도 60초) | 컨테이너(=DLC) |
 | 소켓 수락 | **250ms** 이내 연결 수락 | 컨테이너(=DLC) |
-| 기동 유예 | 기본 **8분** 안에 `/ping` 200을 내지 못하면 인스턴스 기동 실패 → endpoint `Failed`. 고정 상한이 아니라 `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`(60~3,600초)로 올릴 수 있음 | 내가 설정(기본값은 SageMaker) |
+| 기동 유예 | 기본 **8분** 안에 `/ping` 200을 내지 못하면 인스턴스 기동 실패 → endpoint `Failed`. 고정 상한이 아니라 `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`(60~3,600초)로 올릴 수 있음 | 내가 설정(기본값은 SageMaker AI) |
 
 이 표에서 실무상 가장 자주 물리는 값은 두 개입니다.
 
@@ -226,7 +226,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 
 ### 추론 4옵션과 배포 형태
 
-서빙 **컨테이너** 선택과는 별개로, SageMaker 추론의 **배포 형태**는 [모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) 기준 네 가지로 나뉩니다.
+서빙 **컨테이너** 선택과는 별개로, SageMaker AI 추론의 **배포 형태**는 [모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) 기준 네 가지로 나뉩니다.
 
 | 형태 | LLM/SLM 적합성 |
 |---|---|
@@ -238,7 +238,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 위 세 컨테이너(LMI/vLLM/TGI)는 주로 **real-time**(및 async) 위에 올립니다. **Serverless는 GPU가 없어 SLM 서빙 대상이 아닙니다.**
 다만 이는 정책성 항목이라 언젠가 바뀔 수 있으니, 위 표를 근거로 설계를 확정하기 전에 문서에서 재확인하세요.
 
-4옵션의 상세 비교는 [SageMaker 추론 완전 가이드](04_sagemaker_inference.md)에 있습니다.
+4옵션의 상세 비교는 [SageMaker AI 추론 완전 가이드](04_sagemaker_inference.md)에 있습니다.
 
 ---
 
@@ -400,7 +400,7 @@ serve_env   = dlc.serving_env(ENGINE, max_model_len=4096,      # 엔진별 키�
 
 vLLM을 AWS DLC 없이 직접 쓰려면 다음 중 하나를 택합니다.
 
-- **[vLLM OpenAI 호환 서버](https://github.com/vllm-project/vllm)**에 SageMaker 규약 어댑터를 붙이거나,
+- **[vLLM OpenAI 호환 서버](https://github.com/vllm-project/vllm)**에 SageMaker AI 규약 어댑터를 붙이거나,
 - **BYOC** 방식으로, 컨테이너가 `/invocations`(추론)와 `/ping`(health)을 구현하도록 이미지를 직접 빌드합니다.
   규약은 [자체 추론 코드 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)에 정의돼 있습니다.
 - 배포할 때 완전 URI env(`VLLM_IMAGE_URI`)에 **본인이 빌드해 푸시한 vLLM 이미지 URI**를 넣으면 kit의 배포 코드를 그대로 재사용할 수 있습니다.
@@ -413,7 +413,7 @@ vLLM을 AWS DLC 없이 직접 쓰려면 다음 중 하나를 택합니다.
 | `invoke_sagemaker_endpoint()` | `{"inputs","parameters"}` generation 스키마 |
 | `stream_sagemaker_chat()` | 스트리밍(내부적으로 `invoke_endpoint_with_response_stream`) |
 
-**서비스 경계에 주의하세요.** SageMaker endpoint 호출은 `sagemaker-runtime`으로, Bedrock Claude 호출은 `bedrock-runtime`(Converse)으로 합니다.
+**서비스 경계에 주의하세요.** SageMaker AI endpoint 호출은 `sagemaker-runtime`으로, Bedrock Claude 호출은 `bedrock-runtime`(Converse)으로 합니다.
 
 **별개 서비스이고 별개 클라이언트**이므로 "endpoint를 Bedrock API로 호출"하는 것은 잘못된 방법입니다([서비스 경계](04_sagemaker_inference.md#서비스-경계--endpoint--bedrock)).
 `common/llm_gateway.py`는 LiteLLM으로 두 백엔드를 하나의 인터페이스로 묶지만, 내부적으로는 각자의 클라이언트를 씁니다.
@@ -437,7 +437,7 @@ SDK v3 `ModelBuilder`는 **같은 코드**를 3단계 대상에 배포할 수 �
 |---|---|---|---|
 | `Mode.IN_PROCESS` | 현재 파이썬 프로세스 | 가장 빠른 로직 검증(초경량) | 없음(백엔드 제약 큼) |
 | `Mode.LOCAL_CONTAINER` | 로컬 Docker 컨테이너 | endpoint와 동일 컨테이너 재현 | 로컬 Docker + GPU |
-| `Mode.SAGEMAKER_ENDPOINT` | SageMaker(클라우드) | 실제 서빙(기본) | AWS 과금 |
+| `Mode.SAGEMAKER_ENDPOINT` | SageMaker AI(클라우드) | 실제 서빙(기본) | AWS 과금 |
 
 import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(SDK 3.16.0 실측으로 `sagemaker.serve`에 직접 `Mode`가 없습니다).
 
@@ -858,7 +858,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 전환이 자유롭다면 남는 질문은 "그래서 가장 빠른 것을 고르면 되는가"입니다.
 
 ??? question "오개념 — “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
-    **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지·SageMaker 규약·보안 패치를 **직접** 책임져야 합니다.
+    **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지·SageMaker AI 규약·보안 패치를 **직접** 책임져야 합니다.
     관리 마찰을 줄이고 싶다면 AWS가 굽는 vLLM DLC나 LMI(내부 vLLM 백엔드)가 대체로 낫습니다. 같은 엔진을 관리형으로 쓰는 셈이기 때문입니다.
 
 비용을 줄이려는 시도는 종종 엉뚱한 tier로 향합니다.
@@ -875,8 +875,8 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 마지막은 컨테이너 선택과 롤아웃 방식을 같은 층으로 보는 착각입니다.
 
-??? question "오개념 — “SageMaker 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
-    **아닙니다.** 그 배포 가드레일은 **SageMaker classic endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).
+??? question "오개념 — “SageMaker AI 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
+    **아닙니다.** 그 배포 가드레일은 **SageMaker AI endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).
     컨테이너는 "무엇을 서빙하는가"의 문제이고, 가드레일은 "어떻게 롤아웃하는가"의 문제입니다.
 
 ---
@@ -892,7 +892,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
+| SageMaker AI real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
 | BYOC용 ECR 이미지 | 이미지 저장 용량 기준(빌드/푸시 시간은 운영 부담) | 쓰지 않는 태그 삭제, 리포지토리 정리 |
 | CloudWatch Logs | 수집·보관 용량 기준 | 로그 그룹 보존 기간 설정 |
 | 로컬 `vllm serve` 프로세스 | 과금 없음(디스크·GPU 점유) | `bash scripts/cleanup_local.sh --yes` |

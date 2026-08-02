@@ -5,11 +5,11 @@
     코스입니다(`tracks/05_multimodal_extraction`).
     "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
 
-    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
-      SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
+    - **선행 조건**: AWS 자격증명과 Amazon SageMaker AI 실행 role (`00_setup`이 확인).
+      SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은
+      배포·서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은
       [서빙 컨테이너](../05_serving_containers.md)
     - **이 코스에 없는 단계**: 합성 데이터·agentic 단계. 그 두 단계는 텍스트 코스(01~04)에 있습니다
     - **다른 코스**: 텍스트에서 JSON을 뽑는 문제는 [추출](extraction.md)
@@ -106,7 +106,7 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 |---|---|
 | `00_setup` | 자격증명·리전·role 확인, 의존성 설치. 마지막에 `01_data_explore.ipynb`로 안내합니다 |
 | `01_data_explore` | cord-v2 3건 로드 → 이미지 렌더 + 타깃 JSON 확인. **생성물 없음**(탐색 전용) |
-| `02_train_mm_sagemaker` | `scripts/train_mm.py`를 SageMaker 학습 Job으로 실행 → S3에 **머지된 멀티모달** 모델 |
+| `02_train_mm_sagemaker` | `scripts/train_mm.py`를 SageMaker AI 학습 Job으로 실행 → S3에 **머지된 멀티모달** 모델 |
 | `03_deploy_mm_endpoint` | 이미지 입력을 허용하는 real-time endpoint(`gemma-mm-extraction-*`) + `samples/` 영수증 추론 |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제 |
 
@@ -163,7 +163,7 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
     멀티모달 아티팩트는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 코스 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV를 4.69 GiB로 과대 배정하면 여유가 0.34 GiB뿐이고, 실제로 더 필요한 양이 1.12 GiB라 **0.78 GiB 부족**으로 CUDA OOM이 납니다. 증상은 `did not pass the ping health check` 한 줄뿐이고 진짜 원인은 CloudWatch 로그 안에 있습니다.
     범인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다. 샘플러 logits 버퍼가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](../05_serving_containers.md#메모리-예산--l4-229gb-실측)에 있습니다.
 
-호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일). real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker 추론](../04_sagemaker_inference.md)).
+호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이고, 이미지만 base64 data URL로 실어 보냅니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일). real-time endpoint의 요청 payload 한도가 6 MB라 이미지를 여러 장 묶으면 실제로 닿을 수 있는 벽입니다([SageMaker AI 추론](../04_sagemaker_inference.md)).
 
 ---
 
@@ -171,7 +171,7 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 
 - [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](../00_overview.md#멀티모달-코스-05의-별도-파이프라인))
 - [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
-- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조, 호출 스키마, payload·timeout 한도
+- [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조, 호출 스키마, payload·timeout 한도
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
 - [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인): 단계별 실행 순서, 비용 가드, 완료 기준
 

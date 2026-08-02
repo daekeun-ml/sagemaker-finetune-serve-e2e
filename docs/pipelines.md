@@ -98,11 +98,11 @@ GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 | `_common.py` | 스테이지 구현 + 상태 저장 + 실행 드라이버 |
 | `run_*.py` | 코스별 진입점. 코스 특이값만 선언하고 드라이버에 넘깁니다 |
 
-`tracks/*/scripts/`와 혼동하지 마세요. 그쪽은 **SageMaker 컨테이너 안에서** 도는
+`tracks/*/scripts/`와 혼동하지 마세요. 그쪽은 **Amazon SageMaker AI 컨테이너 안에서** 도는
 `train.py`이고, 여기는 그것을 **제출하는** 쪽입니다.
 
 ## 이어서 볼 문서
 
 - [실행 runbook](RUN_E2E.md): 노트북 경로의 단계별 핸드오프와 비용 가드
 - [전체 지도](00_overview.md): 문서·노트북 대응 관계
-- [파인튜닝](03_finetuning.md) · [SageMaker 추론](04_sagemaker_inference.md)
+- [파인튜닝](03_finetuning.md) · [SageMaker AI 추론](04_sagemaker_inference.md)

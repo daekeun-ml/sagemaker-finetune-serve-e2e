@@ -101,7 +101,7 @@
 
 1. **서비스 경계**: endpoint(`sagemaker-runtime`)와 Bedrock(`bedrock-runtime`)은 클라이언트도 API도 다릅니다. 프레임워크는 이 둘을 각각 다른 통합으로 호출합니다([서비스 경계](#서비스-경계--endpoint--bedrock)).
 2. **제어 주체**: Claude가 "도구 호출 여부와 인자"를 결정하면, 프레임워크가 실제 tool 함수를 실행한 뒤 결과를 다시 Claude에게 돌려줍니다(tool-use round-trip).
-3. **배포 단위**: SLM은 SageMaker endpoint(개별 리소스)로, 에이전트 전체는 AgentCore Runtime(컨테이너)으로 각각 별도 배포됩니다.
+3. **배포 단위**: SLM은 Amazon SageMaker AI endpoint(개별 리소스)로, 에이전트 전체는 AgentCore Runtime(컨테이너)으로 각각 별도 배포됩니다.
 
 ---
 
@@ -159,7 +159,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
     `Could not find a handler for the request. Expected one of: ['ChatCompletionRequest', 'CompletionRequest']`
     그래서 tool은 `messages`를 그대로 보냅니다. 클라이언트에 tokenizer/transformers 의존이 필요 없습니다.
 
-### SageMaker 추론 4옵션
+### SageMaker AI 추론 4옵션
 
 SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoint`에서는 real-time을 선택했습니다.
 
@@ -240,7 +240,7 @@ SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합�
 
 ??? question "오개념 — “reasoning 모델을 LiteLLM으로 바꾸면 tool 호출 방식도 바뀌나요?”"
     아닙니다. `@tool extract_structured_json` 내부의 `sagemaker-runtime invoke_endpoint`는 그대로 유지됩니다.
-    provider 교체는 **reasoning LLM 백엔드**만 바꿀 뿐, tool은 여전히 SageMaker endpoint를 그대로 호출합니다.
+    provider 교체는 **reasoning LLM 백엔드**만 바꿀 뿐, tool은 여전히 SageMaker AI endpoint를 그대로 호출합니다.
 
 ### LangGraph 옵션
 
@@ -350,8 +350,8 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 
 아래 두 항목은 앞 절에서 다루지 않은, 서비스 계층을 헷갈릴 때 생기는 착각입니다.
 
-??? question "오개념 — “SageMaker deployment guardrail(blue/green·canary·rolling)을 이 agentic 배포에 쓴다”"
-    그렇지 않습니다. 이 배포 가드레일은 **SageMaker classic endpoint 업데이트** 기능이지 AgentCore Runtime이나 Strands의 기능이 아닙니다.
+??? question "오개념 — “SageMaker AI deployment guardrail(blue/green·canary·rolling)을 이 agentic 배포에 쓴다”"
+    그렇지 않습니다. 이 배포 가드레일은 **SageMaker AI endpoint 업데이트** 기능이지 AgentCore Runtime이나 Strands의 기능이 아닙니다.
     SLM endpoint를 무중단 갱신할 때는 쓸 수 있지만, 에이전트 컨테이너 배포와는 무관합니다.
 
 프레임워크와 게이트웨이를 같은 층으로 보는 착각도 같은 유형입니다.
@@ -372,7 +372,7 @@ agentic loop는 과금 소스가 **둘 이상**입니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker real-time endpoint | 삭제 전까지 시간당(GPU 인스턴스) | `99_cleanup` 또는 `predictor.delete_endpoint()` |
+| SageMaker AI real-time endpoint | 삭제 전까지 시간당(GPU 인스턴스) | `99_cleanup` 또는 `predictor.delete_endpoint()` |
 | Bedrock Claude | 토큰당(호출량) | 상시 리소스 없음. 대량 호출 시 비용 |
 | AgentCore Runtime + ECR 이미지 | Runtime 리소스 + 이미지 스토리지 | `bash agentcore/cleanup_agent.sh --aws` (`agentcore destroy`) |
 

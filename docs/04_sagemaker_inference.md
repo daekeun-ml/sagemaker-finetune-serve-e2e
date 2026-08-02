@@ -1,4 +1,4 @@
-# 04 · SageMaker 추론 완전 가이드 — 이 kit의 앵커 문서
+# 04 · SageMaker AI 추론 완전 가이드 — 이 kit의 앵커 문서
 
 !!! info "Scope"
     파인튜닝한 SLM(Gemma 4)을 "어떻게 서빙하나"가 궁금한 초심자~중급자를 위한 문서입니다.
@@ -6,7 +6,7 @@
 
     - **선행 조건**: `02_train_sft_sagemaker`까지 실행해 `model_data`(S3 아티팩트)가 있는 상태.
       Training Job·Endpoint의 수명과 과금 차이가 낯설면
-      [SageMaker 기초](01_sagemaker_basics.md)부터
+      [SageMaker AI 기초](01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: 추론 4옵션 선택 · endpoint 구조와 호출 ·
       서빙 컨테이너/DLC 이미지 · 비용과 정리
     - **여기서 다루지 않는 것**: 학습 하이퍼파라미터 · 평가 지표 · agentic 설계
@@ -26,7 +26,7 @@
 
 ## TL;DR
 
-**SageMaker 추론에는 4가지 옵션(Real-time / Serverless / Asynchronous / Batch Transform)이 있고, LLM/SLM 서빙에는 GPU가 붙는 Real-time이 사실상 유일한 선택입니다. 이 kit은 Real-time endpoint에 vLLM DLC(기본) · SGLang DLC · DJL LMI 중 하나를 실어 배포하며, 호출은 `sagemaker-runtime`(Bedrock과 별개 서비스), 정리는 반드시 `99_cleanup`입니다.**
+**Amazon SageMaker AI 추론에는 4가지 옵션(Real-time / Serverless / Asynchronous / Batch Transform)이 있고, LLM/SLM 서빙에는 GPU가 붙는 Real-time이 사실상 유일한 선택입니다. 이 kit은 Real-time endpoint에 vLLM DLC(기본) · SGLang DLC · DJL LMI 중 하나를 실어 배포하며, 호출은 `sagemaker-runtime`(Bedrock과 별개 서비스), 정리는 반드시 `99_cleanup`입니다.**
 
 정리하면 다음과 같습니다.
 
@@ -161,7 +161,7 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 **왜 3층으로 나뉘어 있을까요?** 이렇게 분리되어 있는 덕분에 **무중단 배포**(새 EndpointConfig로 교체), **A/B 테스트(production variant)**, **오토스케일**이 가능해집니다.
 
-다만 이런 배포 가드레일(blue/green·canary·rolling)은 SageMaker "클래식" endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오개념](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오개념)).
+다만 이런 배포 가드레일(blue/green·canary·rolling)은 SageMaker AI endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오개념](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오개념)).
 
 [SageMaker Python SDK](https://github.com/aws/sagemaker-python-sdk) v3에서는 이 3층을 `ModelBuilder`가 한 번에 만듭니다. v2의 `Model`/`HuggingFaceModel` 클래스는 제거되었습니다. 그래서 이 kit의 `03_deploy_endpoint`는 `ModelBuilder(image_uri=..., s3_model_data_url=..., env_vars=...)` → `.build()` → `.deploy()` 경로를 씁니다.
 
@@ -238,7 +238,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 ## 서비스 경계 — endpoint ≠ Bedrock
 
-| | SageMaker Endpoint (내 파인튜닝 SLM) | Bedrock (Claude 등 관리형 LLM) |
+| | SageMaker AI Endpoint (내 파인튜닝 SLM) | Bedrock (Claude 등 관리형 LLM) |
 |---|---|---|
 | boto3 클라이언트 | `sagemaker-runtime` | `bedrock-runtime` |
 | 호출 API | [`invoke_endpoint`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html) / `invoke_endpoint_with_response_stream` | [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) / `converse_stream` |
@@ -314,7 +314,7 @@ vLLM은 전 레이어에 `k_norm`을 등록하므로, 그 상태의 아티팩트
 
 ### DLC 이미지 URI 패턴
 
-SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있으며, **URI 패턴이 고정**되어 있습니다.
+SageMaker AI 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있으며, **URI 패턴이 고정**되어 있습니다.
 
 ```
 763104351884.dkr.ecr.<region>.amazonaws.com/<repository>:<tag>
@@ -383,7 +383,7 @@ SageMaker 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 있�
 - **리전 이동**: **엔진별 이미지는 `.env`에 완전 URI로 하드코딩**되어 있으므로, `AWS_REGION`과 URI의 리전을 함께 바꿔야 합니다.
 - **인스턴스**: `config.INFER_INSTANCE_TYPE`을 씁니다. 프리셋 기본값은 E4B → `ml.g5.2xlarge`, 12B / 26B-A4B → `ml.g5.12xlarge`입니다. 이 kit의 `.env`는 g5 용량 대기가 길어 **`ml.g6.2xlarge`(L4 24GB + RAM 32GB)로 오버라이드**해 두었습니다.
 - **비동기 배포**: `deploy(wait=False)`로 즉시 반환합니다. endpoint 생성은 GPU 프로비저닝 + 이미지 pull + 모델 로드로 수 분~십수 분 걸리지만 **커널이 끊겨도 서버에서 계속 진행**됩니다. 재접속은 `Endpoint.get(endpoint_name).refresh()`입니다.
-- **관측**: `aws_utils.cw_links()`가 SageMaker 콘솔과 CloudWatch Logs(`/aws/sagemaker/Endpoints`)로 가는 바로가기 HTML을 출력합니다.
+- **관측**: `aws_utils.cw_links()`가 SageMaker AI 콘솔과 CloudWatch Logs(`/aws/sagemaker/Endpoints`)로 가는 바로가기 HTML을 출력합니다.
 - **`%store` 주의**: 전역 `endpoint_name` 키는 다른 코스가 덮어씁니다. 그래서 각 코스는 `ep_extraction` 같은 **코스 전용 키를 함께 저장**하고 복구 시 그쪽을 우선합니다.
 
 `serving_env()`가 "의미 → 엔진별 키"를 한곳에서 매핑하므로, 노트북은 의미만 넘깁니다. 같은 설정을 세 엔진의 서로 다른 키로 세 번 쓰면 값을 하나 바꿀 때 빼먹기 쉽습니다. 이 kit도 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발한 적이 있습니다.
@@ -463,8 +463,8 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker Real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
-| SageMaker Training Job | Job 실행 시간만(종료 시 과금 중단) | 자동 종료. Managed Spot 미사용 시 on-demand 요금 |
+| SageMaker AI Real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
+| SageMaker AI Training Job | Job 실행 시간만(종료 시 과금 중단) | 자동 종료. Managed Spot 미사용 시 on-demand 요금 |
 | Bedrock Converse | 호출 토큰량 기준, 상주 리소스 없음 | teardown 불필요. 대량 합성 시 비용 누적 주의 |
 | AgentCore Runtime | Runtime 리소스 과금(배포한 경우) | `bash agentcore/cleanup_agent.sh --aws`(Runtime + ECR) |
 | 로컬 `local_model/`·vLLM 프로세스 | 과금 없음(디스크·GPU 점유) | `bash scripts/cleanup_local.sh --yes` |

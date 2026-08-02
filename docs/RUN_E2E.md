@@ -3,9 +3,9 @@
 !!! info "Scope"
     한 코스를 **클라우드에서 한 번에 완주**하려는 분을 위한 실행 문서입니다.
 
-    - **선행 조건**: AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스.
+    - **선행 조건**: AWS 계정 + Amazon SageMaker AI 실행 role + Bedrock 모델 액세스.
       설치 절차와 스모크/로컬 dry-run은 [시작하기](getting_started.md).
-      Training Job·Endpoint가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)부터
+      Training Job·Endpoint가 낯설면 [SageMaker AI 기초](01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: 실행 순서 · 단계별 준비물 · 단계 간 핸드오프 · 비용 ·
       다음으로 넘어가기 전 확인 지점
     - **여기서 다루지 않는 것**: 개념 배경(각 주제 가이드) · 학습 하이퍼파라미터 튜닝 ·
@@ -64,7 +64,7 @@
 |---|---|---|
 | 목적 | 자격증명·권한·핸드오프·스키마 검증 | 실제 성능 확보 |
 | 시드·합성 건수 | 시드 8건 / 합성 6건 | 시드 300건 / 합성 100~200건 |
-| 학습 | 로컬 `train.py --dry_run`(1 epoch·32행) | SageMaker 학습 잡(`MAX_TRAIN_SAMPLES`·`EPOCHS`) |
+| 학습 | 로컬 `train.py --dry_run`(1 epoch·32행) | SageMaker AI 학습 잡(`MAX_TRAIN_SAMPLES`·`EPOCHS`) |
 | 평가 | `N_EVAL=20` | `N_EVAL` 기본 50 (env로 조절) |
 | endpoint | 작게 띄우고 바로 `99_cleanup` | 평가·agentic까지 쓰고 정리 |
 | 비용 | Bedrock 호출 소량 + endpoint 수십 분 | 학습 Job + endpoint 실사용 시간 |
@@ -76,7 +76,7 @@
 2. **평가 건수** — `04_evaluate`가 `N_EVAL=20`으로 축소합니다.
 3. **로컬 학습 규모** — `train.py --dry_run`이 epoch 1, `max_seq_length ≤ 512`, 최대 32행으로 자릅니다.
 
-!!! warning "SageMaker 학습 Job 규모는 DRY_RUN이 줄이지 않습니다"
+!!! warning "SageMaker AI 학습 Job 규모는 DRY_RUN이 줄이지 않습니다"
     `02_train_sft_sagemaker`가 제출하는 클라우드 학습 Job의 크기는 노트북 안의 `MAX_TRAIN_SAMPLES`(핸즈온 기본 200)와 `EPOCHS`(기본 2)가 결정합니다.
     `DRY_RUN`은 데이터 준비·평가·로컬 dry-run에만 걸리므로, 클라우드 학습 비용을 줄이려면 이 두 값을 직접 낮추세요.
 
@@ -167,7 +167,7 @@ python pipelines/run_extraction.py --stages deploy,eval
     코어 의존성은 `>=` floor로만 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1`). 현행 값은 `pyproject.toml`이 원본입니다.
     SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
 - [ ] **AWS 자격증명**: `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
-- [ ] **SageMaker 실행 role**: `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다.
+- [ ] **SageMaker AI 실행 role**: `SAGEMAKER_ROLE_ARN`에 SageMaker AI·S3·ECR 권한이 있어야 합니다.
     Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role()`이 `get_execution_role()`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다.
     **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다릅니다.** 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요. 권한 부족은 제출 시점이 아니라 Job이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role로-무엇을-하는가--s3와-ecr-접근)).
 - [ ] **Bedrock 모델 액세스**: 콘솔에서 사용할 Claude 모델의 액세스를 활성화합니다.
@@ -177,7 +177,7 @@ python pipelines/run_extraction.py --stages deploy,eval
 - [ ] **(gated 모델을 쓸 때만) HF 토큰**: gemma-4 전 사이즈는 ungated라 토큰이 필요 없습니다.
     gemma-3 계열 등을 쓸 때만 HF 약관을 수락하고 `MODEL_IS_GATED=1` + 토큰을 설정하세요.
     토큰은 `hf auth login`으로 저장해 두면 config가 파일에서 읽습니다(커스텀 캐시를 쓰면 `HF_HOME`도 같이 맞춰야 합니다).
-- [ ] **리전 정합성**: SageMaker·Bedrock·S3가 같은 리전(`AWS_REGION`, 기본 `us-west-2`)을 쓰는지 확인합니다.
+- [ ] **리전 정합성**: SageMaker AI·Bedrock·S3가 같은 리전(`AWS_REGION`, 기본 `us-west-2`)을 쓰는지 확인합니다.
     리전을 옮기면 `.env`의 DLC 이미지 URI 리전도 함께 바꿔야 합니다(학습 이미지는 리전별 private ECR에서만 pull됩니다).
 - [ ] **비용 인지**: real-time endpoint는 삭제 전까지 시간당 과금되므로, 실습이 끝나면 `99_cleanup`을 반드시 실행합니다.
 
@@ -205,7 +205,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 |---|---|---|---|---|
 | ① | `00_setup` | 설치·자격증명·role/bucket 해석 | `%store`: `role`, `bucket` | account id 출력, role/bucket 정상 |
 | ② | `01_data_and_synthetic` | 시드 로드 + grounded 합성 + EDA | 코스 로컬 파일 `data/train.jsonl` | JSONL 생성, 포맷·토큰 길이 미리보기 정상 |
-| ③ | `02_train_sft_sagemaker` | (선택 로컬 dry-run →) [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) 기반 SageMaker 학습 Job | `%store`: `model_data`, `md_<track_key>` | Job `Completed`, CloudWatch 링크 |
+| ③ | `02_train_sft_sagemaker` | (선택 로컬 dry-run →) [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) 기반 SageMaker AI 학습 Job | `%store`: `model_data`, `md_<track_key>` | Job `Completed`, CloudWatch 링크 |
 | ③-a | (선택) `02a_train_grpo_sagemaker` | SFT→GRPO 정련 — **추출·분류 코스만** | `model_data` 갱신 | Job `Completed` |
 | ③-b | (선택) `02b_local_serve` | 배포 전 로컬 vLLM 프리플라이트 | (없음) | 로컬 invoke 응답 정상 |
 | ④ | `03_deploy_endpoint` | [real-time endpoint](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) 배포 + invoke 스모크 | `%store`: `endpoint_name`, `ep_<track_key>` | `InService` 도달, invoke 응답 정상 |
@@ -214,7 +214,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 | ⑦ | `06_agentcore_deploy` | [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) 배포(프로덕션) | (없음) | (선택) Runtime 호출 성공 |
 | ⑧ | `99_cleanup` | endpoint·config·model·Runtime 삭제 | (없음) | 이 코스 endpoint 목록이 비어 있음 |
 
-학습 Job과 endpoint 생성은 **SageMaker 서버에서 진행되므로 커널이나 세션이 끊겨도 계속됩니다.**
+학습 Job과 endpoint 생성은 **SageMaker AI 서버에서 진행되므로 커널이나 세션이 끊겨도 계속됩니다.**
 각 노트북에 재접속 셀이 있어 Job 이름(`TrainingJob.get(name)`)이나 endpoint 이름(`Endpoint.get(name)`)으로 다시 붙을 수 있습니다.
 
 ### 단계별 주의
@@ -229,11 +229,11 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 - **④ 배포**: 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다.
     셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다.
     **한 번에 하나만** 배포하세요. 둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다. endpoint 기동에는 5~15분이 걸립니다.
-    참고할 곳: 엔진 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine), 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측), 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마).
+    참고할 곳: 엔진 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine), 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측), 호출 스키마는 [SageMaker AI 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마).
 - **⑤ 평가**: held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다.
     `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
 - **⑥/⑦ agentic**: endpoint와 Bedrock이 **이중으로 과금**됩니다.
-    endpoint는 `sagemaker-runtime`, Bedrock은 `bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)로 SageMaker와 **별개 서비스**입니다.
+    endpoint는 `sagemaker-runtime`, Bedrock은 `bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)로 SageMaker AI와 **별개 서비스**입니다.
     AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포--agentcore-runtime)).
 - **⑧ 정리**: 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다. 그러지 않으면 계속 과금됩니다.
 
@@ -325,8 +325,8 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
-| SageMaker 학습 Job | Job 실행 시간만(종료 시 과금 중단) | 자동 종료. Managed Spot 미사용 시 on-demand 요금 |
+| SageMaker AI real-time endpoint | 인스턴스 시간당, 삭제 전까지 계속 | `99_cleanup` → `delete_endpoint` → `delete_endpoint_config` → `delete_model` |
+| SageMaker AI 학습 Job | Job 실행 시간만(종료 시 과금 중단) | 자동 종료. Managed Spot 미사용 시 on-demand 요금 |
 | Bedrock Converse (합성·agentic·judge) | 호출 토큰량 기준, 상주 리소스 없음 | teardown 불필요. 합성 건수·judge 샘플 수로 조절 |
 | AgentCore Runtime | 배포한 경우 Runtime 리소스 과금 | `bash agentcore/cleanup_agent.sh --aws`(Runtime + ECR) |
 | 로컬 `local_model/`·vLLM 프로세스 | 과금 없음(디스크 약 15GB·GPU 점유) | `bash scripts/cleanup_local.sh --yes` |

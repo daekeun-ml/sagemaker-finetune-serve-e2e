@@ -73,7 +73,7 @@
     print(estimator.latest_training_job.name)
     ```
 
-`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다. 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-학습-job)에 있습니다.
+`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 깨집니다. 이 kit의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy--로컬-dry-run과-sagemaker-ai-학습-job)에 있습니다.
 
 ## ModelTrainer 하나로 합쳐진 estimator들
 
@@ -85,7 +85,7 @@
 
 | | `ModelTrainer` | 특화 trainer |
 |---|---|---|
-| 하는 말 | "내 학습 코드와 컨테이너가 있으니 SageMaker 인프라에서 돌려라" | "foundation model을 이 기법으로 파인튜닝하고 싶고, 인프라는 신경 쓰고 싶지 않다" |
+| 하는 말 | "내 학습 코드와 컨테이너가 있으니 Amazon SageMaker AI 인프라에서 돌려라" | "foundation model을 이 기법으로 파인튜닝하고 싶고, 인프라는 신경 쓰고 싶지 않다" |
 | 성격 | 범용 compute orchestrator | 정해진 모델·기법·파라미터만 받는 고수준 워크플로 |
 | 내가 주는 것 | 이미지·스크립트·하이퍼파라미터 | 모델과 데이터 |
 
@@ -127,7 +127,7 @@ AI Registry Evaluator는 실행 주체가 아니라 **저장·메타데이터 �
 
 ## AWS Batch 큐에 학습 Job을 넣기
 
-Job이 많아 스케줄링이 필요할 때, `ModelTrainer`를 SageMaker에 바로 던지지 않고 **AWS Batch 큐에 제출**할 수 있습니다. 우선순위 큐잉·fair-share 스케줄링·재시도를 Batch가 맡습니다.
+Job이 많아 스케줄링이 필요할 때, `ModelTrainer`를 SageMaker AI에 바로 던지지 않고 **AWS Batch 큐에 제출**할 수 있습니다. 우선순위 큐잉·fair-share 스케줄링·재시도를 Batch가 맡습니다.
 
 `ModelTrainer`는 **똑같이 만들고**, `.train()`을 부르는 대신 큐에 넘깁니다.
 

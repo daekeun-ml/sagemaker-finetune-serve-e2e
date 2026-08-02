@@ -1,11 +1,11 @@
-# SageMaker Fine-tuning & Serving E2E
+# SageMaker AI Fine-tuning & Serving E2E
 
-Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 가이드입니다.
+Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 가이드입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 !!! tip "어디서부터 읽을까"
     - **설치부터 첫 학습까지** → [시작하기](getting_started.md)
-    - **SageMaker가 처음이라면** → [SageMaker 기초](01_sagemaker_basics.md)를 먼저 읽으세요. Training Job과 Endpoint의 수명·과금 차이를 잡아 두면 아래 가이드가 전제하는 개념이 채워집니다.
+    - **SageMaker AI가 처음이라면** → [SageMaker AI 기초](01_sagemaker_basics.md)를 먼저 읽으세요. Training Job과 Endpoint의 수명·과금 차이를 잡아 두면 아래 가이드가 전제하는 개념이 채워집니다.
     - **전체를 완주한다면** → [실행 runbook](RUN_E2E.md)에 단계별 핸드오프와 비용이 있습니다.
     - **구조부터 보고 싶다면** → [전체 지도](00_overview.md)에 문서·노트북 매핑이 있습니다.
     - **어느 코스를 고를지 정해야 한다면** → 아래 [코스](#코스) 표에서 고르세요.
@@ -13,7 +13,7 @@ Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙
 
 ## 왜 이 kit인가
 
-**"SageMaker가 Gemma 4를 지원하지 않나?"** — 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
+**"SageMaker AI가 Gemma 4를 지원하지 않나?"** — 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
 
 가장 눈에 띄는 것: **JumpStart로는 gemma-4를 파인튜닝할 수 없습니다.** 5종 전부 `training_supported=False`이고, 배포만 됩니다. 관리형 파인튜닝 경로도 지원 모델·기법·리전 목록이 정해져 있어, 원하는 조합이 빠져 있으면 목록에 오를 때까지 기다려야 합니다.
 
@@ -36,7 +36,7 @@ Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙
     - **`save_pretrained`로 저장한 gemma-4 E2B/E4B는 vLLM·SGLang·LMI에서 로드가 실패합니다.** KV-sharing 레이어의 텐서가 저장 과정에서 빠지기 때문입니다 → [서빙 컨테이너](05_serving_containers.md)
     - **학습을 다 마친 Job이 머지 도중 죽습니다.** SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 창이 머지·업로드까지 덮습니다 → [파인튜닝](03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)
     - **24GB GPU에서 서빙이 OOM으로 뜨지 않습니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과합니다 → [서빙 컨테이너](05_serving_containers.md)
-    - **응답이 조용히 잘립니다.** 예외도 없고 HTTP 200이라, `finish_reason`을 봐야 압니다 → [SageMaker 추론](04_sagemaker_inference.md)
+    - **응답이 조용히 잘립니다.** 예외도 없고 HTTP 200이라, `finish_reason`을 봐야 압니다 → [SageMaker AI 추론](04_sagemaker_inference.md)
 
     각 문서에 증상 → 원인 → 대응 순으로 정리해 두었습니다.
 
@@ -52,10 +52,10 @@ Gemma 4를 Amazon SageMaker에서 **합성 데이터 → 파인튜닝 → 서빙
 |---|---|
 | 설치 | [시작하기](getting_started.md) |
 | 지도 | [00 전체 지도](00_overview.md) |
-| 개념 | [01 SageMaker 기초](01_sagemaker_basics.md) |
+| 개념 | [01 SageMaker AI 기초](01_sagemaker_basics.md) |
 | 데이터 | [02 합성 데이터](02_synthetic_data.md) |
 | 학습 | [03 파인튜닝](03_finetuning.md) |
-| 배포 | [04 SageMaker 추론](04_sagemaker_inference.md) · [05 서빙 컨테이너](05_serving_containers.md) |
+| 배포 | [04 SageMaker AI 추론](04_sagemaker_inference.md) · [05 서빙 컨테이너](05_serving_containers.md) |
 | 활용 | [06 Agentic loop](06_agentic.md) |
 | 완주 | [실행 runbook](RUN_E2E.md) |
 | 참조 | [SDK V3](sdk_v3/index.md) — V2에서 바뀐 것 · [학습](sdk_v3/training.md) · [배포](sdk_v3/serving.md) |

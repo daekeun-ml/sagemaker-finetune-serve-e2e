@@ -1,17 +1,17 @@
 # 03 · 파인튜닝 접근법 — DLC + 커스텀 train.py(TRL SFTTrainer · PEFT LoRA/QLoRA)
 
 !!! info "Scope"
-    SageMaker에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다.
-    HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 Job·DLC·LoRA 관용구는
+    Amazon SageMaker AI에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다.
+    HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker AI 학습 Job·DLC·LoRA 관용구는
     처음이어도 괜찮습니다.
 
     - **선행 조건**: 각 코스의 `01_data_and_synthetic.ipynb`까지 실행해
       `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태.
       Training Job이 무엇이고 `/opt/ml/*` 경로 규약이 왜 있는지가 낯설면
-      [SageMaker 기초](01_sagemaker_basics.md)부터
+      [SageMaker AI 기초](01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: 학습 경로 선택 · Gemma 관용구 · LoRA/QLoRA · 머지/re-export ·
       `MaxRuntimeExceeded` 함정 · SFT→GRPO 데이터 규율
-    - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md),
+    - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker AI 추론](04_sagemaker_inference.md),
       합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)
 
 이 문서와 관련된 리포지토리 파일:
@@ -35,10 +35,10 @@
 
 ## TL;DR
 
-**이 kit은 SageMaker 파인튜닝 두 경로(JumpStart vs 자체 스크립트) 중 DLC 컨테이너 + TRL `SFTTrainer` + PEFT LoRA/QLoRA를 담은 self-contained `scripts/train.py`를 택했습니다. 커스텀 학습 로직과 최신 Gemma를 즉시 쓰기 위해서입니다.**
+**이 kit은 SageMaker AI 파인튜닝 두 경로(JumpStart vs 자체 스크립트) 중 DLC 컨테이너 + TRL `SFTTrainer` + PEFT LoRA/QLoRA를 담은 self-contained `scripts/train.py`를 택했습니다. 커스텀 학습 로직과 최신 Gemma를 즉시 쓰기 위해서입니다.**
 
 1. **JumpStart가 아니라 커스텀 스크립트인 이유** — JumpStart는 정해진 모델을 정해진 레시피로 빠르게 돌리는 데 최적입니다. 다만 최신 Gemma 릴리스 반영과 커스텀 SFT 로직(chat template 처리, LoRA 타깃 제한, 텍스트 re-export)의 제어가 어렵습니다. 자세히는 [왜 커스텀 train.py 경로인가](#왜-커스텀-trainpy-경로인가)를 보세요.
-2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker 학습 Job을 겸합니다.** 로컬 GPU에서 파이프라인을 검증한 그 파일이 클라우드에서 그대로 돕니다. 자세히는 [train.py — 로컬 dry-run과 SageMaker 학습 잡](#trainpy--로컬-dry-run과-sagemaker-학습-job)을 보세요.
+2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker AI 학습 Job을 겸합니다.** 로컬 GPU에서 파이프라인을 검증한 그 파일이 클라우드에서 그대로 돕니다. 자세히는 [train.py — 로컬 dry-run과 SageMaker AI 학습 Job](#trainpy--로컬-dry-run과-sagemaker-ai-학습-job)을 보세요.
 3. **Gemma 관용구 6종은 협상 불가입니다**: chat template 위임, 멀티모달 base는 `language_model` 한정 LoRA, bf16(fp16 금지), `eager` attention, flash-attention 아니면 packing off, boolean 하이퍼는 `str2bool`. 자세히는 [Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)를 보세요.
 4. **`stopping_condition`을 생략하면 SDK가 1시간을 넣습니다.** 학습이 100% 끝나고 머지 중에 Job이 죽어 배포 불가가 됩니다. 자세히는 [MaxRuntimeExceeded — 학습 뒤 머지에서 잘리는 함정](#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정)을 보세요.
 5. **SFT 데이터를 GRPO에 재사용하면 학습이 아예 안 됩니다.** rollout이 전부 만점이 되어 advantage가 0으로 수렴합니다. 자세히는 [SFT에서 GRPO로 — 데이터를 갈아야 하는 이유](#sft에서-grpo로--데이터를-갈아야-하는-이유)를 보세요.
@@ -47,10 +47,10 @@
 
 ## 기존 Pain Point
 
-처음 SageMaker에서 Gemma를 파인튜닝할 때 실제로 부딪히는 벽은 다음과 같습니다.
+처음 SageMaker AI에서 Gemma를 파인튜닝할 때 실제로 부딪히는 벽은 다음과 같습니다.
 
 - **"JumpStart 버튼 하나면 되는 거 아니야?"** 싶지만, 막상 돌려보면 최신 Gemma가 목록에 없거나 chat template·특수토큰·저장 포맷 같은 세부를 건드릴 수 없어 결과가 이상하게 나옵니다.
-- 로컬에서 잘 되던 학습 스크립트가 SageMaker에서 **`--use_qlora`에서 크래시**합니다. `store_true` 플래그에 `--use_qlora True`가 들어오면서 죽는 것인데, 원인을 모른 채 몇 시간을 날리기 쉽습니다.
+- 로컬에서 잘 되던 학습 스크립트가 SageMaker AI에서 **`--use_qlora`에서 크래시**합니다. `store_true` 플래그에 `--use_qlora True`가 들어오면서 죽는 것인데, 원인을 모른 채 몇 시간을 날리기 쉽습니다.
 - **fp16으로 돌렸더니 loss가 NaN**이 됩니다. Gemma에서 흔히 겪는 함정입니다.
 - 학습은 됐는데 **출력이 엉망**입니다. chat template을 손으로 조립했거나, packing으로 샘플이 서로 오염된 경우입니다.
 - 학습은 끝났는데 **서빙이 안 됩니다**. 아티팩트 루트에 완전한 HF 모델이 없거나(어댑터만 있거나), 멀티모달 config가 남아 vLLM이 image processor를 찾다가 죽습니다.
@@ -63,7 +63,7 @@
 ## 왜 커스텀 train.py 경로인가
 
 !!! abstract "쉽게 말하면"
-    SageMaker에서 파인튜닝하는 문서화된 길은 두 갈래입니다. 하나는 **JumpStart**로 미리 포장된 모델·레시피를 SDK 몇 줄로 돌리는 방식이고, 다른 하나는 **직접 학습 스크립트 + DLC 컨테이너**를 써서 `ModelTrainer`에 `entry_script`를 넘기는 방식입니다.
+    SageMaker AI에서 파인튜닝하는 문서화된 길은 두 갈래입니다. 하나는 **JumpStart**로 미리 포장된 모델·레시피를 SDK 몇 줄로 돌리는 방식이고, 다른 하나는 **직접 학습 스크립트 + DLC 컨테이너**를 써서 `ModelTrainer`에 `entry_script`를 넘기는 방식입니다.
     전자는 "메뉴 주문", 후자는 "장을 봐서 직접 요리"에 비유할 수 있습니다. 이 kit은 레시피(Gemma 관용구)를 정확히 통제해야 하므로 후자를 골랐습니다.
 
 ### JumpStart vs 자체 train.py
@@ -118,7 +118,7 @@ Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 �
 
 1. **최신 모델 반영** — Gemma는 분기마다 릴리스가 갱신됩니다. 이 경로에서는 `MODEL_SIZE`(E2B/E4B/12B/26B-A4B/31B) 또는 `MODEL_ID` env 하나만 바꾸면 승급이 끝납니다(`common/config.py`의 `GEMMA4_PRESETS`, `DEFAULT_MODEL_ID`). JumpStart는 큐레이션 목록에 오를 때까지 기다려야 할 수 있습니다.
 2. **학습 로직 투명성** — Gemma는 손대야 할 관용구가 많습니다([Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)). `train.py`는 이 결정들을 코드로 명시하고 있어 리뷰·재현·이식이 쉽습니다. 특히 멀티모달 base를 텍스트로 서빙하려면 저장 단계에 손을 대야 하는데, 관리형 레시피에서는 불가능한 개입입니다.
-3. **이식성(로컬↔SageMaker 단일 소스)** — SageMaker는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU에서 검증한 바로 그 파일이 클라우드에서 그대로 돕니다.
+3. **이식성(로컬↔SageMaker AI 단일 소스)** — SageMaker AI는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU에서 검증한 바로 그 파일이 클라우드에서 그대로 돕니다.
 
 ??? question "오개념 — “JumpStart가 더 production-ready 아닌가요?”"
     그렇지 않습니다. production 여부는 경로가 아니라 운영(체크포인트·모니터링·재현성)이 결정합니다.
@@ -146,7 +146,7 @@ Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 �
 - **마커를 손으로 조립하지 마세요.** Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 `SFTTrainer`가 **자동으로 `apply_chat_template`을 적용**합니다. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
 - **system role은 실행 전 재확인 대상입니다.** Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 납니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있습니다.
 - **자동 복구는 없습니다.** `common/gemma_format.py`의 `render_prompt`는 `apply_chat_template`을 그대로 호출할 뿐 try/except 재시도를 하지 않습니다. 폴백 함수(`fold_system_into_user`)는 제공되지만 **호출은 사용자 몫**입니다.
-- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker 학습 Job 안에서** 터집니다(용량 대기 + DLC pull + GPU 과금을 다 치른 뒤).
+- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker AI 학습 Job 안에서** 터집니다(용량 대기 + DLC pull + GPU 과금을 다 치른 뒤).
 
 ??? info "더 읽을 거리 — 템플릿 원본 문서"
     템플릿이 실제로 뱉는 `<start_of_turn>`/`<end_of_turn>` 마커 구조는 [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/core/prompt-structure)가 원본입니다.
@@ -210,8 +210,8 @@ packing throughput이 필요하면 flash-attention을 명시적으로 선택하�
 
 ### boolean 하이퍼파라미터 — str2bool
 
-- SageMaker는 **모든 하이퍼파라미터를 `--key value`로 직렬화**해 entry script에 넘깁니다. 즉 `use_qlora=True`가 `--use_qlora True`로 전달됩니다. 흔히 쓰는 `action="store_true"`는 값을 받지 않으므로 이때 **크래시**합니다. 그 변환을 하는 자리는 SDK v3의 [`hyperparameters_to_cli_args`](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-train/src/sagemaker/train/container_drivers/common/utils.py) 소스입니다.
-- 해결책은 `type=_str2bool, nargs="?", const=True`입니다. 이렇게 하면 로컬의 bare-flag(`--dry_run`)와 SageMaker의 `--use_qlora True`를 **양쪽 모두** 받을 수 있습니다.
+- SageMaker AI는 **모든 하이퍼파라미터를 `--key value`로 직렬화**해 entry script에 넘깁니다. 즉 `use_qlora=True`가 `--use_qlora True`로 전달됩니다. 흔히 쓰는 `action="store_true"`는 값을 받지 않으므로 이때 **크래시**합니다. 그 변환을 하는 자리는 SDK v3의 [`hyperparameters_to_cli_args`](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-train/src/sagemaker/train/container_drivers/common/utils.py) 소스입니다.
+- 해결책은 `type=_str2bool, nargs="?", const=True`입니다. 이렇게 하면 로컬의 bare-flag(`--dry_run`)와 SageMaker AI의 `--use_qlora True`를 **양쪽 모두** 받을 수 있습니다.
 
 ```python
 def _str2bool(v) -> bool:
@@ -223,13 +223,13 @@ def _str2bool(v) -> bool:
 
 ---
 
-## train.py — 로컬 dry-run과 SageMaker 학습 Job
+## train.py — 로컬 dry-run과 SageMaker AI 학습 Job
 
-**파일 하나가 두 무대에서 똑같이 공연합니다.** 리허설(로컬 GPU 소량)과 본공연(SageMaker 학습 Job)이 같은 대본을 씁니다.
+**파일 하나가 두 무대에서 똑같이 공연합니다.** 리허설(로컬 GPU 소량)과 본공연(SageMaker AI 학습 Job)이 같은 대본을 씁니다.
 
 ```
-로컬 개발 GPU                          SageMaker 학습 Job
-─────────────                          ─────────────────
+로컬 개발 GPU                          SageMaker AI 학습 Job
+─────────────                          ────────────────────
 python train.py --dry_run              trainer.train(input_data_config=[InputData(...)])
   --train_file ./sample.jsonl              │  source_dir='scripts' 업로드
   --output_dir ./out                       │  (train.py + requirements.txt)
@@ -252,7 +252,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 | 아래쪽 점선 — 클러스터 | `Compute(instance_type=..., instance_count=1)` — 인스턴스 박스 셋 중 하나만 뜨고, 여러 노드를 묶는 `distributed=Torchrun()`도 안 씀 |
 | 오른쪽 실선 — `s3://bucket/path/to/model` | `output_data_config`를 생략해 SDK 기본 출력 경로에 맡기고, Job이 끝난 뒤 `job.model_artifacts.s3_model_artifacts`로 URI를 읽어 배포에 넘김 |
 
-그리고 그림이 흘리기 쉬운 사실이 하나 있습니다. 오른쪽의 env 이름은 SageMaker가 정해 주는 상수가 아니라 **내가 붙인 채널 이름에서 파생**됩니다.
+그리고 그림이 흘리기 쉬운 사실이 하나 있습니다. 오른쪽의 env 이름은 SageMaker AI가 정해 주는 상수가 아니라 **내가 붙인 채널 이름에서 파생**됩니다.
 그림은 채널이 둘(`training`·`testing`)이라 `SM_CHANNEL_TRAINING`/`SM_CHANNEL_TESTING`입니다. 이 kit은 `InputData(channel_name='train', ...)` 하나만 넘기므로 컨테이너에 심기는 이름은 `SM_CHANNEL_TRAIN` 하나입니다.
 평가 채널이 필요하면 `InputData`를 하나 더 넣고 `train.py`에서 그 이름의 env를 읽으면 됩니다.
 
@@ -261,7 +261,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 그림에서 그 볼륨 밖으로 나가는 화살표가 `SM_MODEL_DIR` 하나뿐이라는 점이 아래 두 규칙의 이유 전부입니다.
 
 - **입력 경로 해석**: `--train_file`이 주어지면 그 파일을 쓰고, 없으면 `SM_CHANNEL_TRAIN`(기본 `/opt/ml/input/data/train`)의 첫 `.jsonl`을 사용합니다.
-- **출력**: `--output_dir`의 기본값이 `SM_MODEL_DIR`(SageMaker가 `/opt/ml/model`로 세팅)이므로, 학습 산출물이 자동으로 S3 아티팩트가 됩니다.
+- **출력**: `--output_dir`의 기본값이 `SM_MODEL_DIR`(SageMaker AI가 `/opt/ml/model`로 세팅)이므로, 학습 산출물이 자동으로 S3 아티팩트가 됩니다.
 - **`--dry_run`**: `epochs=1`, `max_seq_length<=512`, 데이터 32행으로 강제하고 중간 체크포인트 저장도 끕니다. **파이프라인(데이터 로드→토크나이즈→몇 step→저장)만** 검증하고 몇 분 안에 끝납니다. 실제 학습은 `--dry_run` 없이 실행하세요.
 - **`--max_train_samples`**: 데이터 파일은 그대로 두고 앞 N건만 학습합니다. 노트북 기본값은 `MAX_TRAIN_SAMPLES=200`, `EPOCHS=2`로, 핸즈온에서 파이프라인이 끝까지 도는지 확인하는 용도입니다. 정식 학습은 `None`(전량)과 `EPOCHS=3~5`로 올려 따로 돌리세요.
 - **의존성**: 무거운 import(`torch`/`trl`/`peft`)는 `main()` 안에서 지연 로드하므로, 인자 파싱 오류가 있으면 빠르게 죽습니다. 컨테이너 내부 패키지는 `scripts/requirements.txt`가 설치합니다.
@@ -290,7 +290,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
     **KV-shared 복원** — 소실 규모는 E4B 실측으로 42층 중 shared 18층 → 레이어 24~41 × 3개 = **정확히 54개**입니다. vLLM 초기화 실패는 [vLLM issue #44788](https://github.com/vllm-project/vllm/issues/44788)에 보고된 증상과 같습니다. 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 성공)이고, 생성 결과도 transformers와 일치했습니다.
 
 ??? question "오개념 — “train.py에서 왜 common/config.py를 import 하지 않나요?”"
-    SageMaker는 `source_dir`(=`scripts/`)만 컨테이너에 올리기 때문입니다. `common/`을 참조하면 클라우드에서 ImportError가 납니다.
+    SageMaker AI는 `source_dir`(=`scripts/`)만 컨테이너에 올리기 때문입니다. `common/`을 참조하면 클라우드에서 ImportError가 납니다.
     그래서 `train.py`는 **의도적으로 self-contained**하며, 설정은 노트북이 hyperparameters/environment로 주입합니다.
 
 ---
@@ -325,7 +325,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 - `InsufficientInstanceCapacity`로 막히면 `AWS_REGION`이나 인스턴스 타입만 바꿔 재시도하세요.
 - **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지·re-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다).
 - `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다. E4B peak RAM은 약 **17.5GB**로 실측됐습니다. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
-- 정확한 GPU 메모리·인스턴스 스펙·리전 가용성은 **실행 전 SageMaker 인스턴스 문서에서 재확인**하세요.
+- 정확한 GPU 메모리·인스턴스 스펙·리전 가용성은 **실행 전 SageMaker AI 인스턴스 문서에서 재확인**하세요.
 - 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`를 쓰되, **`StoppingCondition(max_wait_time_in_seconds=...)`와 체크포인트 설정을 반드시 함께** 넘기세요. 빠뜨리면 `CreateTrainingJob`이 `ValidationException`으로 거부합니다.
 - `max_wait_time_in_seconds`는 "Spot 용량 대기 시간 + 실행 시간"의 상한이고 **`max_runtime_in_seconds`보다 크거나 같아야** 합니다(SDK 3.16.0 `MaxWaitTimeInSeconds` 규약). 이 kit 코드에는 이 값이 설정돼 있지 않으므로(SDK 기본 `None`) spot을 켤 때 직접 추가해야 합니다. 절감 폭은 리전·수급에 따라 달라지므로 절대값으로 약속하지 마세요.
 
@@ -367,7 +367,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
 - `FailureReason`이 **비어 있습니다**. Job 상태는 `Failed`가 아니라 `Stopped`이고 `SecondaryStatus`만 `MaxRuntimeExceeded`이므로, `describe-training-job`까지 파고들어야 원인을 알 수 있습니다.
 - CloudWatch 로그에는 **에러가 한 줄도 없습니다**(학습이 성공했으니까). 로그만 보면 정상 종료처럼 보입니다.
-- SageMaker는 종료 시 `SIGTERM` 후 **120초**를 주고 그 사이의 산출물을 업로드합니다. 즉 **불완전한 아티팩트가 "생성"되므로** 파일이 있는데 못 쓰는 상태가 됩니다.
+- SageMaker AI는 종료 시 `SIGTERM` 후 **120초**를 주고 그 사이의 산출물을 업로드합니다. 즉 **불완전한 아티팩트가 "생성"되므로** 파일이 있는데 못 쓰는 상태가 됩니다.
 
 ### 대응 — stopping_condition 명시
 
@@ -522,7 +522,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 환경 차이를 과소평가하는 착각도 같은 유형입니다.
 
-??? question "오개념 — “로컬에서 됐으니 SageMaker에서도 그대로 되겠지”"
+??? question "오개념 — “로컬에서 됐으니 SageMaker AI에서도 그대로 되겠지”"
     같은 `train.py`를 쓰므로 대체로 맞습니다. 다만 세 가지가 다릅니다.
     (1) boolean 하이퍼는 `--key value`로 들어옵니다([str2bool](#boolean-하이퍼파라미터--str2bool)), (2) 데이터는 `SM_CHANNEL_TRAIN`으로 들어옵니다, (3) 컨테이너의 `transformers` 버전은 로컬과 다를 수 있습니다(`requirements.txt`가 조정).
     이 세 가지는 dry-run으로 미리 Job을 수 있습니다.
@@ -538,13 +538,13 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 ??? question "오개념 — “DLC(컨테이너)와 DLAMI(AMI)는 같은 것 아닌가요?”"
     다릅니다. DLC는 **워크로드 컨테이너 이미지**(학습/추론)이고 DLAMI는 **노드 호스트 이미지(AMI)** 입니다.
-    이 kit은 SageMaker 학습 컨테이너로 DLC를 씁니다. 이미지에 무엇이 들어 있는지는 [AWS Deep Learning Containers 저장소](https://github.com/aws/deep-learning-containers)의 Dockerfile로 직접 확인할 수 있습니다.
+    이 kit은 SageMaker AI 학습 컨테이너로 DLC를 씁니다. 이미지에 무엇이 들어 있는지는 [AWS Deep Learning Containers 저장소](https://github.com/aws/deep-learning-containers)의 Dockerfile로 직접 확인할 수 있습니다.
 
 마지막은 단계 경계에 대한 착각입니다.
 
 ??? question "오개념 — “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.
-    SageMaker 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 kit은 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)를 보세요.
+    SageMaker AI 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 kit은 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)를 보세요.
 
 ---
 
@@ -556,8 +556,8 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 | 소스 | 과금 방식 | 정리 방법 |
 |---|---|---|
-| SageMaker 학습 Job (`ml.g6.2xlarge` 등) | 인스턴스 시간당 과금, Job 종료 시 자동 중지 | 자동 종료. `stopping_condition`으로 상한 고정 |
-| SageMaker endpoint (`03_deploy_endpoint`) | 인스턴스 시간당 **상시** 과금 | `99_cleanup.ipynb`로 반드시 삭제 |
+| SageMaker AI 학습 Job (`ml.g6.2xlarge` 등) | 인스턴스 시간당 과금, Job 종료 시 자동 중지 | 자동 종료. `stopping_condition`으로 상한 고정 |
+| SageMaker AI endpoint (`03_deploy_endpoint`) | 인스턴스 시간당 **상시** 과금 | `99_cleanup.ipynb`로 반드시 삭제 |
 | S3 아티팩트 (`model.tar.gz`, 체크포인트) | 저장 용량당 누적 과금 | `99_cleanup.ipynb`. `save_total_limit=1`로 크기 억제 |
 | CloudWatch 학습 로그 | 저장 용량당 누적 과금 | 로그 그룹 보존 기간 설정 |
 | Bedrock (GRPO `synth` prompt 생성) | 입력·출력 토큰당 과금 | 상시 리소스 없음. `N_GRPO`로 총량 제어 |
