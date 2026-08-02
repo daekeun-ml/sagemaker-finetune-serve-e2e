@@ -54,7 +54,7 @@ from pipelines._config import PipelineConfig, load_config  # noqa: E402
 
 log = get_logger("pipelines")
 
-STAGE_ORDER = ("data", "train", "grpo", "deploy", "eval", "bench", "cleanup")
+STAGE_ORDER = ("data", "train", "grpo", "deploy", "eval", "cleanup")
 
 
 class StageFailed(RuntimeError):
@@ -1464,227 +1464,6 @@ def _score(course: CourseSpec, cfg: PipelineConfig, td: Any,
     return scores
 
 
-# ---------------------------------------------------------------------------
-# 부하 벤치마크
-# ---------------------------------------------------------------------------
-# 🔴 eval 과 재는 것이 다르다. eval 은 답이 맞는지(정확도), bench 는 얼마나 빨리 오는지(지연·처리량)다.
-#    같은 endpoint 를 쓰지만 물음이 달라서 스테이지를 나눈다.
-#
-# 지표 정의는 vLLM 의 `vllm bench serve` 를 따른다. 다른 정의를 쓰면 로컬 vLLM 측정치와 대조할 수
-# 없어서 "느리다"는 판단의 근거가 사라진다.
-#   TTFT  내용이 있는 첫 청크 도착 − 요청 전송
-#   TPOT  (전체 지연 − TTFT) / (출력 토큰 − 1)
-#   ITL   연속한 청크 사이의 간격 (TTFT 는 포함하지 않는다)
-#   E2EL  요청 전송 → 마지막 청크
-#
-# 더 깊은 분석(goodput, ramp-up, ShareGPT/HF 데이터셋, 백분위 지정, CloudWatch 대조)은 별도 도구를
-# 쓴다: https://github.com/daekeun-ml/sm-endpoint-bmt
-# 여기 있는 것은 그 부분집합이다. 이 kit 의 파이프라인이 배포 직후 "쓸 만한 속도인가"를 스스로
-# 답할 수 있어야 해서 넣었고, 의존성을 늘리지 않으려고 boto3 만으로 구현했다.
-def _bench_one(endpoint_name: str, region: str, prompt: str,
-               max_tokens: int) -> dict[str, Any]:
-    """요청 1건을 스트리밍으로 보내고 시각을 기록한다.
-
-    🔴 common.aws_utils.stream_sagemaker_chat 을 쓰지 않는 이유: 그 헬퍼는 텍스트 조각만 yield 해서
-       조각이 **언제** 왔는지 알 수 없다. TTFT/ITL 은 도착 시각이 곧 지표라 여기서 직접 잡는다.
-       SSE 버퍼링 규칙(PayloadPart 경계가 SSE 줄 경계와 다르다)은 그 헬퍼와 동일하게 지킨다.
-    """
-    import boto3
-
-    client = boto3.client("sagemaker-runtime", region_name=region)
-    payload = {
-        "messages": [{"role": "user", "content": prompt}],
-        # 🔴 max_new_tokens 가 아니다. vLLM 은 모르는 키를 조용히 무시하므로 길이 제한이 사라진다.
-        "max_tokens": max_tokens,
-        "temperature": 0.0,          # 재현성. 샘플링이 켜지면 출력 길이가 흔들려 TPOT 이 비교 불가
-        "stream": True,
-        "stream_options": {"include_usage": True},
-        # 🔴 EOS 를 무시해 항상 max_tokens 까지 생성한다. 이것이 없으면 요청마다 출력 길이가 달라
-        #    TPOT 이 "모델이 얼마나 빨리 쓰나"가 아니라 "얼마나 짧게 답했나"를 재게 된다.
-        "ignore_eos": True,
-    }
-    t0 = time.perf_counter()
-    ttft: float | None = None
-    stamps: list[float] = []          # 내용이 있는 청크의 도착 시각
-    n_usage: int | None = None
-    resp = client.invoke_endpoint_with_response_stream(
-        EndpointName=endpoint_name, ContentType="application/json",
-        Accept="text/event-stream", Body=json.dumps(payload))
-    buf = b""
-    text_len = 0
-    for event in resp["Body"]:
-        chunk = (event.get("PayloadPart") or {}).get("Bytes")
-        if not chunk:
-            continue
-        buf += chunk
-        while b"\n\n" in buf:
-            raw, buf = buf.split(b"\n\n", 1)
-            line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            data = line[len("data:"):].strip()
-            if data == "[DONE]":
-                buf = b""
-                break
-            try:
-                obj = json.loads(data)
-            except (json.JSONDecodeError, ValueError):
-                continue
-            usage = obj.get("usage")
-            if usage and usage.get("completion_tokens"):
-                n_usage = int(usage["completion_tokens"])
-            for ch in obj.get("choices") or []:
-                piece = (ch.get("delta") or {}).get("content")
-                if not piece:
-                    continue          # 빈 delta 는 토큰이 아니다 — TTFT 를 앞당기면 안 된다
-                now = time.perf_counter()
-                if ttft is None:
-                    ttft = now - t0
-                stamps.append(now)
-                text_len += len(piece)
-    e2el = time.perf_counter() - t0
-    if ttft is None:
-        raise RuntimeError("응답에 내용 있는 청크가 없습니다 — 컨테이너가 스트리밍을 지원하는지 확인하세요.")
-
-    # 출력 토큰 수: 컨테이너가 usage 를 주면 그 값이 정확하다. 없으면 청크 수로 근사한다
-    # (조각 하나가 토큰 하나인 것이 보통이지만 보장은 아니다 → 근사임을 결과에 표시한다).
-    n_out = n_usage if n_usage else len(stamps)
-    itls = [(b - a) * 1000 for a, b in zip(stamps, stamps[1:])]
-    tpot = ((e2el - ttft) / (n_out - 1) * 1000) if n_out > 1 else 0.0
-    return {"ttft_ms": ttft * 1000, "e2el_ms": e2el * 1000, "tpot_ms": tpot,
-            "itls_ms": itls, "output_tokens": n_out, "chars": text_len,
-            "token_count_exact": bool(n_usage)}
-
-
-def _pctl(values: list[float], q: float) -> float:
-    """백분위. numpy 를 부르지 않는다(이 스테이지만의 의존성을 만들지 않으려고)."""
-    if not values:
-        return 0.0
-    xs = sorted(values)
-    if len(xs) == 1:
-        return xs[0]
-    pos = (len(xs) - 1) * q / 100
-    lo, hi = int(pos), min(int(pos) + 1, len(xs) - 1)
-    return xs[lo] + (xs[hi] - xs[lo]) * (pos - lo)
-
-
-def _bench_prompt(td: Any, heldout: list[dict], i: int, target_chars: int) -> str:
-    """벤치마크용 프롬프트. held-out 텍스트를 목표 길이까지 채워 쓴다.
-
-    🔴 무작위 토큰이 아니라 실제 코스 입력을 쓴다. 이 kit 의 목적은 '이 태스크에서 이 endpoint 가
-       얼마나 빠른가'이고, 프롬프트 성격(길이·어휘)이 prefill 시간을 바꾼다.
-    """
-    base = (heldout[i % len(heldout)]["input"] if heldout else "요약하세요: ")
-    if len(base) >= target_chars:
-        return base[:target_chars]
-    return (base + " ") * (target_chars // max(len(base) + 1, 1) + 1)
-
-
-def stage_bench(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
-                *, force: bool = False) -> dict[str, Any]:
-    """배포된 endpoint 의 지연·처리량 측정 (TTFT / TPOT / ITL / E2EL).
-
-    endpoint 이름은 `--endpoint-name` 으로 주거나, 생략하면 deploy 가 상태 파일에 남긴 것을 쓴다.
-    이 스테이지는 리소스를 만들지 않는다 — 이미 도는 endpoint 를 호출할 뿐이라 추가 과금은
-    호출량뿐이다(real-time endpoint 는 요청이 없어도 시간당 과금된다).
-    """
-    endpoint_name = state.get("endpoint_name")
-    if not endpoint_name:
-        raise RuntimeError(_missing(course, "endpoint_name", "deploy", state)
-                           + "\n  이미 도는 endpoint 가 있으면 --endpoint-name 으로 직접 주세요.")
-
-    b = cfg.benchmark
-    n = b.dry_run_num_prompts if cfg.runtime.dry_run else b.num_prompts
-    conc = min(b.max_concurrency, n)
-    log.info(f"[bench] {endpoint_name}: {n}건 / 동시 {conc} / rate {b.request_rate} / "
-             f"출력 {b.output_len} 토큰")
-
-    if cfg.runtime.dry_run or _is_dry_value(endpoint_name):
-        log.info("[bench] dry-run — endpoint 를 호출하지 않습니다(실제 endpoint 필요).")
-        state.mark_stage("bench")
-        return {"n": n, "dry_run": True}
-
-    region = _region()
-    td = load_track_data(course)
-    heldout = _load_heldout(course, cfg, td, min(n, 8))
-    # input_len 은 토큰 기준 설정값이지만 여기서는 문자로 채운다. 한국어·영어가 섞여 토큰당 문자
-    # 수가 일정하지 않으므로 대략 4배로 잡는다 — 정확한 토큰 제어가 필요하면 sm-endpoint-bmt 를 쓴다.
-    prompts = [_bench_prompt(td, heldout, i, b.input_len * 4) for i in range(n + b.num_warmups)]
-
-    from concurrent.futures import ThreadPoolExecutor
-
-    def run(i: int) -> dict[str, Any]:
-        return _bench_one(endpoint_name, region, prompts[i], b.output_len)
-
-    if b.num_warmups:
-        # 🔴 지표에 넣지 않는다. 첫 호출은 TLS 수립과 컨테이너 캐시가 섞여 TTFT 를 혼자 끌어올린다.
-        log.info(f"[bench] 워밍업 {b.num_warmups}건 (지표에서 제외)")
-        with ThreadPoolExecutor(max_workers=min(conc, b.num_warmups)) as pool:
-            list(pool.map(run, range(b.num_warmups)))
-
-    # request_rate 는 "도착"을 조절한다. "inf" 면 전부 한꺼번에 제출하고(순간 부하),
-    # 숫자면 초당 그 수만큼 제출한다. 🔴 도착 간격은 지수분포를 쓴다 — 고정 간격으로 보내면
-    # 실제 트래픽보다 훨씬 고른 부하가 되어 큐 대기가 과소평가된다(vllm bench serve 와 동일).
-    rate = float("inf") if b.request_rate == "inf" else float(b.request_rate)
-    t_start = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=conc) as pool:
-        futures = []
-        for i in range(b.num_warmups, b.num_warmups + n):
-            if rate != float("inf") and futures:
-                time.sleep(random.expovariate(rate))
-            futures.append(pool.submit(run, i))
-        results = [f.result() for f in futures]   # submit 순서 = 제출 순서
-    wall = time.perf_counter() - t_start
-
-    ttfts = [r["ttft_ms"] for r in results]
-    tpots = [r["tpot_ms"] for r in results if r["output_tokens"] > 1]
-    itls = [x for r in results for x in r["itls_ms"]]
-    e2els = [r["e2el_ms"] for r in results]
-    total_out = sum(r["output_tokens"] for r in results)
-    exact = all(r["token_count_exact"] for r in results)
-
-    m = {
-        "requests": len(results),
-        "concurrency": conc,
-        "request_rate": b.request_rate,
-        "duration_s": round(wall, 2),
-        "output_tokens": total_out,
-        "request_throughput_rps": round(len(results) / wall, 2) if wall else 0.0,
-        "output_throughput_tps": round(total_out / wall, 1) if wall else 0.0,
-        "ttft_ms_median": round(_pctl(ttfts, 50), 1),
-        "ttft_ms_p99": round(_pctl(ttfts, 99), 1),
-        "tpot_ms_mean": round(sum(tpots) / len(tpots), 2) if tpots else 0.0,
-        "itl_ms_median": round(_pctl(itls, 50), 2),
-        "e2el_ms_median": round(_pctl(e2els, 50), 1),
-        "output_tokens_exact": exact,
-    }
-
-    log.info(f"[bench] {len(results)}건 / 동시 {conc} / {wall:.1f}s")
-    log.info(f"[bench] 처리량   : {m['request_throughput_rps']} req/s, "
-             f"{m['output_throughput_tps']} tok/s")
-    log.info(f"[bench] TTFT     : median {m['ttft_ms_median']} ms, p99 {m['ttft_ms_p99']} ms")
-    log.info(f"[bench] TPOT/ITL : mean {m['tpot_ms_mean']} ms / median {m['itl_ms_median']} ms")
-    log.info(f"[bench] E2EL     : median {m['e2el_ms_median']} ms")
-    if not exact:
-        # 토큰 수가 근사면 TPOT·처리량도 근사다. 조용히 넘기면 그 수치를 정확한 값으로 인용하게 된다.
-        log.warning("[bench] 컨테이너가 usage 를 보내지 않아 출력 토큰 수가 청크 수 기반 "
-                    "근사입니다 → TPOT·tok/s 도 근사입니다.")
-    log.info("[bench] 더 깊은 분석(goodput·ramp-up·백분위 지정): "
-             "https://github.com/daekeun-ml/sm-endpoint-bmt")
-
-    out = os.path.join(data_dir(course, cfg), "bench_results.json")
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump({"endpoint_name": endpoint_name, "config": {
-            "num_prompts": n, "max_concurrency": conc, "request_rate": b.request_rate,
-            "input_len": b.input_len, "output_len": b.output_len,
-            "num_warmups": b.num_warmups},
-            "metrics": m, "per_request": results}, f, ensure_ascii=False, indent=2)
-    log.info(f"[bench] 결과 저장: {out}")
-    log.debug("[bench] " + json.dumps(m, ensure_ascii=False, sort_keys=True))
-    state.mark_stage("bench")
-    return m
-
-
 def stage_cleanup(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
                   *, force: bool = False) -> dict[str, Any]:
     """endpoint + endpoint-config + model 삭제 (🔴 시간당 과금은 endpoint 에서 발생).
@@ -1753,7 +1532,6 @@ STAGES: dict[str, Callable[..., dict[str, Any]]] = {
     "grpo": stage_grpo,
     "deploy": stage_deploy,
     "eval": stage_eval,
-    "bench": stage_bench,
     "cleanup": stage_cleanup,
 }
 
@@ -1789,12 +1567,14 @@ def resolve_stages(requested: str | list[str] | None,
                    course: CourseSpec | None = None) -> list[str]:
     """--stages 값을 정규 순서로 정렬·중복 제거.
 
-    🔴 'all' 에서 빼는 세 단계:
+    🔴 'all' 에서 빼는 두 단계:
        · cleanup — 방금 만든 endpoint 를 자동으로 지우면 평가·데모를 할 수 없다.
        · grpo    — SFT 로 충분한 경우가 많고, GPU 시간이 한 번 더 든다. 필수가 아니므로
                    기본에서 빼고 원할 때만 요청하게 한다. 'all+grpo' 로 켠다.
-       · bench   — 속도 측정은 정확도와 다른 물음이고, endpoint 를 한 번 더 두드린다.
-                   배포 검증이 목적인 기본 흐름에는 넣지 않고 `--stages bench` 로 부른다.
+
+    🔴 속도 측정(TTFT/TPOT/ITL)은 여기 없다 — pipelines/run_benchmark.py 가 따로 맡는다.
+       파이프라인은 '모델을 만들어 배포하는' 흐름이고 벤치마크는 '이미 있는 endpoint 를 재는'
+       일이라 선행조건도 실행 주기도 다르다.
 
     course 를 주면 그 코스에 없는 스테이지를 걸러낸다. 두 경우를 **다르게** 다룬다:
       · 'all'      → 조용히 뺀다. 'all' 은 "이 코스의 전 단계"라는 뜻이고, 계획 줄에
@@ -1809,7 +1589,7 @@ def resolve_stages(requested: str | list[str] | None,
     explicit = requested not in (None, "", "all", ["all"], *ALL_PLUS)
     if not explicit:
         want_grpo = requested in ALL_PLUS
-        skip = {"cleanup", "bench"} if want_grpo else {"cleanup", "bench", "grpo"}
+        skip = {"cleanup"} if want_grpo else {"cleanup", "grpo"}
         names = [s for s in STAGE_ORDER if s not in skip]
     else:
         raw = (requested if isinstance(requested, list)
@@ -1847,11 +1627,7 @@ def _free_form_output(course: CourseSpec) -> str:
 #    설정 착각이지 오타가 아니고(사람이 GPU 시간 몇 시간을 기대한다), 조용히 통과하면 "정련까지
 #    끝냈다"고 믿게 된다. eval 은 반대다: `--stages deploy,eval` 이 다섯 코스 공통 안내 명령이라
 #    거부하면 평가가 없는 코스에서만 종료 코드가 2가 되어 CLI 표면이 코스별로 달라진다.
-# 🔴 명시 요청 시 조용히 건너뛰지 않고 거부하는 스테이지. 근거는 resolve_stages 독스트링:
-#    `--stages bench` 를 쳤는데 "skip" 한 줄만 보면 오타인지 선행조건 누락인지 알 수 없다.
-#    bench 가 여기 있는 이유는 멀티모달 코스에서 텍스트 프롬프트를 만들 수 없어 구조적으로
-#    불가능하기 때문이다(eval 처럼 '검증 방식이 다른' 것이 아니다).
-HARD_GAP_STAGES = ("grpo", "bench")
+HARD_GAP_STAGES = ("grpo",)
 
 
 def unsupported_reason(course: CourseSpec, stage: str) -> str | None:
@@ -1898,16 +1674,6 @@ def unsupported_reason(course: CourseSpec, stage: str) -> str | None:
     if stage == "eval" and not course.has_eval_stage:
         return (f"'{course.key}' 코스에는 eval 스테이지가 없습니다(04 평가 노트북이 없는 코스) — "
                 "배포 스모크에서 정답(samples/ground_truth.json)과 대조하는 것이 검증 지점입니다.")
-    if stage == "bench" and course.multimodal:
-        # 🔴 이 코스의 프롬프트는 이미지다. track_data 가 주는 예시에 'input' 텍스트 키가 없어
-        #    (키는 images/messages/_image) 텍스트 프롬프트를 만들 재료가 없다. 무작위 텍스트로
-        #    대신 재면 이미지 prefill 이 빠진 숫자가 나오고, 그 숫자를 이 코스의 속도로 읽게 된다.
-        return (f"'{course.key}' 코스에는 bench 스테이지가 없습니다 — 이 코스의 입력은 이미지입니다.\n"
-                "  🔴 왜: 지연은 프롬프트가 무엇인지에 좌우되고, 이미지 입력은 vision tower 를 거쳐\n"
-                "     텍스트보다 prefill 이 훨씬 큽니다. 텍스트 프롬프트로 재면 이 코스에서 실제로\n"
-                "     걸리는 시간이 빠진 숫자가 나옵니다.\n"
-                "  → 이미지 부하를 재려면 sm-endpoint-bmt 로 멀티모달 페이로드를 직접 구성하세요:\n"
-                "     https://github.com/daekeun-ml/sm-endpoint-bmt")
     return None
 
 
@@ -1948,7 +1714,7 @@ def run_stages(course_key: str, stages: str | list[str] | None, cfg: PipelineCon
                        path=state_path)
     if endpoint_name:
         # 🔴 스테이지 함수는 (course, cfg, state, force) 만 받는다. endpoint 이름을 인자로 더 흘리는
-        #    대신 상태 파일에 넣는다 — deploy 가 쓰는 것과 같은 키라 eval·bench·cleanup 이 이미 읽는다.
+        #    대신 상태 파일에 넣는다 — deploy 가 쓰는 것과 같은 키라 eval·cleanup 이 이미 읽는다.
         #    부작용이 하나 있다: cleanup 이 이 값을 지운다. 남의 endpoint 를 실수로 지우는 쪽보다
         #    낫다고 보고, 덮어쓸 때 무엇을 덮는지 알린다.
         previous = state.get("endpoint_name")
@@ -2010,8 +1776,6 @@ def build_parser(default_course: str | None = None) -> argparse.ArgumentParser:
             f"  {base} --stages data,train    # model_data 를 상태 파일에 기록\n"
             f"  {base} --stages deploy,eval   # 그 값을 읽어 배포·평가\n"
             f"  {base} --dry-run              # 과금 리소스 0으로 전 경로 검증\n"
-            f"  {base} --stages bench         # 속도 측정(TTFT/TPOT/ITL)\n"
-            f"  {base} --stages bench --endpoint-name my-ep   # 기존 endpoint 를 측정\n"
             f"  {base} --stages cleanup       # 🔴 endpoint 삭제(시간당 과금 정지)\n"
             "\n"
             f"스테이지: {' → '.join(STAGE_ORDER)}\n"
@@ -2020,7 +1784,6 @@ def build_parser(default_course: str | None = None) -> argparse.ArgumentParser:
             "  grpo    SFT 결과를 이어받아 GRPO 정련 (추출·분류 코스만)\n"
             "  deploy  real-time endpoint 배포 + 스모크 → endpoint_name\n"
             "  eval    held-out 평가 (코스별 지표)\n"
-            "  bench   지연·처리량 측정 TTFT/TPOT/ITL ('all' 에는 포함되지 않는다)\n"
             "  cleanup endpoint·config·model 삭제 ('all' 에는 포함되지 않는다)\n"
             "\n"
             f"상태 파일: {where}\n"
@@ -2041,8 +1804,8 @@ def build_parser(default_course: str | None = None) -> argparse.ArgumentParser:
                         " (진행 중인 Job·endpoint 는 --force 로도 새로 만들지 않는다 —"
                         " 중복 과금을 막기 위해 이어받거나 중단한다)")
     p.add_argument("--endpoint-name", default=None, metavar="NAME",
-                   help="측정·평가할 endpoint 이름. 생략하면 deploy 가 상태 파일에 남긴 것을 쓴다. "
-                        "이 kit 밖에서 만든 endpoint 를 재려면 여기에 이름을 준다 "
+                   help="평가할 endpoint 이름. 생략하면 deploy 가 상태 파일에 남긴 것을 쓴다. "
+                        "이 kit 밖에서 만든 endpoint 를 평가하려면 여기에 이름을 준다 "
                         "(주면 상태 파일에도 기록되어 이후 스테이지가 같은 것을 본다)")
     p.add_argument("--state-dir", default=STATE_DIR, help=f"상태 파일 디렉토리(기본 {STATE_DIR})")
     p.add_argument("--state", default=None, metavar="PATH",

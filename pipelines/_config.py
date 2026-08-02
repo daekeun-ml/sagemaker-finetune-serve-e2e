@@ -35,6 +35,25 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CONFIG_PATH = os.path.join(REPO_ROOT, "config.yaml")
 
 
+def _parse_percentiles(raw: Any) -> tuple[float, ...]:
+    """ "50,95,99" → (50.0, 95.0, 99.0). vllm bench serve 의 --metric-percentiles 와 같은 형식."""
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        raw = str(raw)
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError('쉼표로 구분한 백분위 문자열이어야 합니다(예: "50,95,99").')
+    out: list[float] = []
+    for part in raw.split(","):
+        part = part.strip()
+        try:
+            v = float(part)
+        except ValueError:
+            raise ValueError(f"{part!r} 는 숫자가 아닙니다.") from None
+        if not 0 < v < 100:
+            raise ValueError(f"{v} 는 0 초과 100 미만이어야 합니다.")
+        out.append(v)
+    return tuple(sorted(set(out)))
+
+
 class ConfigError(ValueError):
     """config.yaml 검증 실패. 문제 키 이름과 허용값을 함께 담는다(KeyError 세 프레임 아래 금지)."""
 
@@ -125,13 +144,15 @@ DEFAULTS: dict[str, Any] = {
     "benchmark": {
         "num_prompts": 20,
         "max_concurrency": 4,
-        "request_rate": "inf",          # "inf" = 한꺼번에 보냅니다. 숫자를 주면 초당 요청 수
+        "request_rate": "inf",
         "input_len": 256,
         "output_len": 128,
-        # 🔴 워밍업은 지표에서 제외됩니다. 첫 호출은 커넥션 수립과 컨테이너 캐시가 섞여
-        #    TTFT 백분위를 혼자 끌어올립니다.
         "num_warmups": 2,
         "dry_run_num_prompts": 4,
+        # vllm bench serve 의 --metric-percentiles 와 같은 값. vLLM 기본은 "99" 하나지만
+        # 여기서는 p50/p95/p99 를 낸다 — 평균만 보면 꼬리 지연을 놓친다.
+        "percentiles": "50,95,99",
+        "save_results": True,
     },
     "aws": {
         "s3_bucket": "",
@@ -232,6 +253,8 @@ class BenchCfg:
     input_len: int
     output_len: int
     num_warmups: int
+    percentiles: tuple[float, ...]     # 예: (50.0, 95.0, 99.0)
+    save_results: bool
 
 
 @dataclass(frozen=True)
@@ -452,6 +475,13 @@ def _validate(cfg: dict[str, Any], *, allowed_sizes: tuple[str, ...],
     if not (rate in ("inf", float("inf"))
             or (isinstance(rate, (int, float)) and not isinstance(rate, bool) and rate > 0)):
         errors.append(f"benchmark.request_rate = {rate!r} — 양수 또는 \"inf\" 여야 합니다.")
+    try:
+        _parse_percentiles(cfg["benchmark"].get("percentiles"))
+    except ValueError as e:
+        errors.append(f"benchmark.percentiles = {cfg['benchmark'].get('percentiles')!r} — {e}")
+    if not isinstance(cfg["benchmark"].get("save_results"), bool):
+        errors.append(f"benchmark.save_results = {cfg['benchmark'].get('save_results')!r} "
+                      "— true/false 여야 합니다.")
 
     num("runtime", "poll_seconds", minimum=1)
 
@@ -732,6 +762,8 @@ def _build(cfg: dict[str, Any], source_path: str | None) -> PipelineConfig:
             input_len=int(cfg["benchmark"]["input_len"]),
             output_len=int(cfg["benchmark"]["output_len"]),
             num_warmups=int(cfg["benchmark"]["num_warmups"]),
+            percentiles=_parse_percentiles(cfg["benchmark"]["percentiles"]),
+            save_results=bool(cfg["benchmark"]["save_results"]),
         ),
         aws=AwsCfg(
             s3_bucket=str(cfg["aws"].get("s3_bucket", "") or ""),

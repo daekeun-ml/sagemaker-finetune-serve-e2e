@@ -44,6 +44,16 @@ local-serve = ["vllm>=0.19"]
 #   🔴 하한을 1.75.9로 둔다: litellm-provider(strands-agents[litellm])가 litellm<=1.91.1을 요구하므로,
 #     >=1.93.0으로 두면 두 extra가 동시 해결 시 모순(uv add 등에서 실패)이 된다. completion API는 이 범위에도 존재.
 litellm = ["litellm>=1.75.9"]
+# 부하 벤치마크 (pipelines/run_benchmark.py). vllm bench serve 와 지표를 맞춘 도구를 그대로 쓴다.
+#   설치: uv pip install -e '.[bench]'
+#   🔴 코어에서 제외하는 이유: 이 도구는 tokenizer 로 토큰 수를 정확히 세려고 transformers 를,
+#      ShareGPT/HF 데이터셋을 위해 datasets 를 끌어온다. 배포·평가만 하는 사람에게는 불필요하다.
+#      run_benchmark.py 는 미설치 시 이 설치 명령을 안내하고 종료한다.
+#   🔴 python_version 마커가 필요하다. kit 은 3.10 부터 지원하는데 이 도구는 3.12 부터라,
+#      마커 없이 두면 `uv lock` 이 전 지원 범위에서 해결하려다 실패한다(3.10/3.11 에서 불가능).
+#      마커를 달면 3.12+ 에서만 설치되고 그 아래에서는 조용히 빠진다 — run_benchmark.py 가
+#      미설치를 감지해 설치 안내를 하므로 무엇이 빠졌는지 알 수 있다.
+bench = ["sm-endpoint-bmt>=1.0.0; python_version >= '3.12'"]
 # AgentCore Runtime 배포 시 (05 노트북 / agentcore/)
 agentcore = ["bedrock-agentcore>=1.18.1"]
 # LangGraph 옵션 (Strands 대안)
@@ -56,6 +66,12 @@ litellm-provider = ["strands-agents[litellm]>=1.48.0"]
 # 업그레이드:  uv lock --upgrade                      (전체 최신으로)
 #             uv lock --upgrade-package transformers  (특정 패키지만)
 package = false   # 애플리케이션/자산 kit — 빌드 대상 패키지가 아님 (build-system 불필요)
+
+[tool.uv.sources]
+# 🔴 sm-endpoint-bmt 는 PyPI 에 없다(404). 어디서 받아올지 여기서 지정해야 `[bench]` extra 가
+#    해석된다. 로컬에 클론해 두고 고치면서 쓰려면 아래 주석 쪽을 쓴다.
+#      sm-endpoint-bmt = { path = "../sm-endpoint-bmt", editable = true }
+sm-endpoint-bmt = { git = "https://github.com/daekeun-ml/sm-endpoint-bmt", rev = "main" }
 
 [dependency-groups]
 docs = [

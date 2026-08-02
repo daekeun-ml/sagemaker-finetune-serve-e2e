@@ -14,9 +14,6 @@ python pipelines/run_extraction.py --stages all
 python pipelines/run_extraction.py --stages data,train
 python pipelines/run_extraction.py --stages deploy,eval
 
-# 배포된 endpoint 가 얼마나 빠른지 (TTFT/TPOT/ITL)
-python pipelines/run_extraction.py --stages bench
-
 # 끝나면 반드시 (endpoint 과금 중단)
 python pipelines/run_extraction.py --stages cleanup
 ```
@@ -31,10 +28,9 @@ python pipelines/run_extraction.py --stages cleanup
 | `run_domain_qa.py` | 도메인 QA | ❌ |
 | `run_multimodal.py` | 이미지 → JSON (영수증) | ❌ |
 
-스테이지 순서는 `data → train → grpo → deploy → eval → bench → cleanup`입니다. `--stages all`은
-**grpo, bench, cleanup을 제외**합니다. cleanup은 방금 만든 endpoint를 실수로 지우지 않게, grpo는
-SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다. bench는 정확도와 다른 물음이라
-필요할 때 따로 부릅니다.
+스테이지 순서는 `data → train → grpo → deploy → eval → cleanup`입니다. `--stages all`은
+**grpo와 cleanup을 제외**합니다. cleanup은 방금 만든 endpoint를 실수로 지우지 않게, grpo는
+SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다.
 
 GRPO까지 돌리려면 `--stages all+grpo`를 씁니다.
 
@@ -44,10 +40,24 @@ GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부
 에이전트 단계(`05_agentic_strands`, `06_agentcore_deploy`)는 노트북에만 있습니다. 질의를
 바꿔가며 응답을 보는 성격이라 스크립트로 만들 이득이 없습니다.
 
-## 속도 측정 (`--stages bench`)
+## 속도 측정 — `run_benchmark.py`
 
-`eval`은 답이 맞는지, `bench`는 얼마나 빨리 오는지를 봅니다. 지표 정의는 `vllm bench serve`를
-따르므로 로컬 vLLM 측정치와 나란히 놓고 비교할 수 있습니다.
+속도는 파이프라인 스테이지가 아니라 **별도 진입점**입니다. `run_<course>.py`는 모델을 만들어
+배포하는 흐름이고(앞 단계가 뒤 단계의 선행조건), 벤치마크는 이미 있는 endpoint를 설정만 바꿔
+몇 번씩 다시 재는 일입니다. 한 파이프라인에 두면 "배포를 다시 해야 재나?"를 매번 되묻게 됩니다.
+
+```bash
+uv pip install -e '.[bench]'                                  # 최초 1회
+
+python pipelines/run_benchmark.py --course extraction          # 상태 파일의 endpoint
+python pipelines/run_benchmark.py --endpoint-name my-endpoint   # 이름을 직접
+python pipelines/run_benchmark.py --course extraction --print-command   # 명령만 확인
+```
+
+측정은 [sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)가 합니다. 지표 공식과
+필드명, 출력 표를 `vllm bench serve`와 맞춘 도구이고, 로컬 vLLM에 같은 부하를 재생해 대조
+검증한 이력이 있습니다. 같은 지표를 두 곳에서 구현하면 숫자가 갈리는 순간 어느 쪽이 맞는지
+판단할 근거가 없어지므로 여기서 다시 만들지 않았습니다.
 
 | 지표 | 정의 |
 |---|---|
@@ -56,24 +66,29 @@ GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부
 | ITL | 연속한 청크 사이의 간격 (TTFT는 포함하지 않습니다) |
 | E2EL | 요청 전송 → 마지막 청크 |
 
-리소스를 만들지 않고 이미 도는 endpoint를 호출합니다. `--endpoint-name`을 주면 이 kit 밖에서
-만든 endpoint도 잴 수 있습니다.
+지표마다 mean, median, 그리고 `benchmark.percentiles`(기본 `"50,95,99"`)가 함께 나옵니다.
 
-```bash
-python pipelines/run_extraction.py --stages bench
-python pipelines/run_extraction.py --stages bench --endpoint-name my-endpoint
+```
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          15.55
+Median TPOT (ms):                        15.57
+P50 TPOT (ms):                           15.57
+P95 TPOT (ms):                           15.57
+P99 TPOT (ms):                           15.57
 ```
 
-건수·동시성·부하율은 `config.yaml`의 `benchmark` 섹션에 있습니다. 기본값은 확인용으로 작게
-잡혀 있고(20건/동시 4), 용량 산정을 하려면 올리세요. `request_rate`를 숫자로 주면 초당 그만큼만
-보내며, 도착 간격은 지수분포를 씁니다. 고정 간격은 실제 트래픽보다 고르게 들어가 큐 대기를
-과소평가합니다.
+`config.yaml`의 `benchmark` 섹션이 건수·동시성·부하율·백분위·저장 여부를 정합니다. `--` 뒤에
+쓴 인자는 그 도구에 그대로 전달되며 설정을 덮습니다.
 
-결과는 `tracks/<코스>/data/bench_results.json`에 요청별 값까지 저장됩니다.
+```bash
+python pipelines/run_benchmark.py --course extraction -- --num-prompts 500 --max-concurrency 32
+python pipelines/run_benchmark.py --course extraction -- --goodput ttft:200 tpot:50
+python pipelines/run_benchmark.py --course extraction -- \
+  --ramp-up-strategy linear --ramp-up-start-rps 1 --ramp-up-end-rps 20
+```
 
-goodput, ramp-up, ShareGPT/HuggingFace 데이터셋, 백분위 지정, CloudWatch 대조가 필요하면
-[sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)를 쓰세요. 여기 있는 것은 배포
-직후 "쓸 만한 속도인가"에 답하기 위한 부분집합입니다.
+goodput, ramp-up, ShareGPT/HuggingFace 데이터셋, CloudWatch 대조가 그 도구에 있습니다.
+전체 옵션은 `python -m sagemaker_benchmark --help`로 봅니다.
 
 ## 상태는 파일로 넘깁니다
 
