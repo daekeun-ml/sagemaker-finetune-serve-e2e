@@ -21,7 +21,11 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 python pipelines/run_benchmark.py --course classification --print-command
 ```
 
-리소스를 만들지 않습니다. 이미 도는 SageMaker AI real-time endpoint를 호출할 뿐입니다 (호출량만 늘고, endpoint 자체는 삭제 전까지 시간당 과금됩니다).
+이미 도는 endpoint를 호출할 뿐이라 리소스를 만들지 않습니다.
+
+!!! warning "그래도 과금은 계속됩니다"
+    real-time endpoint는 요청이 없어도 삭제 전까지 시간당 과금됩니다. 측정이 끝나면
+    `python pipelines/run_<course>.py --stages cleanup`을 실행하세요.
 
 ## 지표
 
@@ -174,28 +178,6 @@ vLLM의 표에 없는 절이 하나 더 나옵니다. AWS 경계에서만 생기
 | EOS로 끝난 요청 수 | 위와 짝을 이룹니다 |
 | usage 프레임이 없던 요청 수 | 그러면 출력 토큰 수가 추정치가 되고, TPOT도 근사가 됩니다 |
 | 예외별 오류 분포 | 실패가 throttling인지 타임아웃인지 갈립니다 |
-
-## 리전이 어긋나면 전부 실패합니다
-
-리전은 다른 스테이지와 같은 값(`common.config.AWS_REGION`)을 쓰고, 우선순위는
-**셸 env > `.env` > 기본값**입니다. 셸에 `AWS_REGION`이 남아 있으면 `.env` 값이 무시되고, endpoint가
-다른 리전에 있으면 요청이 전부 `Endpoint ... not found`로 실패합니다. 출력은 0으로 채운 표가 되어
-그냥 보면 "느린 것"처럼 읽힙니다.
-
-그때 다른 리전을 찾아 실행할 명령을 알려 주고 종료 코드 1을 씁니다.
-
-```
-🔴 성공한 요청이 없습니다(실패 20건).
-   요청한 리전: us-east-1   endpoint: gemma-classification-vllm-...
-   → us-east-1 에는 이 endpoint 가 없습니다.
-
-   ✅ us-west-2 에 있습니다(상태 InService). 리전이 어긋났습니다:
-        AWS_REGION=us-west-2 python pipelines/run_benchmark.py --endpoint-name ...
-```
-
-!!! warning "측정도 과금입니다"
-    벤치마크는 리소스를 만들지 않지만, real-time endpoint는 요청이 없어도 삭제 전까지 시간당
-    과금됩니다. 측정이 끝나면 `python pipelines/run_<course>.py --stages cleanup`을 실행하세요.
 
 ## 설치
 
