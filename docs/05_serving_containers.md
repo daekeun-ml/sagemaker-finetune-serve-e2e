@@ -447,14 +447,13 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
     LLM을 IN_PROCESS로 띄우려면 `InferenceSpec`(load/invoke)을 직접 구현해야 하는데, 이는 vLLM 엔진을 손으로 재구현하는 셈이라 실익이 없습니다.
     부가: IN_PROCESS도 `ModelBuilder.__post_init__`이 `role_arn`을 해석하므로(IAM user면 `RoleValidationError`) 로컬 실행이라도 `role_arn=`을 넘겨야 합니다.
 
-`LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측)**. 근거는 다음과 같습니다.
+`LOCAL_CONTAINER`로 gemma-4 E4B를 띄워 보면서 확인한 것들입니다(SDK 3.16.0).
 
 - **vLLM DLC + LOCAL_CONTAINER**: `image_uri`만 주면 passthrough라 `model_server=None`이 됩니다.
   LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs()`로 크래시합니다.
 - **DJL LMI + LOCAL_CONTAINER**: 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다).
-  다만 당시 실측에서는 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다.
-  **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다**. 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다.
-  지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
+  당시 `weights not initialized: layers.24~41...k_norm`로 엔진 초기화가 실패했는데, 원인은 LMI가 아니라 우리가 넘긴 체크포인트였습니다
+  ([KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)). 지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 재현되지 않습니다.
 - docker-py 기본 타임아웃 60s는 큰 이미지에 부족하므로 `container_timeout_in_seconds`를 올립니다.
   그래도 `deploy()`가 `ReadTimeout`을 내도 컨테이너는 백그라운드로 기동 중일 수 있으니 `docker logs` / `curl :8080/invocations`로 직접 확인하세요.
 - 참고: **HF PyTorch Inference DLC + `model_server=MMS` + LOCAL_CONTAINER**는 E4B에서 성공했습니다(실측: 로드 + `/invocations` 응답 확인).
@@ -689,31 +688,6 @@ ch = json.loads(r['Body'].read())['choices'][0]
 assert ch['finish_reason'] != 'length', '응답이 잘렸습니다 — max_tokens를 올리세요'
 ```
 
-### 입력 텍스트가 노트북 마크다운을 깨뜨릴 때
-
-요약 코스 실시간 추론에서 **첫 번째 결과의 응답이 화면에 아예 안 보였습니다**(두 번째는 정상). 호출은 성공했고 응답도 1,596자가 정상 수신된 상태였습니다.
-
-원인은 시드 데이터의 백틱이었습니다. billsum 법안 원문은 구식 인용부호로 **이중 백틱**을 씁니다.
-
-```
-(A) by inserting ``and'' at the end of paragraph (6)
-```
-
-문제가 된 holdout의 입력에는 **백틱이 79개** 있었습니다. 입력 미리보기를 `<sub>...</sub>`로 넣었더니 그 안의 텍스트가 **마크다운으로 해석**되면서 인라인 코드스팬이 열리고, 뒤따르는 `**PREDICTION**` 블록까지 삼켜 버렸습니다.
-
-`html.escape()`로는 막을 수 없습니다. `<`, `>`, `&`만 변환하고 **백틱·`*`·`_`는 그대로 통과**시킵니다.
-
-```python
-html.escape("``and''")   # → "``and''"   (그대로!)
-```
-
-대응은 사용자 데이터를 노트북 마크다운에 넣을 때 **`<pre>`로 감싸는 것**입니다(그 안은 마크다운이 비활성). `common/display_utils.py`가 입력 미리보기·전문·평문 예측 모두 이 방식으로 렌더합니다.
-
-같은 이유로 **평문 예측을 `> 인용문`으로 감싸는 것도 위험합니다**. 요약이 원문의 \`\`인용'' 같은 구식 인용부호를 그대로 옮기거나 `>`를 포함하면 깨집니다.
-JSON 예측만 코드펜스를 쓰고(그건 `json.dumps` 출력이라 안전), 평문은 `<pre>`로 둡니다.
-
-일반화하면 **모델 입출력은 신뢰할 수 없는 텍스트**입니다. 마크다운으로 렌더할 땐 항상 `<pre>`나 코드펜스 안에 두세요. 조용히 사라지는 버그라 발견이 늦습니다.
-
 ### 추론 셀 73초 — 68%는 데이터 로드
 
 멀티모달 추론 셀 한 번이 **73초**였습니다. 단계별로 재보니 범인이 추론이 아니었습니다.
@@ -830,7 +804,7 @@ parallel drafting(여러 draft 토큰을 단일 forward pass에서 동시에 예
 소개하지만, speculative decoding을 켜는 **config 자체는 container-level 기능**이라 이 kit처럼 JumpStart를 쓰지 않는
 self-managed endpoint(DJL LMI · vLLM DLC)에서도 설정할 수 있습니다.
 
-**AWS 마케팅 수치는 그대로 인용하지 마세요.** "처리량 몇 배" 같은 speedup 수치는 특정 모델·시나리오에서 측정된 **AWS claim**입니다.
+**"처리량 몇 배" 같은 수치는 그대로 옮기지 마세요.** 특정 모델과 시나리오에서 측정된 값입니다.
 원문에서 그 표현과 측정 조건을 확인하고, 본인 워크로드에서는 직접 벤치마크해 acceptance rate와 함께 판단하세요.
 
 | 컨테이너 | speculative decoding 설정 키 | 비고 |

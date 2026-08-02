@@ -292,4 +292,4 @@ seed 전체
 - kit 기본값은 `global.anthropic.claude-sonnet-5`입니다(이 계정 `list_inference_profiles` 확인값). 최신(5+) Claude는 dateless pinned-snapshot 형식일 수 있습니다.
 - 모델 로스터는 자주 바뀝니다. 다른 계정/리전에서는 Bedrock 콘솔에서 현행 ID를 확인한 뒤 env로 넣으세요.
 
-AWS 마케팅 수치("최대 N% 절감" 등)는 **AWS 주장**으로 표기하고 출처를 붙이세요(이 문서에서는 인용하지 않습니다).
+"최대 N% 절감" 같은 수치는 특정 조건에서 측정된 값이므로, 인용할 때는 출처와 측정 조건을 함께 밝히세요(이 문서에서는 인용하지 않습니다).
