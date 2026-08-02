@@ -62,8 +62,6 @@ reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 �
     - 한 파이프라인에 두면 "배포를 다시 해야 재나?"를 매번 되묻게 됩니다.
 
 ```bash
-uv pip install -e '.[bench]'                                   # 최초 1회
-
 python pipelines/run_benchmark.py --course extraction           # 상태 파일의 endpoint
 python pipelines/run_benchmark.py --endpoint-name my-endpoint    # 이름을 직접
 python pipelines/run_benchmark.py --course extraction --print-command   # 명령만 확인
@@ -83,6 +81,17 @@ python pipelines/run_benchmark.py --course extraction --print-command   # 명령
 3. 그 도구를 부릅니다
 
 `--print-command`로 2번의 결과를 눈으로 확인할 수 있습니다.
+
+결과 JSON은 `--course`를 주면 그 코스의 `data/`에, 없으면 리포 루트의 `bench_results/`에
+저장됩니다. 지정하지 않으면 도구가 현재 디렉터리에 쓰기 때문에 위치를 넘겨 줍니다. 파일명에
+endpoint 이름이 들어가서 둘 다 gitignore 대상입니다.
+
+!!! note "설치와 파이썬 버전"
+    코어 의존성이라 `uv sync`로 함께 설치됩니다. 단 그 도구는 **Python 3.12 이상**이고 이 kit은
+    3.10부터 지원하므로, `pyproject.toml`에 `python_version >= '3.12'` 마커가 달려 있습니다.
+    3.10/3.11에서는 설치되지 않고, `run_benchmark.py`가 그 사실과 해결 방법을 알려 줍니다.
+    마커를 빼면 `uv lock` 자체가 실패합니다(kit의 `requires-python`이 그 도구의 요구와 겹치지
+    않는 구간이 생깁니다).
 
 ### 무엇이 나오나
 

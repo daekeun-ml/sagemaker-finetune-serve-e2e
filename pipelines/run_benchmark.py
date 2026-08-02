@@ -22,7 +22,8 @@ pipelines/run_benchmark.py — 배포된 endpoint 의 속도를 잰다 (TTFT / T
   2. config.yaml 의 benchmark 섹션을 sm-endpoint-bmt 의 CLI 인자로 옮긴다
   3. 그 도구를 부른다. `--` 뒤에 준 인자는 그대로 전달되어 위 설정을 덮는다
 
-설치: uv pip install -e '.[bench]'
+sm-endpoint-bmt 는 코어 의존성이라 `uv sync` 로 함께 설치된다. 단 그 도구는 Python 3.12+ 이고
+kit 은 3.10 부터 지원하므로, 3.10/3.11 에서는 마커에 걸려 빠진다(pyproject 주석 참고).
 """
 from __future__ import annotations
 
@@ -45,10 +46,12 @@ from pipelines._common import (  # noqa: E402
 from pipelines._config import load_config  # noqa: E402
 
 _INSTALL_HINT = (
-    "sm-endpoint-bmt 가 설치되지 않았습니다.\n"
-    "  설치: uv pip install -e '.[bench]'\n"
-    "  🔴 코어 의존성에 넣지 않은 이유: 이 도구는 tokenizer·데이터셋 옵션을 위해 무거운 패키지를\n"
-    "     끌어올 수 있고, 배포·평가만 하는 사람에게는 필요하지 않습니다.\n"
+    "sm-endpoint-bmt 를 import 할 수 없습니다.\n"
+    f"  현재 파이썬: {sys.version.split()[0]}\n"
+    "  🔴 이 도구는 Python 3.12 이상을 요구합니다. kit 은 3.10 부터 지원하므로 pyproject 에\n"
+    "     python_version >= '3.12' 마커가 달려 있고, 그 아래 버전에서는 설치되지 않습니다.\n"
+    "     3.12+ 환경에서 다시 실행하세요:  uv venv --python 3.12 && uv sync\n"
+    "  3.12 인데도 없다면 동기화가 안 된 것입니다:  uv sync\n"
     "  리포: https://github.com/daekeun-ml/sm-endpoint-bmt"
 )
 
@@ -82,7 +85,25 @@ def _resolve_endpoint(args, cfg) -> str:
     return name
 
 
-def _bench_argv(endpoint_name: str, cfg, passthrough: list[str]) -> list[str]:
+def _result_dir(args, cfg) -> str | None:
+    """결과 JSON 을 둘 곳. 코스를 알면 그 코스 데이터 디렉터리, 모르면 ./bench_results.
+
+    🔴 지정하지 않으면 도구가 **현재 디렉터리**에 쓴다. 리포 루트에서 돌리는 것이 보통이라
+       sagemaker-infqps-concurrency4-<endpoint>-<타임스탬프>.json 이 루트에 쌓인다(실측: 8개).
+       파일명에 endpoint 이름이 들어가므로 커밋하면 안 되는 것이기도 하다.
+    """
+    if not args.course:
+        return os.path.join(_REPO, "bench_results")
+    from pipelines._common import data_dir, load_courses
+
+    courses = load_courses()
+    if args.course not in courses:
+        return os.path.join(_REPO, "bench_results")
+    return data_dir(courses[args.course], cfg)
+
+
+def _bench_argv(endpoint_name: str, cfg, passthrough: list[str],
+                result_dir: str | None = None) -> list[str]:
     """config.yaml 의 benchmark 섹션을 sm-endpoint-bmt CLI 인자로 옮긴다.
 
     🔴 passthrough 를 **뒤에** 붙인다. argparse 는 같은 플래그가 두 번 오면 뒤의 값을 쓰므로,
@@ -116,6 +137,8 @@ def _bench_argv(endpoint_name: str, cfg, passthrough: list[str]) -> list[str]:
         argv += ["--request-rate", str(b.request_rate)]
     if b.save_results:
         argv += ["--save-result", "--save-detailed"]
+        if result_dir:
+            argv += ["--result-dir", result_dir]
     return argv + passthrough
 
 
@@ -170,7 +193,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"🔴 {e}")
         return 2
 
-    bench_argv = _bench_argv(endpoint_name, cfg, passthrough)
+    bench_argv = _bench_argv(endpoint_name, cfg, passthrough,
+                             result_dir=_result_dir(args, cfg))
 
     if args.print_command:
         print("python -m sagemaker_benchmark " + " ".join(bench_argv))
@@ -197,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     saved = sys.argv
     sys.argv = ["sagemaker_benchmark"] + bench_argv
     try:
-        sagemaker_benchmark.main()
+        result = sagemaker_benchmark.main()
     except KeyboardInterrupt:
         print("\n중단했습니다.")
         return 130
@@ -206,6 +230,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     finally:
         sys.argv = saved
+
+    # 🔴 표가 찍혔다고 성공이 아니다. 요청이 전부 실패해도 도구는 0 이 채워진 표를 찍고 정상
+    #    반환한다(실측: endpoint 이름이 틀려 4건 전부 ValidationError 인데 종료 코드 0). 그러면
+    #    CI 와 스크립트가 이것을 성공으로 읽는다. completed/failed 를 보고 종료 코드를 정한다.
+    completed = (result or {}).get("completed") or 0
+    failed = (result or {}).get("failed") or 0
+    if not completed:
+        print(f"\n🔴 성공한 요청이 없습니다(실패 {failed}건).")
+        print("   endpoint 이름·리전·상태(InService)를 확인하세요. 위 Error breakdown 이 원인입니다.")
+        return 1
+    if failed:
+        print(f"\n⚠️  {failed}건이 실패했습니다 — 위 지표는 성공한 {completed}건만의 값입니다.")
 
     print("\n" + "=" * 78)
     print("🔴 endpoint 는 삭제 전까지 시간당 과금됩니다. 측정이 끝났으면:")

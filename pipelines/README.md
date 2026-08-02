@@ -47,8 +47,6 @@ GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부
 몇 번씩 다시 재는 일입니다. 한 파이프라인에 두면 "배포를 다시 해야 재나?"를 매번 되묻게 됩니다.
 
 ```bash
-uv pip install -e '.[bench]'                                  # 최초 1회
-
 python pipelines/run_benchmark.py --course extraction          # 상태 파일의 endpoint
 python pipelines/run_benchmark.py --endpoint-name my-endpoint   # 이름을 직접
 python pipelines/run_benchmark.py --course extraction --print-command   # 명령만 확인
@@ -58,6 +56,10 @@ python pipelines/run_benchmark.py --course extraction --print-command   # 명령
 필드명, 출력 표를 `vllm bench serve`와 맞춘 도구이고, 로컬 vLLM에 같은 부하를 재생해 대조
 검증한 이력이 있습니다. 같은 지표를 두 곳에서 구현하면 숫자가 갈리는 순간 어느 쪽이 맞는지
 판단할 근거가 없어지므로 여기서 다시 만들지 않았습니다.
+
+코어 의존성이라 `uv sync`로 함께 설치됩니다. 단 그 도구는 Python 3.12 이상이고 이 kit은 3.10부터
+지원하므로, 3.10/3.11 환경에서는 설치되지 않습니다. `run_benchmark.py`가 그 경우를 감지해
+무엇이 빠졌는지 알려 줍니다.
 
 | 지표 | 정의 |
 |---|---|
@@ -79,6 +81,9 @@ P99 TPOT (ms):                           15.57
 
 `config.yaml`의 `benchmark` 섹션이 건수·동시성·부하율·백분위·저장 여부를 정합니다. `--` 뒤에
 쓴 인자는 그 도구에 그대로 전달되며 설정을 덮습니다.
+
+결과 JSON은 `--course`를 주면 그 코스의 `data/`에, 없으면 `bench_results/`에 저장됩니다. 파일명에
+endpoint 이름이 들어가므로 둘 다 gitignore 대상입니다.
 
 ```bash
 python pipelines/run_benchmark.py --course extraction -- --num-prompts 500 --max-concurrency 32

@@ -8922,6 +8922,7 @@ dependencies = [
     { name = "sagemaker", version = "3.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sm-endpoint-bmt", marker = "python_full_version >= '3.12'" },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
     { name = "transformers" },
@@ -8931,9 +8932,6 @@ dependencies = [
 [package.optional-dependencies]
 agentcore = [
     { name = "bedrock-agentcore" },
-]
-bench = [
-    { name = "sm-endpoint-bmt", marker = "python_full_version >= '3.12'" },
 ]
 langgraph = [
     { name = "langchain-aws" },
@@ -8972,7 +8970,7 @@ requires-dist = [
     { name = "rouge-score", specifier = ">=0.1.2" },
     { name = "sagemaker", specifier = ">=3.16.0" },
     { name = "scikit-learn", specifier = ">=1.5.0" },
-    { name = "sm-endpoint-bmt", marker = "python_full_version >= '3.12' and extra == 'bench'", git = "https://github.com/daekeun-ml/sm-endpoint-bmt?rev=main" },
+    { name = "sm-endpoint-bmt", marker = "python_full_version >= '3.12'", git = "https://github.com/daekeun-ml/sm-endpoint-bmt?rev=main" },
     { name = "strands-agents", specifier = ">=1.48.0" },
     { name = "strands-agents", extras = ["litellm"], marker = "extra == 'litellm-provider'", specifier = ">=1.48.0" },
     { name = "strands-agents-tools", specifier = ">=0.8.4" },
@@ -8980,7 +8978,7 @@ requires-dist = [
     { name = "trl", specifier = ">=1.8.0" },
     { name = "vllm", marker = "extra == 'local-serve'", specifier = ">=0.19" },
 ]
-provides-extras = ["local-serve", "litellm", "bench", "agentcore", "langgraph", "litellm-provider"]
+provides-extras = ["local-serve", "litellm", "agentcore", "langgraph", "litellm-provider"]
 
 [package.metadata.requires-dev]
 docs = [{ name = "mkdocs-material", specifier = ">=9.7.7" }]
@@ -9748,7 +9746,7 @@ wheels = [
 [[package]]
 name = "sm-endpoint-bmt"
 version = "1.0.0"
-source = { git = "https://github.com/daekeun-ml/sm-endpoint-bmt?rev=main#beb6be6612459a822ab0dca1a597bfa07dbf10a5" }
+source = { git = "https://github.com/daekeun-ml/sm-endpoint-bmt?rev=main#10f39b39d75a295ff60bc68f4436b67e4d031cbd" }
 dependencies = [
     { name = "boto3", version = "1.43.62", source = { registry = "https://pypi.org/simple" } },
     { name = "botocore", version = "1.43.62", source = { registry = "https://pypi.org/simple" } },

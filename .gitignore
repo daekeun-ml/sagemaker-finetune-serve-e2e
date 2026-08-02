@@ -71,3 +71,10 @@ site/
 *.log
 .DS_Store
 Thumbs.db
+
+# 벤치마크 결과 (pipelines/run_benchmark.py → sm-endpoint-bmt --save-result)
+# 도구가 cwd 에 sagemaker-<rate>-concurrency<N>-<endpoint>-<타임스탬프>.json 을 쓴다.
+# endpoint 이름이 파일명에 들어가므로 커밋하지 않는다.
+sagemaker-*concurrency*.json
+# --course 없이 돌렸을 때의 기본 출력 위치(코스를 주면 tracks/*/data/ 로 가고 그쪽은 이미 무시된다).
+bench_results/
