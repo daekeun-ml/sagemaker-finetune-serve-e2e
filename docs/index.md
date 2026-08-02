@@ -57,6 +57,7 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 | 학습 | [03 파인튜닝](03_finetuning.md) |
 | 배포 | [04 SageMaker AI 추론](04_sagemaker_inference.md) · [05 서빙 컨테이너](05_serving_containers.md) |
 | 활용 | [06 Agentic loop](06_agentic.md) |
+| 측정 | [속도 측정 (벤치마크)](benchmark.md) — TTFT/TPOT/ITL, `vllm bench serve` 규약 |
 | 완주 | [실행 runbook](RUN_E2E.md) |
 | 참조 | [SDK V3](sdk_v3/index.md) — V2에서 바뀐 것 · [학습](sdk_v3/training.md) · [배포](sdk_v3/serving.md) |
 
