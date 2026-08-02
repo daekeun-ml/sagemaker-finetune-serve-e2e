@@ -63,7 +63,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 측정은 `vllm bench serve`를 참조해 만든 [sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)가
 하고, TTFT / TPOT / ITL / E2EL을 mean·median·p50/p95/p99로 냅니다.
 
-사용법, 실측 수치, vLLM 대조 결과, 설정은 [속도 측정 (벤치마크)](benchmark.md)에 있습니다.
+사용법, 실측 수치, vLLM 대조 결과, 설정은 [속도 측정](benchmark.md)에 있습니다.
 
 ## 단계 사이 상태 전달
 

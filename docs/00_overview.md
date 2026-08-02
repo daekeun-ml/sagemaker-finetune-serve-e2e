@@ -410,7 +410,7 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 | [04 SageMaker AI 추론](04_sagemaker_inference.md) `[CORE]` | 추론 4옵션, endpoint 3층 구조와 호출(sagemaker-runtime), 서빙 컨테이너·DLC 이미지 | `03_deploy_endpoint` | `common/aws_utils.py`, `common/dlc.py` |
 | [05 서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM·절단 대응 | `03_deploy_endpoint`, `02b_local_serve` | `common/dlc.py`, `common/model_inspect.py` |
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
-| [속도 측정 (벤치마크)](benchmark.md) | TTFT/TPOT/ITL/E2EL, `vllm bench serve` 규약, 부하 설정 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
+| [속도 측정](benchmark.md) | TTFT/TPOT/ITL/E2EL을 `vllm bench serve` 규약으로. Inference Recommender는 토큰 단위 지표를 주지 않습니다 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
 | [실행 runbook](RUN_E2E.md) | 단계별 핸드오프·비용 가드·완료 기준 | 전 단계 | — |
 | [SDK V3](sdk_v3/index.md) | V2→V3 매핑, 메타패키지 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
 

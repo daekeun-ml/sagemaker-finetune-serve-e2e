@@ -202,11 +202,16 @@ def main(argv: list[str] | None = None) -> int:
             "🔴 endpoint 는 삭제 전까지 시간당 과금됩니다. 측정이 끝나면:\n"
             "     python pipelines/run_<course>.py --stages cleanup\n"),
     )
+    # 🔴 --course 는 '코스를 돌린다' 는 뜻이 아니다. endpoint 이름을 어디서 찾을지(상태 파일)와
+    #    결과를 어디에 둘지(그 코스 data/)만 정한다. run_<course>.py 의 --course 와 값은 같지만
+    #    역할이 좁으므로 도움말에서 그 차이를 드러낸다.
     p.add_argument("--course", default=None,
-                   help="코스 키. 그 코스의 상태 파일에서 endpoint 이름을 읽습니다 "
+                   help="어느 코스가 배포한 endpoint 를 잴지. 그 코스의 상태 파일에서 이름을 읽고 "
+                        "결과도 그 코스 data/ 에 둡니다 "
                         "(extraction/classification/summarization/domain_qa/mm_extraction)")
     p.add_argument("--endpoint-name", default=None, metavar="NAME",
-                   help="측정할 endpoint 이름. 주면 --course 없이도 됩니다")
+                   help="측정할 endpoint 이름을 직접 지정. 이 kit 밖에서 만든 것도 됩니다 "
+                        "(--course 없이 이것만으로 충분)")
     p.add_argument("--config", default=None, help="config.yaml 경로(기본 <repo>/config.yaml)")
     p.add_argument("--dry-run", action="store_true",
                    help="건수를 benchmark.dry_run_num_prompts 로 줄여 돕니다. "
