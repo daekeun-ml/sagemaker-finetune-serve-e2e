@@ -4,10 +4,10 @@
     이 kit을 처음 여는 ML 엔지니어 / 데이터 과학자를 위한 지도입니다.
     SageMaker·Bedrock을 몰라도 읽을 수 있습니다.
 
-    - **선행 조건** — 없습니다. 이 문서가 kit의 **진입점(index)**입니다
-    - **여기서 다루는 것** — 무엇이 어디에 있고 어떤 순서로 도는지 · 노트북 ↔ 문서 매핑 ·
+    - **선행 조건**: 없습니다. 이 문서가 kit의 **진입점(index)**입니다
+    - **여기서 다루는 것**: 무엇이 어디에 있고 어떤 순서로 도는지 · 노트북 ↔ 문서 매핑 ·
       모델·엔진 기본값 · 비용과 정리
-    - **여기서 다루지 않는 것** — 개념 상세는 각 가이드 01~06으로 연결합니다
+    - **여기서 다루지 않는 것**: 개념 상세는 각 가이드 01~06으로 연결합니다
 
 개념 설명은 각 상세 문서로 넘기고, 여기서는 "무엇이 어디에 있고 어떤 순서로 도는가"만 확정합니다.
 
@@ -83,12 +83,12 @@
 
 그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 kit의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
 
-- **비용** — 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**.
+- **비용**: 모델 호스팅 비용, 운영 오버헤드, **배포·관리해야 할 모델 수**.
 
     마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분합니다.
     그런데 코스마다 다른 모델이 붙기 시작하면(이 kit만 해도 추출·분류·요약·멀티모달 코스가 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
 
-- **성능** — 지연 시간, 처리량, 가용성.
+- **성능**: 지연 시간, 처리량, 가용성.
 
     지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있습니다(vLLM은 같은 vLLM입니다). 하지만 **가용성**은 엔진이 주지 않습니다.
 
@@ -96,7 +96,7 @@
 
     모델을 교체할 때의 canary·롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
 
-- **복잡성** — 엔지니어링 공수, 모델 크기·테스트·업그레이드, **페이로드 크기**, 추론 워크플로.
+- **복잡성**: 엔지니어링 공수, 모델 크기·테스트·업그레이드, **페이로드 크기**, 추론 워크플로.
 
     페이로드 크기와 처리 시간이 커지면 Real-time이 아니라 Asynchronous나 Batch Transform이 답입니다.
 
@@ -139,7 +139,7 @@
 3. **Gemma 함정 방어를 기본값으로 넣었습니다.** 아래가 모두 `tracks/*/scripts/train.py`에 내장되어 있습니다.
 
     - `attn=eager`를 안전 기본값으로 둡니다.
-    - `bf16`을 강제합니다(**fp16 금지** — Gemma에서 NaN을 유발합니다).
+    - `bf16`을 강제합니다(**fp16 금지**: Gemma에서 NaN을 유발합니다).
     - packing은 flash-attn이 아니면 자동으로 끕니다.
     - E2B/E4B는 저장 직전 KV-shared dead weight를 base에서 복원합니다(`_revive_kv_shared_from_base`).
     - 텍스트 코스는 머지 후 language 서브모듈만 `*ForCausalLM`으로 re-export합니다.
@@ -225,8 +225,8 @@
 
 지표가 코스 선택을 가르는 지점이 하나 있습니다.
 
-- **추출·분류** — **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다.
-- **요약·도메인 QA** — 정답이 하나가 아니라 LLM-judge를 붙여야 합니다(Bedrock 호출 과금). 같은 이유로 GRPO(`02a`)가 없습니다.
+- **추출·분류**: **정답과 규칙으로 대조**할 수 있어 채점이 순수 파이썬이고 비용이 0입니다.
+- **요약·도메인 QA**: 정답이 하나가 아니라 LLM-judge를 붙여야 합니다(Bedrock 호출 과금). 같은 이유로 GRPO(`02a`)가 없습니다.
 
 디렉터리는 표 순서대로 `tracks/01_extraction_to_json` · `02_classification` · `03_summarization` · `04_domain_qa` · `05_multimodal_extraction`입니다.
 
@@ -244,23 +244,23 @@
 
 여기에 조건부 노트북이 두 개 더 붙습니다(무엇을 하는 단계인지는 위 [E2E 파이프라인](#e2e-파이프라인-텍스트-코스-7단계)에 있습니다).
 
-- **`02a_train_grpo_sagemaker` — 추출·분류 코스에만 있습니다.** 리워드를 프로그램으로 채점할 수 있는 두 코스만 대상입니다([왜 추출·분류 코스에만 GRPO가 있나](03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)).
+- **`02a_train_grpo_sagemaker`: 추출·분류 코스에만 있습니다.** 리워드를 프로그램으로 채점할 수 있는 두 코스만 대상입니다([왜 추출·분류 코스에만 GRPO가 있나](03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)).
     그래서 이 두 코스는 노트북이 10개, 요약·도메인 QA는 9개입니다.
-- **`02b_local_serve` — 4개 코스 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
+- **`02b_local_serve`: 4개 코스 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
 
 따라서 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`이고, 노트북별 산출물은 [노트북 단계와 산출물](#노트북-단계와-산출물) 표에 있습니다.
 
 코스별로 달라지는 값은 두 곳에만 있습니다.
 
-- `tracks/*/track_data.py` — 시드 데이터셋 로드와 `messages` 어댑터(원본 row → 학습 형태).
-- `common/config.py`의 `TRACKS` 레지스트리 — `seed_dataset`·`max_seq_length`·epoch 등 코스 상수.
+- `tracks/*/track_data.py`: 시드 데이터셋 로드와 `messages` 어댑터(원본 row → 학습 형태).
+- `common/config.py`의 `TRACKS` 레지스트리: `seed_dataset`·`max_seq_length`·epoch 등 코스 상수.
 
 ### 학습 길이와 서빙 길이는 다른 값입니다
 
 코스 페이지의 설정 표에 `max_seq_length`(학습)와 `serve_max_model_len`(서빙)이 따로 나오는 이유입니다.
 
-- **학습** — "입력+정답"이 `max_seq_length`에 들어가도록 자릅니다.
-- **서빙** — "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다.
+- **학습**: "입력+정답"이 `max_seq_length`에 들어가도록 자릅니다.
+- **서빙**: "입력 + **앞으로 생성할** 토큰"이 한 컨텍스트에 함께 들어가야 합니다.
 
 두 값을 하나로 묶으면 입력이 긴 코스에서 `(프롬프트 + max_tokens) > 컨텍스트`가 되어 vLLM이 400(`context length exceeded`)으로 거부합니다(요약 코스: 프롬프트 max 2,006 + 생성 256 > 2048).
 
@@ -335,7 +335,7 @@
 - chat template은 `-it` 토크나이저에 내장되어 있으므로 `apply_chat_template`에 위임합니다(수동으로 `<start_of_turn>`를 조립하지 마세요). system role이 거부되면 첫 user 턴에 fold합니다.
 - LoRA는 텍스트 코스에서 `target_modules="all-linear"` + `modules_to_save=["lm_head","embed_tokens"]`입니다.
     멀티모달 학습은 vision/audio proj가 `ClippableLinear`라 매칭되면 크래시하므로 `language_model` 한정 regex를 씁니다.
-- `bf16`은 필수입니다(**fp16 금지** — Gemma에서 오버플로/NaN을 유발합니다). `attn=eager`가 안전 기본값입니다(soft-cap/sliding-window 정합성).
+- `bf16`은 필수입니다(**fp16 금지**: Gemma에서 오버플로/NaN을 유발합니다). `attn=eager`가 안전 기본값입니다(soft-cap/sliding-window 정합성).
 - packing은 `flash_attention_2`일 때만 켜집니다. eager/sdpa에서는 **샘플 간 cross-contamination을 방지하기 위해 자동으로 꺼집니다**.
 - E2B/E4B는 KV-shared 레이어의 텐서(`k_norm`/`k_proj`/`v_proj`)를 transformers가 아예 만들지 않아 `save_pretrained` 시 소실됩니다(E4B 실측 54개).
     그러면 vLLM이 `weights not initialized ...k_norm`으로 엔진 초기화에 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)).

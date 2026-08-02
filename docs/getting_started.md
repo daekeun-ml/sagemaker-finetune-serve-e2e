@@ -132,8 +132,8 @@ tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 코스와 별�
 ```
 멀티모달 코스가 쓰는 시드와 스크립트:
 
-- `naver-clova-ix/cord-v2` — 시드 데이터셋(cc-by-4.0, ungated). 영수증 이미지 + 구조화 JSON 라벨
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT. `AutoModelForImageTextToText` + `AutoProcessor`로 이미지를 처리하고, vision tower를 유지해 텍스트 re-export를 하지 않습니다
+- `naver-clova-ix/cord-v2`: 시드 데이터셋(cc-by-4.0, ungated). 영수증 이미지 + 구조화 JSON 라벨
+- `tracks/05_multimodal_extraction/scripts/train_mm.py`: 이미지→JSON 멀티모달 SFT. `AutoModelForImageTextToText` + `AutoProcessor`로 이미지를 처리하고, vision tower를 유지해 텍스트 re-export를 하지 않습니다
 
 ### 주피터 실행
 ```bash
@@ -156,8 +156,8 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
     `config.get_hf_token()`은 **env(`HF_TOKEN`) → `hf auth login` 저장 토큰** 순으로 조회하므로
     아래 둘 중 무엇이든 자동 인식됩니다.
 
-    - **`hf auth login`** (권장) — 한 번 실행하면 토큰이 파일로 저장되고 config가 읽습니다.
-    - **셸 프로파일** — `echo 'export HF_TOKEN=hf_xxx' >> ~/.bashrc` 후 새 터미널.
+    - **`hf auth login`** (권장): 한 번 실행하면 토큰이 파일로 저장되고 config가 읽습니다.
+    - **셸 프로파일**: `echo 'export HF_TOKEN=hf_xxx' >> ~/.bashrc` 후 새 터미널.
 
     gemma-4 계열(ungated)만 쓸 거라면 토큰 자체가 필요 없습니다.
 
@@ -182,14 +182,14 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 
 문서는 파일명 번호가 곧 읽는 순서입니다. 처음이라면 00부터 차례로, 특정 단계만 필요하면 해당 항목으로 가세요.
 
-- [전체 지도](00_overview.md) — 전체 지도. 노트북과 문서 매핑
-- [SageMaker 기초](01_sagemaker_basics.md) — 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
-- [합성 데이터](02_synthetic_data.md) — 데이터 준비. grounded 합성과 critique/refine
-- [파인튜닝](03_finetuning.md) — 학습. PyTorch DLC + TRL LoRA/QLoRA
-- [SageMaker 추론](04_sagemaker_inference.md) — 배포. 추론 4옵션과 endpoint 선택 기준
-- [서빙 컨테이너](05_serving_containers.md) — 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
-- [Agentic loop](06_agentic.md) — 활용. Strands + Bedrock Claude, AgentCore 배포
-- [실행 runbook](RUN_E2E.md) — E2E 완주 runbook. 단계별 핸드오프와 비용 가드
+- [전체 지도](00_overview.md): 전체 지도. 노트북과 문서 매핑
+- [SageMaker 기초](01_sagemaker_basics.md): 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
+- [합성 데이터](02_synthetic_data.md): 데이터 준비. grounded 합성과 critique/refine
+- [파인튜닝](03_finetuning.md): 학습. PyTorch DLC + TRL LoRA/QLoRA
+- [SageMaker 추론](04_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
+- [서빙 컨테이너](05_serving_containers.md): 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
+- [Agentic loop](06_agentic.md): 활용. Strands + Bedrock Claude, AgentCore 배포
+- [실행 runbook](RUN_E2E.md): E2E 완주 runbook. 단계별 핸드오프와 비용 가드
 
 ---
 

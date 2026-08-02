@@ -4,22 +4,22 @@
     자유서술형 답변을 내는 모델을 만들려는 분을 위한 코스입니다(`tracks/04_domain_qa`).
     "질문(+참고 문서)을 주면 사람이 쓴 것 같은 답을 돌려준다"가 목표라면 이 코스가 맞습니다.
 
-    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
       SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
-    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
       배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
-    - **다른 코스** — 긴 문서 요약은 [요약](summarization.md).
+    - **다른 코스**: 긴 문서 요약은 [요약](summarization.md).
       검색기를 붙이는 RAG는 이 코스 위에 얹는 별도 작업입니다(아래 오개념 참고)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
-- `tracks/04_domain_qa/track_data.py` — 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
-- `tracks/04_domain_qa/*.ipynb` — 이 코스의 노트북 9개
-- `common/config.py` — `TRACKS['domain_qa']` 레지스트리(시드 데이터셋, `max_seq_length=1024`)
-- `common/eval_utils.py` — `eval_rouge()` + `llm_judge()`
-- `tracks/build_all_tracks.py` — 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
+- `tracks/04_domain_qa/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
+- `tracks/04_domain_qa/*.ipynb`: 이 코스의 노트북 9개
+- `common/config.py`: `TRACKS['domain_qa']` 레지스트리(시드 데이터셋, `max_seq_length=1024`)
+- `common/eval_utils.py`: `eval_rouge()` + `llm_judge()`
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
 
@@ -97,8 +97,8 @@ output: Tope
 
 주 지표는 **Bedrock LLM-judge**이고, ROUGE-L은 보조 proxy입니다.
 
-- **LLM-judge (primary)** — `eval_utils.llm_judge()`가 Bedrock Converse로 `correctness` · `helpfulness` · `groundedness`를 각 1~5점으로 채점합니다. judge 모델은 `config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)이고, `temperature=0.0` · STRICT JSON 출력으로 고정합니다. 비용 때문에 held-out **앞 20건만** 채점합니다.
-- **ROUGE-L (보조)** — `eval_utils.eval_rouge()`가 held-out 전량에 대해 rouge1/rouge2/rougeL F-measure 평균을 냅니다.
+- **LLM-judge (primary)**: `eval_utils.llm_judge()`가 Bedrock Converse로 `correctness` · `helpfulness` · `groundedness`를 각 1~5점으로 채점합니다. judge 모델은 `config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)이고, `temperature=0.0` · STRICT JSON 출력으로 고정합니다. 비용 때문에 held-out **앞 20건만** 채점합니다.
+- **ROUGE-L (보조)**: `eval_utils.eval_rouge()`가 held-out 전량에 대해 rouge1/rouge2/rougeL F-measure 평균을 냅니다.
 
 **왜 judge가 주 지표인가**: 이 코스의 정답은 자유형 문장입니다. "31 August 2000"과 "August 31, 2000"은 같은 정답인데 exact-match는 0점을 주고, ROUGE-L도 표현이 다르면 정답을 오답처럼 깎습니다. 반대로 원문 단어만 잔뜩 베껴 온 무의미한 답이 ROUGE는 높게 나옵니다. 그래서 정확성·유용성·근거성을 각각 보는 judge를 주 지표로 두고, ROUGE-L은 "judge 호출 없이도 회귀를 감지하는 값싼 센서"로만 씁니다.
 
@@ -153,12 +153,12 @@ output: Tope
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교와 공통 `common/` 레이어
-- [02 합성 데이터](../02_synthetic_data.md) — grounded 합성과 held-out 규율
-- [03 파인튜닝](../03_finetuning.md) — LoRA/QLoRA, Gemma 관용구, 머지·re-export
-- [04 SageMaker 추론](../04_sagemaker_inference.md) — endpoint 3층 구조와 호출 스키마
-- [05 서빙 컨테이너](../05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
+- [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
+- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지·re-export
+- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.

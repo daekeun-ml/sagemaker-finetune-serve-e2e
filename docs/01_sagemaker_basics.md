@@ -4,12 +4,12 @@
     Python은 쓰고 Jupyter도 써 봤지만 **SageMaker는 처음**인 ML 엔지니어를 위한 문서입니다.
     AWS 인프라 지식은 필요 없습니다.
 
-    - **선행 조건** — 없습니다. [시작하기](getting_started.md)로 설치를 마쳤다면
+    - **선행 조건**: 없습니다. [시작하기](getting_started.md)로 설치를 마쳤다면
       [실행 runbook](RUN_E2E.md)으로 넘어가기 전에 이 문서를 읽으면
       노트북이 무엇을 하고 있는지 보입니다
-    - **여기서 다루는 것** — **Training Job**과 **Endpoint** 두 가지 개념 · 실행 role ·
+    - **여기서 다루는 것**: **Training Job**과 **Endpoint** 두 가지 개념 · 실행 role ·
       컨테이너 경로 규약 · 시간 제한 · HyperPod / EC2 / on-prem과의 차이
-    - **여기서 다루지 않는 것** — SageMaker의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등).
+    - **여기서 다루지 않는 것**: SageMaker의 모든 기능(Studio·Pipelines·Feature Store·Clarify 등).
       추론 옵션 상세는 [SageMaker 추론](04_sagemaker_inference.md),
       학습 상세는 [파인튜닝](03_finetuning.md)
 
@@ -41,13 +41,13 @@ SageMaker AI에서 기억할 개념은 사실상 두 개입니다. Training Job�
 
 SageMaker를 처음 여는 분들이 실제로 막히는 지점은 다음과 같습니다.
 
-- "노트북에서 `trainer.train()`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**" — 로컬 커널이 아니라 SageMaker가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
-- "학습 결과가 **어디로 갔는지** 모르겠습니다." — `/opt/ml/model`에 쓴 것만 S3로 올라갑니다. 다른 곳에 저장하면 Job이 끝날 때 인스턴스와 함께 사라집니다.
-- "Job 상태가 `Failed`도 아니고 **`Stopped`인데 에러 로그가 없습니다.**" — 시간 제한(`MaxRuntimeExceeded`)에 걸린 것이며, 학습이 성공했어도 산출물이 불완전할 수 있습니다.
-- "**테스트만 했는데 다음 날 청구서가 왔습니다.**" — Training Job과 Endpoint의 수명을 같다고 생각한 결과입니다. 전자는 자동으로 멈추지만 후자는 멈추지 않습니다.
-- "**HyperPod가 더 좋은 거 아닌가요?**" — 더 좋은 것이 아니라 다른 층입니다. Job 하나를 돌리려고 클러스터를 만들면 운영 부담만 늘어납니다.
-- "**그냥 EC2에 vLLM 띄우는 게 더 싸고 간단한데요?**" — 시간당 단가만 보면 맞습니다. 다만 인프라 비용은 TCO의 한 칸일 뿐이고, 셋업 노력·필요한 팀 스킬·장애 대응이 함께 계산되어야 합니다([운영 관점 비교](#운영-관점-비교)).
-- "회사에 GPU 서버가 있는데 **굳이 클라우드를 쓸 이유**가 있나요?" — 사용률과 데이터 소재 요건에 따라 실제로 없을 수도 있습니다. 이 문서는 그 판단 기준을 제시합니다.
+- "노트북에서 `trainer.train()`을 눌렀는데 **내 코드가 어디서 도는지 모르겠습니다.**": 로컬 커널이 아니라 SageMaker가 별도로 띄운 컨테이너에서 돕니다. 그래서 로컬 파일 경로가 통하지 않습니다.
+- "학습 결과가 **어디로 갔는지** 모르겠습니다.": `/opt/ml/model`에 쓴 것만 S3로 올라갑니다. 다른 곳에 저장하면 Job이 끝날 때 인스턴스와 함께 사라집니다.
+- "Job 상태가 `Failed`도 아니고 **`Stopped`인데 에러 로그가 없습니다.**": 시간 제한(`MaxRuntimeExceeded`)에 걸린 것이며, 학습이 성공했어도 산출물이 불완전할 수 있습니다.
+- "**테스트만 했는데 다음 날 청구서가 왔습니다.**": Training Job과 Endpoint의 수명을 같다고 생각한 결과입니다. 전자는 자동으로 멈추지만 후자는 멈추지 않습니다.
+- "**HyperPod가 더 좋은 거 아닌가요?**": 더 좋은 것이 아니라 다른 층입니다. Job 하나를 돌리려고 클러스터를 만들면 운영 부담만 늘어납니다.
+- "**그냥 EC2에 vLLM 띄우는 게 더 싸고 간단한데요?**": 시간당 단가만 보면 맞습니다. 다만 인프라 비용은 TCO의 한 칸일 뿐이고, 셋업 노력·필요한 팀 스킬·장애 대응이 함께 계산되어야 합니다([운영 관점 비교](#운영-관점-비교)).
+- "회사에 GPU 서버가 있는데 **굳이 클라우드를 쓸 이유**가 있나요?": 사용률과 데이터 소재 요건에 따라 실제로 없을 수도 있습니다. 이 문서는 그 판단 기준을 제시합니다.
 
 이 문서는 위 일곱 가지를 개념 층위에서 해소합니다.
 
@@ -228,12 +228,12 @@ p.add_argument("--output_dir", type=str, default=os.environ.get("SM_MODEL_DIR", 
 ??? tip "함께 알아 두면 좋은 Job 레벨 옵션 (참고용)"
     이 kit이 기본으로 쓰지는 않지만, Training Job에는 문서화된 비용·복원력 옵션이 있습니다. 값과 동작은 **실행 전 재확인**하세요.
 
-    - **[`MaxPendingTimeInSeconds`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)** — 용량을 기다리는 `Pending` 상태의 상한입니다. `MaxRuntimeInSeconds`와 **별개 파라미터**이며, API 유효 범위의 최솟값이 7,200초입니다. GPU 용량 대기로 Job이 무한정 걸려 있는 것을 막습니다.
-    - **[Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)** — `EnableManagedSpotTraining=True` + `MaxWaitTimeInSeconds`(≥ `MaxRuntimeInSeconds`)로 켭니다. 절감률은 AWS 문서끼리도 수치가 갈리므로(DG는 "최대 90%", `CreateTrainingJob` API는 "최대 80%") 절대값으로 약속하지 말고 **Job이 끝난 뒤 실측**하세요 — `(1 - BillableTimeInSeconds / TrainingTimeInSeconds) * 100`이 그 Job의 실제 절감률입니다. Spot은 중단될 수 있으므로 체크포인트를 남기는 것이 권장 구성인데, `/opt/ml/checkpoints`에 쓰는 것만으로는 부족하고 **`CheckpointConfig(S3Uri=...)`를 함께 지정**해야 S3로 동기화됩니다(지정하지 않으면 그냥 로컬 디스크라 인스턴스와 함께 사라집니다). 참고로 Spot과 warm pool은 함께 쓸 수 없습니다.
-    - **[Warm pool](https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html)** — `keep_alive_period_in_seconds`(잡당 최대 3,600초)를 켜면 Job이 끝난 뒤에도 인스턴스가 살아 있어 다음 Job의 프로비저닝을 건너뜁니다. **살아 있는 동안 계속 과금되는 리소스**이므로, "Training Job은 끝나면 과금이 멈춘다"는 원칙의 유일한 예외입니다.
-    - **[`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)** — `InternalServerError`로 실패한 Job을 자동 재시도합니다(`MaximumRetryAttempts` 1~30). 단 `RetryStrategy`를 쓰면 `MaxRuntimeInSeconds`는 **개별 시도가 아니라 전체 시도 합계**에 적용됩니다.
-    - **[`InfraCheckConfig`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)** — `EnableInfraCheck=True`로 켜면 학습 시작 전에 SageMaker가 인스턴스 하드웨어와 클러스터 네트워크 연결을 점검합니다(SDK v3에서는 `ModelTrainer.with_infra_check_config()`). 검증 깊이는 공개되지 않아 HyperPod의 deep health check만큼 상세하다고 보기는 어렵습니다.
-    - **`MaxRuntimeInSeconds` 자체의 범위** — API 기본값은 1일, 최대 28일입니다(메트릭 발행·아티팩트 업로드까지 포함한 총 실행 시간 상한은 30일). 1시간은 API가 아니라 **SDK 쪽 기본값**입니다.
+    - **[`MaxPendingTimeInSeconds`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)**: 용량을 기다리는 `Pending` 상태의 상한입니다. `MaxRuntimeInSeconds`와 **별개 파라미터**이며, API 유효 범위의 최솟값이 7,200초입니다. GPU 용량 대기로 Job이 무한정 걸려 있는 것을 막습니다.
+    - **[Managed Spot Training](https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html)**: `EnableManagedSpotTraining=True` + `MaxWaitTimeInSeconds`(≥ `MaxRuntimeInSeconds`)로 켭니다. 절감률은 AWS 문서끼리도 수치가 갈리므로(DG는 "최대 90%", `CreateTrainingJob` API는 "최대 80%") 절대값으로 약속하지 말고 **Job이 끝난 뒤 실측**하세요 — `(1 - BillableTimeInSeconds / TrainingTimeInSeconds) * 100`이 그 Job의 실제 절감률입니다. Spot은 중단될 수 있으므로 체크포인트를 남기는 것이 권장 구성인데, `/opt/ml/checkpoints`에 쓰는 것만으로는 부족하고 **`CheckpointConfig(S3Uri=...)`를 함께 지정**해야 S3로 동기화됩니다(지정하지 않으면 그냥 로컬 디스크라 인스턴스와 함께 사라집니다). 참고로 Spot과 warm pool은 함께 쓸 수 없습니다.
+    - **[Warm pool](https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html)**: `keep_alive_period_in_seconds`(잡당 최대 3,600초)를 켜면 Job이 끝난 뒤에도 인스턴스가 살아 있어 다음 Job의 프로비저닝을 건너뜁니다. **살아 있는 동안 계속 과금되는 리소스**이므로, "Training Job은 끝나면 과금이 멈춘다"는 원칙의 유일한 예외입니다.
+    - **[`RetryStrategy`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_RetryStrategy.html)**: `InternalServerError`로 실패한 Job을 자동 재시도합니다(`MaximumRetryAttempts` 1~30). 단 `RetryStrategy`를 쓰면 `MaxRuntimeInSeconds`는 **개별 시도가 아니라 전체 시도 합계**에 적용됩니다.
+    - **[`InfraCheckConfig`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_InfraCheckConfig.html)**: `EnableInfraCheck=True`로 켜면 학습 시작 전에 SageMaker가 인스턴스 하드웨어와 클러스터 네트워크 연결을 점검합니다(SDK v3에서는 `ModelTrainer.with_infra_check_config()`). 검증 깊이는 공개되지 않아 HyperPod의 deep health check만큼 상세하다고 보기는 어렵습니다.
+    - **`MaxRuntimeInSeconds` 자체의 범위**: API 기본값은 1일, 최대 28일입니다(메트릭 발행·아티팩트 업로드까지 포함한 총 실행 시간 상한은 30일). 1시간은 API가 아니라 **SDK 쪽 기본값**입니다.
 
 ---
 
@@ -400,8 +400,8 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 - **EC2 자체 구성을 고르세요, 만약** 커널·드라이버·토폴로지를 직접 통제해야 하거나(특수 빌드, 실험적 라이브러리), 이미 EC2 기반 표준·자동화 자산이 충분해 관리형 계층이 오히려 제약이 되는 경우.
     - 후자가 곧 "운영·규정 준수 칸을 이미 지불했다"는 상태이고, 그때는 시간당 단가 비교가 실제로 유효합니다.
 - **on-prem을 고르세요, 만약** GPU 사용률이 지속적으로 높아 감가상각이 시간당 요금보다 유리하거나, 데이터를 물리적으로 외부에 낼 수 없는 규제·규약 요건이 있는 경우. 반대로 **on-prem이 지는 지점은 두 가지**입니다.
-    - **탄력성** — 이번 주에만 GPU 8장이 더 필요할 때 살 수 없습니다.
-    - **차별화되지 않는 운영 작업** — 드라이버 업그레이드, 장애 부품 교체, 용량 계획에 들어가는 시간은 모델 품질에 아무것도 기여하지 않습니다.
+    - **탄력성**: 이번 주에만 GPU 8장이 더 필요할 때 살 수 없습니다.
+    - **차별화되지 않는 운영 작업**: 드라이버 업그레이드, 장애 부품 교체, 용량 계획에 들어가는 시간은 모델 품질에 아무것도 기여하지 않습니다.
 - **혼합을 고르세요, 만약** 위 조건이 워크로드마다 다른 경우. 실제로 흔한 조합은 "정기 대규모 사전학습은 HyperPod 또는 on-prem, 간헐적 파인튜닝과 프로덕션 서빙은 SageMaker AI"입니다.
     - HyperPod도 추론 플랫폼을 갖추고 있으니 "HyperPod는 학습만"이라고 못 박지는 마세요. 서빙 쪽에서 갈리는 지점은 **관리형 배포 가드레일**(알람 기반 baking·자동 롤백)이고, 그것은 SageMaker AI endpoint의 기능입니다.
 
@@ -445,16 +445,16 @@ HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입�
 
 경로 규약과 Training Job:
 
-- `tracks/01_extraction_to_json/scripts/train.py` — `SM_CHANNEL_TRAIN`으로 입력 채널을 찾고 `SM_MODEL_DIR`을 출력 기본값으로 씀. `save_total_limit=1`로 아티팩트 크기를 억제
-- `tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb` — `ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` 조립, `MAX_RUNTIME_HOURS`로 시간 한도 명시
+- `tracks/01_extraction_to_json/scripts/train.py`: `SM_CHANNEL_TRAIN`으로 입력 채널을 찾고 `SM_MODEL_DIR`을 출력 기본값으로 씀. `save_total_limit=1`로 아티팩트 크기를 억제
+- `tracks/01_extraction_to_json/02_train_sft_sagemaker.ipynb`: `ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` 조립, `MAX_RUNTIME_HOURS`로 시간 한도 명시
 
 Endpoint의 생성과 삭제:
 
-- `tracks/01_extraction_to_json/03_deploy_endpoint.ipynb` — `model_data`를 real-time endpoint로 배포하고 invoke 스모크 테스트
-- `tracks/01_extraction_to_json/99_cleanup.ipynb` — Endpoint → EndpointConfig → Model 순서로 삭제해 과금을 멈춤
+- `tracks/01_extraction_to_json/03_deploy_endpoint.ipynb`: `model_data`를 real-time endpoint로 배포하고 invoke 스모크 테스트
+- `tracks/01_extraction_to_json/99_cleanup.ipynb`: Endpoint → EndpointConfig → Model 순서로 삭제해 과금을 멈춤
 
 공용 헬퍼:
 
-- `common/config.py` — `resolve_sagemaker_role()`이 env → `get_execution_role()` → IAM 자동 탐지 → (opt-in) DefaultRole 생성 순으로 실행 role을 해석
-- `common/dlc.py` — 학습·서빙 DLC 이미지 URI 해석(`DLC_IMAGE_URI` 환경변수 오버라이드)
-- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 변경분만 올리는 S3 업로드(`upload_if_changed`)
+- `common/config.py`: `resolve_sagemaker_role()`이 env → `get_execution_role()` → IAM 자동 탐지 → (opt-in) DefaultRole 생성 순으로 실행 role을 해석
+- `common/dlc.py`: 학습·서빙 DLC 이미지 URI 해석(`DLC_IMAGE_URI` 환경변수 오버라이드)
+- `common/aws_utils.py`: endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`), 변경분만 올리는 S3 업로드(`upload_if_changed`)

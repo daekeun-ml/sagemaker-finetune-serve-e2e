@@ -4,20 +4,20 @@
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다.
     Bedrock/SageMaker를 처음 다뤄도 괜찮습니다.
 
-    - **선행 조건** — 없습니다. 이 문서에 대응하는 노트북이 각 코스의 첫 단계
+    - **선행 조건**: 없습니다. 이 문서에 대응하는 노트북이 각 코스의 첫 단계
       (`01_data_and_synthetic.ipynb`)입니다
-    - **여기서 다루는 것** — grounded 생성 · critique 게이트 · held-out 규율 · 라이브러리 대안
-    - **여기서 다루지 않는 것** — 학습 자체는 [파인튜닝](03_finetuning.md)
+    - **여기서 다루는 것**: grounded 생성 · critique 게이트 · held-out 규율 · 라이브러리 대안
+    - **여기서 다루지 않는 것**: 학습 자체는 [파인튜닝](03_finetuning.md)
 
 이 문서와 관련된 리포지토리 파일:
 
-- `common/synth/bedrock_synth.py` — grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
-- `common/synth/README.md` — 기본 경로와 오픈 라이브러리 대안의 선택 근거
-- `common/config.py` — 모델 ID·리전·`NUM_SYNTHETIC` 등 env 기반 설정
-- `common/aws_utils.py` — Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker/Bedrock 서비스 경계
-- `common/gemma_format.py` — 코스별 raw row → 표준 `messages` 변환(`build_messages`)
-- `common/llm_gateway.py` — LiteLLM 경유로 Bedrock과 SageMaker endpoint를 단일 인터페이스로 호출(대안 경로)
-- `common/eval_utils.py` — 코스별 held-out 평가 메트릭
+- `common/synth/bedrock_synth.py`: grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
+- `common/synth/README.md`: 기본 경로와 오픈 라이브러리 대안의 선택 근거
+- `common/config.py`: 모델 ID·리전·`NUM_SYNTHETIC` 등 env 기반 설정
+- `common/aws_utils.py`: Bedrock Converse 저수준 호출(`bedrock_converse`)과 SageMaker/Bedrock 서비스 경계
+- `common/gemma_format.py`: 코스별 raw row → 표준 `messages` 변환(`build_messages`)
+- `common/llm_gateway.py`: LiteLLM 경유로 Bedrock과 SageMaker endpoint를 단일 인터페이스로 호출(대안 경로)
+- `common/eval_utils.py`: 코스별 held-out 평가 메트릭
 
 노트북 순서: 각 코스의 `01_data_and_synthetic.ipynb`(생성) → (학습·배포) → `04_evaluate.ipynb`(held-out 전용)
 
@@ -166,8 +166,8 @@ synth = bs.generate_grounded(
     - 낮춘 이유는 요약 코스(`03_summarization`)의 호출당 지연입니다. seed 1건이 중앙값 1,651자로 추출 코스의 475자보다 크고, 배치 프롬프트가 약 10,900자까지 갑니다.
     - 잘림은 아니고 순수 지연입니다(출력 2,554 토큰으로 `max_tokens` 4,500 안쪽).
 - seed 샘플 수는 `config.NUM_SEED_SAMPLES`(기본 300)로 따로 잡습니다. 합성 건수와 seed 건수는 별개 값입니다.
-- **언제 늘리나요** — seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
-- **언제 줄이나요** — Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
+- **언제 늘리나요**: seed 다양성이 높고 도메인이 넓을 때, 그리고 held-out 지표가 데이터량에 비례해 오를 때 늘리세요.
+- **언제 줄이나요**: Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
 - dry-run(`DRY_RUN=1`)은 파이프라인 검증용입니다. 노트북이 seed 8건 / 합성 6건 / `max_batches=3`으로 낮춰 잡으므로 실제 값과는 별개입니다.
 
 ??? question "오개념 — “합성을 많이 만들수록 항상 좋은가요?”"
@@ -222,9 +222,9 @@ seed 전체
 | **[Bespoke Curator](https://github.com/bespokelabsai/curator)** | LiteLLM 경유 (`bedrock/...`) | 활발 (0.1.29 @ 2026-07-13) | Apache-2.0 | 코드-우선, 대량·구조화·캐싱 |
 | [distilabel](https://github.com/argilla-io/distilabel) | 해당 없음 | ❌ 정체 (마지막 v1.5.3 @ 2025-01-28, 2026 릴리스 0건) | 해당 없음 | ❌ 배제 — 사용 금지 |
 
-- **Kiln** — native Bedrock 연동을 코드 수준에서 확인한 유일한 도구입니다. repo는 `github.com/Kiln-AI/Kiln`이며 `pip install kiln-ai`로 설치합니다.
+- **Kiln**: native Bedrock 연동을 코드 수준에서 확인한 유일한 도구입니다. repo는 `github.com/Kiln-AI/Kiln`이며 `pip install kiln-ai`로 설치합니다.
     - **리포 루트 라이선스와 core lib 라이선스가 다르므로** 재배포 전에 반드시 확인하세요.
-- **Bespoke Curator** — native 커넥터는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repo는 `github.com/bespokelabsai/curator`입니다.
+- **Bespoke Curator**: native 커넥터는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repo는 `github.com/bespokelabsai/curator`입니다.
     - 이 kit의 `common/llm_gateway.py`(LiteLLM)와 [Bedrock 라우팅 규약](https://docs.litellm.ai/docs/providers/bedrock)이 일치하므로 연결이 자연스럽습니다.
 - 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 kit의 `messages` JSONL로 변환해 `train.py`에 넣으세요.
 

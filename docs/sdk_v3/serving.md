@@ -193,6 +193,6 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
 
 ## 이어서 볼 문서
 
-- [SDK V3 개요](index.md) — V2→V3 매핑표와 마이그레이션 함정
-- [SDK V3 학습](training.md) — `ModelTrainer`로 학습 Job 제출
-- [SageMaker 추론](../04_sagemaker_inference.md) — endpoint 구조와 추론 옵션
+- [SDK V3 개요](index.md): V2→V3 매핑표와 마이그레이션 함정
+- [SDK V3 학습](training.md): `ModelTrainer`로 학습 Job 제출
+- [SageMaker 추론](../04_sagemaker_inference.md): endpoint 구조와 추론 옵션

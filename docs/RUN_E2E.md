@@ -3,12 +3,12 @@
 !!! info "Scope"
     한 코스를 **클라우드에서 한 번에 완주**하려는 분을 위한 실행 문서입니다.
 
-    - **선행 조건** — AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스.
+    - **선행 조건**: AWS 계정 + SageMaker 실행 role + Bedrock 모델 액세스.
       설치 절차와 스모크/로컬 dry-run은 [시작하기](getting_started.md).
       Training Job·Endpoint가 낯설면 [SageMaker 기초](01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — 실행 순서 · 단계별 준비물 · 단계 간 핸드오프 · 비용 ·
+    - **여기서 다루는 것**: 실행 순서 · 단계별 준비물 · 단계 간 핸드오프 · 비용 ·
       다음으로 넘어가기 전 확인 지점
-    - **여기서 다루지 않는 것** — 개념 배경(각 주제 가이드) · 학습 하이퍼파라미터 튜닝 ·
+    - **여기서 다루지 않는 것**: 개념 배경(각 주제 가이드) · 학습 하이퍼파라미터 튜닝 ·
       컨테이너 내부 구조
 
 이 문서는 **실행 순서와 확인 지점**만 담습니다. "왜 이렇게 하는가"는 [전체 지도](00_overview.md)와 각 주제 가이드에 있습니다.
@@ -42,12 +42,12 @@
 
 완주를 시도한 사람이 실제로 자주 겪는 것들입니다.
 
-- "노트북이 10개인데 **어디서 시작해서 어디서 끝나는 건가요?**" — 코스마다 선택 단계가 섞여 있어 필수 경로가 안 보입니다.
-- "`02`에서 `train_path`가 없다고 합니다." — 앞 노트북을 건너뛰었거나, `%store` 값이 **다른 코스 것**입니다.
-- "학습 Job이 `Completed`인데 **배포가 안 됩니다.**" — 머지 단계가 시간 제한에 잘려 서빙용 모델이 아티팩트에 없습니다.
-- "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**" — 24GB GPU에서 엔진 기본값이 메모리를 넘겼습니다.
-- "**얼마 나올지 모르겠어서** 시작이 무섭습니다." — 무엇이 상시 과금이고 무엇이 호출당 과금인지 구분이 안 됩니다.
-- "테스트만 했는데 **다음 날 청구서가 왔습니다.**" — endpoint를 지우지 않았습니다.
+- "노트북이 10개인데 **어디서 시작해서 어디서 끝나는 건가요?**": 코스마다 선택 단계가 섞여 있어 필수 경로가 안 보입니다.
+- "`02`에서 `train_path`가 없다고 합니다.": 앞 노트북을 건너뛰었거나, `%store` 값이 **다른 코스 것**입니다.
+- "학습 Job이 `Completed`인데 **배포가 안 됩니다.**": 머지 단계가 시간 제한에 잘려 서빙용 모델이 아티팩트에 없습니다.
+- "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**": 24GB GPU에서 엔진 기본값이 메모리를 넘겼습니다.
+- "**얼마 나올지 모르겠어서** 시작이 무섭습니다.": 무엇이 상시 과금이고 무엇이 호출당 과금인지 구분이 안 됩니다.
+- "테스트만 했는데 **다음 날 청구서가 왔습니다.**": endpoint를 지우지 않았습니다.
 
 이 runbook은 위 여섯 가지를 실행 순서 안에서 하나씩 막습니다.
 
@@ -152,10 +152,10 @@ python pipelines/run_extraction.py --stages deploy,eval
             (cord-v2 이미지+JSON)  (vision 동결+language LoRA)  (멀티모달 endpoint)
 ```
 
-- **시드** — `naver-clova-ix/cord-v2`(cc-by-4.0, ungated). 합성 데이터 단계가 없어 이미지+JSON 시드를 그대로 씁니다.
-- **학습** — `scripts/train_mm.py`(`AutoModelForImageTextToText` + `AutoProcessor`).
+- **시드**: `naver-clova-ix/cord-v2`(cc-by-4.0, ungated). 합성 데이터 단계가 없어 이미지+JSON 시드를 그대로 씁니다.
+- **학습**: `scripts/train_mm.py`(`AutoModelForImageTextToText` + `AutoProcessor`).
     vision/audio 파라미터를 동결하고 language 쪽만 [LoRA](https://huggingface.co/docs/peft/index)로 학습합니다.
-- **서빙** — 이미지 입력을 받는 멀티모달 endpoint입니다. 텍스트 전용 re-export를 하지 않습니다.
+- **서빙**: 이미지 입력을 받는 멀티모달 endpoint입니다. 텍스트 전용 re-export를 하지 않습니다.
 
 ---
 
@@ -163,23 +163,23 @@ python pipelines/run_extraction.py --stages deploy,eval
 
 한 번만 하면 되는 준비입니다.
 
-- [ ] **설치 완료** — `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)).
+- [ ] **설치 완료**: `uv venv --python 3.12` → `uv pip install -r pyproject.toml`(자세한 절차는 [시작하기](getting_started.md)).
     코어 의존성은 `>=` floor로만 고정되어 있습니다(`sagemaker>=3.16.0`, `transformers>=5.14.1`, `trl>=1.8.0`, `peft>=0.19.1`). 현행 값은 `pyproject.toml`이 원본입니다.
     SDK v3는 클래스 이름이 v2와 다르므로, 노트북 코드를 손볼 때는 [SageMaker Python SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 API를 기준으로 보세요.
-- [ ] **AWS 자격증명** — `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
-- [ ] **SageMaker 실행 role** — `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다.
+- [ ] **AWS 자격증명**: `aws sts get-caller-identity`가 계정을 반환하는지 확인합니다.
+- [ ] **SageMaker 실행 role**: `SAGEMAKER_ROLE_ARN`에 SageMaker·S3·ECR 권한이 있어야 합니다.
     Studio/노트북 인스턴스에서는 `config.resolve_sagemaker_role()`이 `get_execution_role()`로 자동 획득하고, IAM user로 로컬 실행하면 IAM에서 실행 role을 자동 탐지합니다.
     **role이 잡히는 것과 그 role에 필요한 권한이 붙어 있는 것은 다릅니다.** 첫 완주 전에 S3·ECR 권한을 한 번 열어 확인하세요. 권한 부족은 제출 시점이 아니라 Job이 뜬 뒤에 드러납니다([실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role로-무엇을-하는가--s3와-ecr-접근)).
-- [ ] **Bedrock 모델 액세스** — 콘솔에서 사용할 Claude 모델의 액세스를 활성화합니다.
+- [ ] **Bedrock 모델 액세스**: 콘솔에서 사용할 Claude 모델의 액세스를 활성화합니다.
     그리고 AWS가 [cross-region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 문서화하는 **inference-profile ID**(`us.`/`eu.`/`apac.`/`global.` 접두사 필수)를 확보해 `BEDROCK_CLAUDE_MODEL_ID`에 설정합니다. 기본값은 `global.anthropic.claude-sonnet-5`입니다.
-- [ ] **모델 선택** — 기본은 `google/gemma-4-E4B-it`(apache-2.0·ungated, `MODEL_SIZE=E4B`)입니다.
+- [ ] **모델 선택**: 기본은 `google/gemma-4-E4B-it`(apache-2.0·ungated, `MODEL_SIZE=E4B`)입니다.
     `MODEL_SIZE`로 `E2B`/`12B`/`26B-A4B`/`31B`를, `MODEL_ID`로 임의 모델을 지정할 수 있습니다.
-- [ ] **(gated 모델을 쓸 때만) HF 토큰** — gemma-4 전 사이즈는 ungated라 토큰이 필요 없습니다.
+- [ ] **(gated 모델을 쓸 때만) HF 토큰**: gemma-4 전 사이즈는 ungated라 토큰이 필요 없습니다.
     gemma-3 계열 등을 쓸 때만 HF 약관을 수락하고 `MODEL_IS_GATED=1` + 토큰을 설정하세요.
     토큰은 `hf auth login`으로 저장해 두면 config가 파일에서 읽습니다(커스텀 캐시를 쓰면 `HF_HOME`도 같이 맞춰야 합니다).
-- [ ] **리전 정합성** — SageMaker·Bedrock·S3가 같은 리전(`AWS_REGION`, 기본 `us-west-2`)을 쓰는지 확인합니다.
+- [ ] **리전 정합성**: SageMaker·Bedrock·S3가 같은 리전(`AWS_REGION`, 기본 `us-west-2`)을 쓰는지 확인합니다.
     리전을 옮기면 `.env`의 DLC 이미지 URI 리전도 함께 바꿔야 합니다(학습 이미지는 리전별 private ECR에서만 pull됩니다).
-- [ ] **비용 인지** — real-time endpoint는 삭제 전까지 시간당 과금되므로, 실습이 끝나면 `99_cleanup`을 반드시 실행합니다.
+- [ ] **비용 인지**: real-time endpoint는 삭제 전까지 시간당 과금되므로, 실습이 끝나면 `99_cleanup`을 반드시 실행합니다.
 
 ```bash
 export AWS_REGION=us-west-2                                  # .env의 DLC URI 리전과 일치해야 합니다
@@ -219,23 +219,23 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 
 ### 단계별 주의
 
-- **② 합성** — `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다.
+- **② 합성**: `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다.
     합성 전에 토큰 길이 EDA를 꼭 보세요. 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어·JSON은 문자당 토큰 수가 영어의 몇 배입니다.
-- **③ 학습** — `stopping_condition`을 **반드시 명시**하세요. 생략하면 SDK 기본 1시간이 붙습니다.
+- **③ 학습**: `stopping_condition`을 **반드시 명시**하세요. 생략하면 SDK 기본 1시간이 붙습니다.
     [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)가 적는 API 기본값 1일과는 다릅니다.
     학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다.
     태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요.
     첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분·3분).
-- **④ 배포** — 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다.
+- **④ 배포**: 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다.
     셋 다 연속 배칭 + OpenAI 호환 `messages` 스키마라 호출 코드가 동일합니다.
     **한 번에 하나만** 배포하세요. 둘을 띄우면 endpoint가 두 개가 되어 과금이 중복됩니다. endpoint 기동에는 5~15분이 걸립니다.
     참고할 곳: 엔진 선택 기준은 [서빙 엔진 선택 — SERVING_ENGINE](05_serving_containers.md#서빙-엔진-선택--serving_engine), 메모리 예산은 [메모리 예산 — L4 22.9GB 실측](05_serving_containers.md#메모리-예산--l4-229gb-실측), 호출 스키마는 [SageMaker 추론](04_sagemaker_inference.md#invoke_endpoint-호출-스키마).
-- **⑤ 평가** — held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다.
+- **⑤ 평가**: held-out은 학습에 쓴 앞 구간(`NUM_SEED_SAMPLES`, 기본 300건)을 **명시적으로 건너뛴 뒤** 잘라 씁니다.
     `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
-- **⑥/⑦ agentic** — endpoint와 Bedrock이 **이중으로 과금**됩니다.
+- **⑥/⑦ agentic**: endpoint와 Bedrock이 **이중으로 과금**됩니다.
     endpoint는 `sagemaker-runtime`, Bedrock은 `bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)로 SageMaker와 **별개 서비스**입니다.
     AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포--agentcore-runtime)).
-- **⑧ 정리** — 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다. 그러지 않으면 계속 과금됩니다.
+- **⑧ 정리**: 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다. 그러지 않으면 계속 과금됩니다.
 
 ??? info "②에서 `NUM_SYNTHETIC`를 100으로 낮춘 근거"
     요약 시드는 1건 중앙 1,651자로, 추출 코스 475자보다 훨씬 깁니다 → 배치 프롬프트가 약 10,900자까지 늘어납니다.
@@ -248,9 +248,9 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 위 단계들의 근거를 원본 소스에서 확인하려면 다음을 보세요.
 
 ??? info "더 읽을 거리"
-    - [aws/deep-learning-containers](https://github.com/aws/deep-learning-containers) — 학습·서빙 DLC의 Dockerfile과 `sagemaker_entrypoint.sh`(env → CLI 플래그 변환 규칙)를 소스에서 확인할 때.
-    - [SageMaker 모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) — 이 runbook이 ④에서 real-time을 고르는 배경(4옵션 정의와 과금 모델).
-    - [InvokeEndpoint API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html) — ④ 이후 호출에 걸리는 파라미터·payload 한도의 원문.
+    - [aws/deep-learning-containers](https://github.com/aws/deep-learning-containers): 학습·서빙 DLC의 Dockerfile과 `sagemaker_entrypoint.sh`(env → CLI 플래그 변환 규칙)를 소스에서 확인할 때.
+    - [SageMaker 모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html): 이 runbook이 ④에서 real-time을 고르는 배경(4옵션 정의와 과금 모델).
+    - [InvokeEndpoint API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_runtime_InvokeEndpoint.html): ④ 이후 호출에 걸리는 파라미터·payload 한도의 원문.
     - ④에서 고르는 세 엔진의 저장소·문서: [vLLM](https://github.com/vllm-project/vllm) · [SGLang](https://github.com/sgl-project/sglang) · [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html). 지원 모델·플래그는 문서보다 저장소가 빠릅니다.
 
 ---
@@ -343,20 +343,20 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 
 설정과 공통 유틸:
 
-- `common/config.py` — 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run()`, `TRACKS` 레지스트리
-- `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 폴백)과 서빙 env 생성(`serving_env`)
-- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`),
+- `common/config.py`: 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run()`, `TRACKS` 레지스트리
+- `common/dlc.py`: DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 폴백)과 서빙 env 생성(`serving_env`)
+- `common/aws_utils.py`: endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`),
     리전 정합성 검사(`ensure_model_data_in_region`), 비용 경고(`COST_WARNING`)
-- `.env` — 인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 비시크릿 설정값
+- `.env`: 인스턴스 타입·DLC 이미지 URI·리전·합성 건수 등 비시크릿 설정값
 
 학습 스크립트(코스 폴더에 자족적으로 들어 있음):
 
-- `tracks/*/scripts/train.py` — SFT + LoRA/QLoRA 학습, 머지 후 텍스트 re-export
-- `tracks/*/scripts/train_grpo.py` — SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 코스만)
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 re-export 없음)
+- `tracks/*/scripts/train.py`: SFT + LoRA/QLoRA 학습, 머지 후 텍스트 re-export
+- `tracks/*/scripts/train_grpo.py`: SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출·분류 코스만)
+- `tracks/05_multimodal_extraction/scripts/train_mm.py`: 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 re-export 없음)
 
 평가와 정리:
 
-- `common/eval_utils.py` — 코스별 지표(`arg_f1`/`macro_f1`/ROUGE-L/LLM-judge)
-- `tracks/*/99_cleanup.ipynb` — endpoint → endpoint-config → model 삭제
-- `agentcore/cleanup_agent.sh` — AgentCore Runtime + ECR 정리(`--aws`)
+- `common/eval_utils.py`: 코스별 지표(`arg_f1`/`macro_f1`/ROUGE-L/LLM-judge)
+- `tracks/*/99_cleanup.ipynb`: endpoint → endpoint-config → model 삭제
+- `agentcore/cleanup_agent.sh`: AgentCore Runtime + ECR 정리(`--aws`)

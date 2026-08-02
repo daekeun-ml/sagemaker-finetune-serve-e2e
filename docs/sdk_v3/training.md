@@ -146,6 +146,6 @@ from sagemaker.train.aws_batch.training_queue import TrainingQueue
 
 ## 이어서 볼 문서
 
-- [SDK V3 개요](index.md) — V2→V3 매핑표와 마이그레이션 함정
-- [SDK V3 배포](serving.md) — `ModelBuilder`로 학습 결과를 endpoint에 올리기
-- [파인튜닝](../03_finetuning.md) — 이 kit이 학습 스크립트를 직접 쓰는 이유
+- [SDK V3 개요](index.md): V2→V3 매핑표와 마이그레이션 함정
+- [SDK V3 배포](serving.md): `ModelBuilder`로 학습 결과를 endpoint에 올리기
+- [파인튜닝](../03_finetuning.md): 이 kit이 학습 스크립트를 직접 쓰는 이유

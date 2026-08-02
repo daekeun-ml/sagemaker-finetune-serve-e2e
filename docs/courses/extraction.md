@@ -4,23 +4,23 @@
     자연어 텍스트에서 **스키마가 정해진 JSON**을 뽑아내야 하는 개발자를 위한
     코스입니다(`tracks/01_extraction_to_json`, 이 kit의 플래그십).
 
-    - **선행 조건** — [시작하기](../getting_started.md)의 설치와 AWS 자격증명·SageMaker 실행 role
+    - **선행 조건**: [시작하기](../getting_started.md)의 설치와 AWS 자격증명·SageMaker 실행 role
       (`00_setup`이 확인). SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
-    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
       배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
-    - **다른 코스** — 이미지 입력(영수증 등)은 [멀티모달 추출](multimodal.md),
+    - **다른 코스**: 이미지 입력(영수증 등)은 [멀티모달 추출](multimodal.md),
       라벨 하나만 고르는 문제는 [분류](classification.md)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
-- `tracks/01_extraction_to_json/track_data.py` — 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
-- `tracks/01_extraction_to_json/scripts/train.py` · `train_grpo.py` — SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
-- `tracks/01_extraction_to_json/*.ipynb` — 이 코스의 노트북 10개
-- `common/config.py` — `TRACKS['extraction']` 레지스트리 항목(시드 데이터셋, `max_seq_length=2048`)
-- `common/eval_utils.py` — `eval_extraction()`(valid_json_rate · name_accuracy · arg_f1)
-- `tracks/01_extraction_to_json/_build_notebooks.py` — 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
+- `tracks/01_extraction_to_json/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
+- `tracks/01_extraction_to_json/scripts/train.py` · `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
+- `tracks/01_extraction_to_json/*.ipynb`: 이 코스의 노트북 10개
+- `common/config.py`: `TRACKS['extraction']` 레지스트리 항목(시드 데이터셋, `max_seq_length=2048`)
+- `common/eval_utils.py`: `eval_extraction()`(valid_json_rate · name_accuracy · arg_f1)
+- `tracks/01_extraction_to_json/_build_notebooks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
 
@@ -175,12 +175,12 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교와 공통 `common/` 레이어
-- [02 합성 데이터](../02_synthetic_data.md) — grounded 합성과 held-out 규율
-- [03 파인튜닝](../03_finetuning.md) — LoRA/QLoRA, Gemma 관용구, 머지·re-export
-- [04 SageMaker 추론](../04_sagemaker_inference.md) — endpoint 3층 구조와 호출 스키마
-- [05 서빙 컨테이너](../05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
+- [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
+- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지·re-export
+- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.

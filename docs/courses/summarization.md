@@ -4,22 +4,22 @@
     긴 문서 하나를 넣으면 짧은 요약이 나오는 SLM을 만들고 싶은 분을 위한
     코스입니다(`tracks/03_summarization`).
 
-    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
       SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
-    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
       배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
-    - **다른 코스** — 자유서술 답변은 [도메인 QA](domain_qa.md).
+    - **다른 코스**: 자유서술 답변은 [도메인 QA](domain_qa.md).
       대화체 요약(회의록·상담 로그)은 시드를 바꿔야 합니다(아래 시드 절 참고)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
-- `tracks/03_summarization/track_data.py` — 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
-- `tracks/03_summarization/*.ipynb` — 이 코스의 노트북 9개
-- `common/config.py` — `TRACKS['summarization']` 레지스트리(시드 데이터셋, `max_seq_length=2048`)
-- `common/eval_utils.py` — `eval_rouge()` + `llm_judge()`
-- `tracks/build_all_tracks.py` — 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
+- `tracks/03_summarization/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
+- `tracks/03_summarization/*.ipynb`: 이 코스의 노트북 9개
+- `common/config.py`: `TRACKS['summarization']` 레지스트리(시드 데이터셋, `max_seq_length=2048`)
+- `common/eval_utils.py`: `eval_rouge()` + `llm_judge()`
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
 
@@ -70,7 +70,7 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 이 코스에서 실제로 물리는 지점은 **길이**입니다.
 
-- `track_data.MAX_DOC_CHARS = 6000` — 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. 리포에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 즉 이 코스의 학습 입력 길이는 데이터가 정하는 게 아니라 **이 상수가 정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13% 쪽이고, 상한에 걸리는 첫 행은 index 1입니다.
+- `track_data.MAX_DOC_CHARS = 6000`: 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. 리포에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 즉 이 코스의 학습 입력 길이는 데이터가 정하는 게 아니라 **이 상수가 정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13% 쪽이고, 상한에 걸리는 첫 행은 index 1입니다.
 - 정답 요약 길이는 시드 중앙 1,110자(최대 4,950자)인데, 합성으로 만든 200건은 중앙 515자(최대 850자)로 더 짧습니다. 합성이 시드보다 짧고 균질해지는 경향이 있으니 `01` 노트북의 EDA 표를 그냥 넘기지 마세요.
 - 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다. 잘림이 아니라 순수 지연이며, 그래서 이 kit의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정--num_synthetic-기본값)).
 
@@ -148,12 +148,12 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교와 공통 `common/` 레이어
-- [02 합성 데이터](../02_synthetic_data.md) — grounded 합성과 held-out 규율
-- [03 파인튜닝](../03_finetuning.md) — LoRA/QLoRA, Gemma 관용구, 머지·re-export
-- [04 SageMaker 추론](../04_sagemaker_inference.md) — endpoint 3층 구조와 호출 스키마
-- [05 서빙 컨테이너](../05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
+- [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
+- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지·re-export
+- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.

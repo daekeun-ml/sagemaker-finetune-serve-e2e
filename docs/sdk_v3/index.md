@@ -5,11 +5,11 @@
     SageMaker를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`·`sagemaker.core.resources`
     같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다.
 
-    - **선행 조건** — 없습니다
-    - **여기서 다루는 것** — V2 → V3 심볼 매핑 ·
+    - **선행 조건**: 없습니다
+    - **여기서 다루는 것**: V2 → V3 심볼 매핑 ·
       두 레이어(`sagemaker.core` vs `sagemaker.train`/`sagemaker.serve`) 구조 ·
       학습·배포·호출·정리 4가지 대표 용법 · V2 코드를 옮길 때 걸리는 함정
-    - **여기서 다루지 않는 것** — 학습 하이퍼파라미터·LoRA 설계는
+    - **여기서 다루지 않는 것**: 학습 하이퍼파라미터·LoRA 설계는
       [파인튜닝](../03_finetuning.md), endpoint 구조와 서빙 엔진은
       [SageMaker 추론](../04_sagemaker_inference.md)·[서빙 컨테이너](../05_serving_containers.md),
       Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다)
@@ -155,9 +155,9 @@ except ModuleNotFoundError:
 ??? info "더 읽을 거리 — 공식 migration.md의 코드 예제를 그대로 믿지 마세요"
     [migration.md](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)의 **매핑 표는 정확하지만 코드 스니펫은 셋 이상 어긋납니다**(3.16.0 기준). 가장 신뢰할 순서는 ① 설치본에서 직접 `import`/`inspect.signature` 확인 → ② [docs/training](https://sagemaker.readthedocs.io/en/stable/training/index.html)·[docs/inference](https://sagemaker.readthedocs.io/en/stable/inference/index.html)의 "Migration from V2" 표(정확한 dotted path가 여기 있습니다) → ③ migration.md 산문입니다.
 
-    - `from sagemaker.serve.configs import InferenceSpec` + `InferenceSpec(image_uri=..., model_data_url=...)` — 실제 `InferenceSpec`은 `sagemaker.serve.spec.inference_spec`의 **추상 base class**(추상 `load()`/`invoke()`)이고 그런 생성자 인자가 없습니다. `serve/configs.py`에는 `Network`·`Compute`만 있습니다.
-    - Processing 예제의 `sagemaker.mlops.processing.DataProcessor`·`sagemaker.mlops.configs` — 두 경로 모두 존재하지 않습니다. 같은 문서의 매핑 표는 올바르게 `ProcessingJob`을 가리킵니다.
-    - 분산 학습 예제의 `from sagemaker.train.distributed import Distributed` — `distributed.py`에는 `SMP`·`DistributedConfig`·`Torchrun`·`MPI`가 있고 `Distributed`라는 클래스는 없습니다.
+    - `from sagemaker.serve.configs import InferenceSpec` + `InferenceSpec(image_uri=..., model_data_url=...)`: 실제 `InferenceSpec`은 `sagemaker.serve.spec.inference_spec`의 **추상 base class**(추상 `load()`/`invoke()`)이고 그런 생성자 인자가 없습니다. `serve/configs.py`에는 `Network`·`Compute`만 있습니다.
+    - Processing 예제의 `sagemaker.mlops.processing.DataProcessor`·`sagemaker.mlops.configs`: 두 경로 모두 존재하지 않습니다. 같은 문서의 매핑 표는 올바르게 `ProcessingJob`을 가리킵니다.
+    - 분산 학습 예제의 `from sagemaker.train.distributed import Distributed`: `distributed.py`에는 `SMP`·`DistributedConfig`·`Torchrun`·`MPI`가 있고 `Distributed`라는 클래스는 없습니다.
 
     또한 AWS **Developer Guide(docs.aws.amazon.com)는 "V3"라는 단어를 쓰지 않습니다.** 코드 예제만 조용히 `ModelTrainer`/`ModelBuilder`로 바뀌었고, 버전 경계·마이그레이션·V2 지원 종료 일정은 GitHub 저장소와 readthedocs에만 있습니다. "AWS 서비스 문서에 V3라고 써 있다"는 인용은 만들 수 없으니 lifecycle 페이지와 저장소를 인용하세요.
 
@@ -204,9 +204,9 @@ except ModuleNotFoundError:
 
 ## 이어서 볼 문서
 
-- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--끝나면-컴퓨팅-리소스까지-사라집니다) — `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
-- [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정) — `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
-- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출) — endpoint 3층 구조, 호출 스키마, cleanup 순서
-- [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증) — `ModelBuilder`의 `Mode` 3단계와 로컬 검증
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서와 비용 가드
-- [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md) · [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html) — V2 지원 종료 일정과 매핑 표
+- [01 SageMaker 기초](../01_sagemaker_basics.md#training-job--끝나면-컴퓨팅-리소스까지-사라집니다): `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
+- [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded--학습-뒤-머지에서-잘리는-함정): `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
+- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조, 호출 스키마, cleanup 순서
+- [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증): `ModelBuilder`의 `Mode` 3단계와 로컬 검증
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서와 비용 가드
+- [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md) · [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html): V2 지원 종료 일정과 매핑 표

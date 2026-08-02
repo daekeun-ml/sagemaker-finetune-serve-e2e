@@ -4,24 +4,24 @@
     고객 문의·티켓·로그처럼 **입력 하나에 라벨 하나**를 붙이는 일을 SLM 파인튜닝으로
     해결하려는 분을 위한 코스입니다(`tracks/02_classification`).
 
-    - **산출물** — `mteb/banking77`의 77개 intent를 텍스트로 생성하는 Gemma 4 LoRA 모델,
+    - **산출물**: `mteb/banking77`의 77개 intent를 텍스트로 생성하는 Gemma 4 LoRA 모델,
       그것을 서빙하는 real-time endpoint, held-out macro-F1
-    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
       SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
-    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
       배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
-    - **다른 코스** — 스키마가 있는 JSON은 [추출](extraction.md), 자유서술은 [도메인 QA](domain_qa.md)
+    - **다른 코스**: 스키마가 있는 JSON은 [추출](extraction.md), 자유서술은 [도메인 QA](domain_qa.md)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
-- `tracks/02_classification/track_data.py` — 시드 로드·셔플, `{input, output}` 어댑터, `SYSTEM_PROMPT`, 라벨 목록 조회
-- `tracks/02_classification/scripts/train.py` · `train_grpo.py` — SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
-- `tracks/02_classification/*.ipynb` — 이 코스의 노트북 10개
-- `common/config.py` — `TRACKS['classification']` 레지스트리(시드 데이터셋, `max_seq_length=512`)
-- `common/eval_utils.py` — `normalize_label()` + `eval_classification()`(accuracy·macro-F1·weighted-F1)
-- `tracks/build_all_tracks.py` — 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
+- `tracks/02_classification/track_data.py`: 시드 로드·셔플, `{input, output}` 어댑터, `SYSTEM_PROMPT`, 라벨 목록 조회
+- `tracks/02_classification/scripts/train.py` · `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker 겸용)
+- `tracks/02_classification/*.ipynb`: 이 코스의 노트북 10개
+- `common/config.py`: `TRACKS['classification']` 레지스트리(시드 데이터셋, `max_seq_length=512`)
+- `common/eval_utils.py`: `normalize_label()` + `eval_classification()`(accuracy·macro-F1·weighted-F1)
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
 
 ---
 
@@ -148,12 +148,12 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교와 공통 `common/` 레이어
-- [02 합성 데이터](../02_synthetic_data.md) — grounded 합성과 held-out 규율
-- [03 파인튜닝](../03_finetuning.md#lora-vs-qlora와-인스턴스-사이징) — LoRA/QLoRA, Gemma 관용구, 인스턴스 선택
-- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출) — endpoint 3층 구조와 호출 스키마
-- [05 서빙 컨테이너](../05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
+- [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
+- [03 파인튜닝](../03_finetuning.md#lora-vs-qlora와-인스턴스-사이징): LoRA/QLoRA, Gemma 관용구, 인스턴스 선택
+- [04 SageMaker 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조와 호출 스키마
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.

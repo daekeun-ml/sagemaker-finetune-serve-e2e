@@ -4,11 +4,11 @@
     파인튜닝한 Gemma SLM을 tool로 쓰고 reasoning은 Bedrock Claude에 맡기는
     agentic loop를 만들려는 분을 위한 가이드입니다.
 
-    - **선행 조건** — 학습(`02_train_sft_sagemaker`)·배포(`03_deploy_endpoint`)를 마쳐
+    - **선행 조건**: 학습(`02_train_sft_sagemaker`)·배포(`03_deploy_endpoint`)를 마쳐
       **real-time endpoint를 이미 가진 상태**. Strands/AgentCore는 처음이어도 괜찮습니다
-    - **여기서 다루는 것** — SLM endpoint를 tool로 노출하는 방법 · Bedrock Claude를
+    - **여기서 다루는 것**: SLM endpoint를 tool로 노출하는 방법 · Bedrock Claude를
       reasoning으로 붙이는 방법 · AgentCore Runtime 배포 규약
-    - **여기서 다루지 않는 것** — 학습은 [파인튜닝](03_finetuning.md), 데이터 합성은
+    - **여기서 다루지 않는 것**: 학습은 [파인튜닝](03_finetuning.md), 데이터 합성은
       [합성 데이터](02_synthetic_data.md), 컨테이너 선택은
       [서빙 컨테이너](05_serving_containers.md)
 
@@ -21,17 +21,17 @@
 
 이 문서와 관련된 리포지토리 파일:
 
-- `agentcore/app.py` — AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
-- `agentcore/templates/main.py` — CLI 스캐폴딩의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
-- `agentcore/templates/load.py` — reasoning 모델 로더, `BEDROCK_CLAUDE_MODEL_ID` env를 읽고 없으면 kit 기본값으로 폴백
-- `agentcore/Dockerfile` — ARM64 런타임 이미지(`/invocations`+`/ping`:8080 규약은 SDK가 제공)
-- `agentcore/setup_agentcore_cli.sh` — nvm으로 Node 20 + `@aws/agentcore` CLI 설치(sudo 불필요)
-- `agentcore/create_agent.sh` — 프로젝트를 non-interactive로 생성하고 SLM tool을 이식
-- `agentcore/verify_local.sh` — 배포 전 로컬 dev 서버로 실제 추론 검증
-- `agentcore/cleanup_agent.sh` — dev 프로세스·프로젝트 폴더 정리, `--aws`면 Runtime/ECR까지 삭제
-- `common/aws_utils.py` — 서비스 경계의 실체(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`bedrock_converse`)
-- `common/llm_gateway.py` — LiteLLM 경유로 Bedrock과 endpoint를 단일 인터페이스로 호출(대안 경로)
-- `common/config.py` — `BEDROCK_CLAUDE_MODEL_ID`·`BEDROCK_REGION` 등 env 기반 설정
+- `agentcore/app.py`: AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
+- `agentcore/templates/main.py`: CLI 스캐폴딩의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
+- `agentcore/templates/load.py`: reasoning 모델 로더, `BEDROCK_CLAUDE_MODEL_ID` env를 읽고 없으면 kit 기본값으로 폴백
+- `agentcore/Dockerfile`: ARM64 런타임 이미지(`/invocations`+`/ping`:8080 규약은 SDK가 제공)
+- `agentcore/setup_agentcore_cli.sh`: nvm으로 Node 20 + `@aws/agentcore` CLI 설치(sudo 불필요)
+- `agentcore/create_agent.sh`: 프로젝트를 non-interactive로 생성하고 SLM tool을 이식
+- `agentcore/verify_local.sh`: 배포 전 로컬 dev 서버로 실제 추론 검증
+- `agentcore/cleanup_agent.sh`: dev 프로세스·프로젝트 폴더 정리, `--aws`면 Runtime/ECR까지 삭제
+- `common/aws_utils.py`: 서비스 경계의 실체(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`bedrock_converse`)
+- `common/llm_gateway.py`: LiteLLM 경유로 Bedrock과 endpoint를 단일 인터페이스로 호출(대안 경로)
+- `common/config.py`: `BEDROCK_CLAUDE_MODEL_ID`·`BEDROCK_REGION` 등 env 기반 설정
 
 노트북 순서: `05_agentic_strands` → `06_agentcore_deploy`
 
@@ -66,7 +66,7 @@
 
 - SLM endpoint는 있지만 **"그래서 이걸 어떻게 앱으로 쓰지?"** 하는 고민이 생깁니다. endpoint는 프롬프트를 주면 텍스트를 뱉는 함수일 뿐, 스스로 "언제 나를 부를지"는 판단하지 못합니다.
 - 반대로 Bedrock Claude는 범용 추론은 잘하지만, **우리 도메인 전용 구조화 추출/분류는 파인튜닝한 SLM이 더 싸고 빠르고 정확**합니다.
-- "그럼 Claude한테 endpoint를 Bedrock API로 부르라고 하면 되지 않나?" — **틀린 접근**입니다. endpoint와 Bedrock은 별개 서비스입니다([서비스 경계](#서비스-경계--endpoint--bedrock)).
+- "그럼 Claude한테 endpoint를 Bedrock API로 부르라고 하면 되지 않나?": **틀린 접근**입니다. endpoint와 Bedrock은 별개 서비스입니다([서비스 경계](#서비스-경계--endpoint--bedrock)).
 - 또 다른 함정은, 로컬에서 `python app.py`로 잘 돌던 에이전트를 그대로 프로덕션에 올리려다 **AgentCore Runtime의 HTTP 규약(ARM64·`/invocations`·`/ping`·8080)** 을 몰라서 막히는 경우입니다.
 
 이 문서는 "endpoint + Claude"를 하나의 **agentic loop**로 묶고, 로컬에서 AgentCore Runtime까지 올리는 최소 경로를 정리합니다.
@@ -181,8 +181,8 @@ SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoi
 배포 옵션별 실제 코드를 직접 확인하고 싶다면 다음이 출발점입니다.
 
 ??? info "더 읽을 거리"
-    - [SageMaker Python SDK](https://github.com/aws/sagemaker-python-sdk) — `Predictor`·`invoke_endpoint` 래퍼의 실제 구현.
-    - [amazon-sagemaker-examples](https://github.com/aws/amazon-sagemaker-examples) — 배포 옵션별 노트북 예제.
+    - [SageMaker Python SDK](https://github.com/aws/sagemaker-python-sdk): `Predictor`·`invoke_endpoint` 래퍼의 실제 구현.
+    - [amazon-sagemaker-examples](https://github.com/aws/amazon-sagemaker-examples): 배포 옵션별 노트북 예제.
 
 ---
 

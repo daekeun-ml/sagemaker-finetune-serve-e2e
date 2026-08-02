@@ -4,11 +4,11 @@
     파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 “컨테이너를 무엇으로 골라야 할지”
     막힌 분을 위한 문서입니다.
 
-    - **선행 조건** — `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가
+    - **선행 조건**: `02_train_sft_sagemaker`까지 실행해 머지 가중치(`model_data`)가
       S3에 있는 상태
-    - **여기서 다루는 것** — 엔진과 컨테이너의 레이어 구분 · 이미지 URI 해석 ·
+    - **여기서 다루는 것**: 엔진과 컨테이너의 레이어 구분 · 이미지 URI 해석 ·
       OOM·절단·스트리밍 실측 함정 · speculative decoding · 비용과 정리
-    - **여기서 다루지 않는 것** — 학습 하이퍼파라미터는 [파인튜닝](03_finetuning.md),
+    - **여기서 다루지 않는 것**: 학습 하이퍼파라미터는 [파인튜닝](03_finetuning.md),
       평가 지표와 agentic 설계
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
@@ -449,9 +449,9 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
 
 `LOCAL_CONTAINER`는 gemma-4 E4B에 **부적합합니다(SDK 3.16.0 실측)**. 근거는 다음과 같습니다.
 
-- **vLLM DLC + LOCAL_CONTAINER** — `image_uri`만 주면 passthrough라 `model_server=None`이 됩니다.
+- **vLLM DLC + LOCAL_CONTAINER**: `image_uri`만 주면 passthrough라 `model_server=None`이 됩니다.
   LOCAL_CONTAINER의 `create_server`엔 **VLLM 분기가 없어**(TRITON/DJL_SERVING/TGI/MMS 등만 존재) `None.logs()`로 크래시합니다.
-- **DJL LMI + LOCAL_CONTAINER** — 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다).
+- **DJL LMI + LOCAL_CONTAINER**: 컨테이너·마운트까지는 됩니다(모델을 `model_path/code/`에 **실파일**로 둬야 마운트됩니다 — 심링크는 컨테이너 안에서 깨집니다).
   다만 당시 실측에서는 `weights not initialized: layers.24~41...k_norm` ValueError로 엔진 초기화가 실패했습니다.
   **이 실패의 원인은 LMI/vLLM이 아니라 우리가 넘긴 체크포인트였습니다**. 상세는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)에 있습니다.
   지금은 학습 스크립트가 그 텐서를 복원해 저장하므로 이 에러는 재현되지 않습니다.
@@ -554,7 +554,7 @@ flashinfer가 `torch.empty_like`로 사본을 하나 더 만들므로 실제로�
 | 활성 + 비torch + CUDAGraph | 1.12 GiB 필요 | 6.28 GiB |
 | **결과** | ❌ 실패 — 남은 여유 0.34 GiB, 0.78 GiB 부족(CUDA OOM) | ✅ 통과 — 간신히 |
 
-- **텍스트 코스도 안전지대가 아닙니다** — KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
+- **텍스트 코스도 안전지대가 아닙니다**: KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
 - vLLM 자신도 로그에서 `--kv-cache-memory=3.76 GiB`를 권고합니다 → **KV를 4.69로 과대 배정한 것**입니다.
 
 ??? question "오개념 — “GPU 타입을 바꿔야 하나?”"
@@ -929,20 +929,20 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 이미지와 서빙 설정:
 
-- `common/dlc.py` — 엔진별 서빙 이미지 URI 해석과 env 생성(`resolve_serving_image`·`serving_env`·`serving_image_table`)
-- `common/config.py` — 모델 프리셋과 서빙 기본값(`SERVING_ENGINE`·`INFER_INSTANCE_TYPE`)
-- `.env` — 이미지 완전 URI(`VLLM_IMAGE_URI` 등)와 `SERVING_ENGINE` 고정값
+- `common/dlc.py`: 엔진별 서빙 이미지 URI 해석과 env 생성(`resolve_serving_image`·`serving_env`·`serving_image_table`)
+- `common/config.py`: 모델 프리셋과 서빙 기본값(`SERVING_ENGINE`·`INFER_INSTANCE_TYPE`)
+- `.env`: 이미지 완전 URI(`VLLM_IMAGE_URI` 등)와 `SERVING_ENGINE` 고정값
 
 호출과 출력:
 
-- `common/aws_utils.py` — endpoint 호출·SSE 스트리밍·CloudWatch 링크(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`cw_links`)
-- `common/display_utils.py` — 잘림·마크다운 깨짐을 막는 노트북 렌더링(`show_inference`·`stream_inference`)
-- `common/llm_gateway.py` — LiteLLM으로 Bedrock과 endpoint를 한 인터페이스로 묶는 게이트웨이
+- `common/aws_utils.py`: endpoint 호출·SSE 스트리밍·CloudWatch 링크(`invoke_sagemaker_chat`·`stream_sagemaker_chat`·`cw_links`)
+- `common/display_utils.py`: 잘림·마크다운 깨짐을 막는 노트북 렌더링(`show_inference`·`stream_inference`)
+- `common/llm_gateway.py`: LiteLLM으로 Bedrock과 endpoint를 한 인터페이스로 묶는 게이트웨이
 
 학습 산출물과 로컬 검증:
 
-- `tracks/*/scripts/train.py` — SFT 학습 스크립트. 저장 직전 KV-shared 텐서 복원(`_revive_kv_shared_from_base`)
-- `tracks/*/scripts/serve_local_vllm.sh` — 배포 전 로컬 `vllm serve` 프리플라이트
-- `tracks/*/scripts/cleanup_local.sh` — 로컬 vLLM 프로세스와 압축 해제 모델 정리(GPU·디스크 회수)
+- `tracks/*/scripts/train.py`: SFT 학습 스크립트. 저장 직전 KV-shared 텐서 복원(`_revive_kv_shared_from_base`)
+- `tracks/*/scripts/serve_local_vllm.sh`: 배포 전 로컬 `vllm serve` 프리플라이트
+- `tracks/*/scripts/cleanup_local.sh`: 로컬 vLLM 프로세스와 압축 해제 모델 정리(GPU·디스크 회수)
 
 노트북 순서: `02b_local_serve` → `03_deploy_endpoint` → `04_evaluate` → `99_cleanup` (각 단계의 역할은 [연결 노트북](#연결-노트북-0006--99) 참고)

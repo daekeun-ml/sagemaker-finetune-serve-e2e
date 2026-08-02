@@ -4,12 +4,12 @@
     파인튜닝한 SLM(Gemma 4)을 "어떻게 서빙하나"가 궁금한 초심자~중급자를 위한 문서입니다.
     HyperPod/EC2 지식은 필요 없습니다.
 
-    - **선행 조건** — `02_train_sft_sagemaker`까지 실행해 `model_data`(S3 아티팩트)가 있는 상태.
+    - **선행 조건**: `02_train_sft_sagemaker`까지 실행해 `model_data`(S3 아티팩트)가 있는 상태.
       Training Job·Endpoint의 수명과 과금 차이가 낯설면
       [SageMaker 기초](01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — 추론 4옵션 선택 · endpoint 구조와 호출 ·
+    - **여기서 다루는 것**: 추론 4옵션 선택 · endpoint 구조와 호출 ·
       서빙 컨테이너/DLC 이미지 · 비용과 정리
-    - **여기서 다루지 않는 것** — 학습 하이퍼파라미터 · 평가 지표 · agentic 설계
+    - **여기서 다루지 않는 것**: 학습 하이퍼파라미터 · 평가 지표 · agentic 설계
 
 이 문서는 이 kit의 **추론 앵커 문서**입니다. 다른 가이드(학습·agentic·평가)는 "endpoint가 무엇인지"를 설명할 때 이 문서로 링크를 겁니다.
 
@@ -42,12 +42,12 @@
 
 파인튜닝까지 끝낸 초심자가 배포 단계에서 실제로 자주 막히는 지점은 다음과 같습니다.
 
-- "endpoint 종류가 4개나 되는데 **무엇을 골라야 할까요?**" — 문서마다 이름만 나열할 뿐, *언제 무엇을* 써야 하는지는 알려주지 않습니다.
-- "Bedrock은 그냥 API로 부르던데, **내 endpoint도 Bedrock으로 부르는 걸까요?**" — 아닙니다. 완전히 다른 서비스입니다.
-- "**Serverless가 제일 싸 보이는데** 왜 쓰지 않을까요?" — GPU가 없어서 LLM이 돌아가지 않기 때문입니다. 이 사실을 모르고 골랐다가 배포에 실패하는 경우가 많습니다.
+- "endpoint 종류가 4개나 되는데 **무엇을 골라야 할까요?**": 문서마다 이름만 나열할 뿐, *언제 무엇을* 써야 하는지는 알려주지 않습니다.
+- "Bedrock은 그냥 API로 부르던데, **내 endpoint도 Bedrock으로 부르는 걸까요?**": 아닙니다. 완전히 다른 서비스입니다.
+- "**Serverless가 제일 싸 보이는데** 왜 쓰지 않을까요?": GPU가 없어서 LLM이 돌아가지 않기 때문입니다. 이 사실을 모르고 골랐다가 배포에 실패하는 경우가 많습니다.
 - "서빙 컨테이너가 vLLM, SGLang, LMI로 여러 개인데, **어느 것에 model_data를 물려야 할까요?**"
-- "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**" — 24GB GPU에서 엔진 기본값이 메모리를 넘겼기 때문입니다.
-- "테스트만 했을 뿐인데 **다음 날 청구서가 날아왔어요.**" — Real-time endpoint를 지우지 않았기 때문입니다.
+- "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**": 24GB GPU에서 엔진 기본값이 메모리를 넘겼기 때문입니다.
+- "테스트만 했을 뿐인데 **다음 날 청구서가 날아왔어요.**": Real-time endpoint를 지우지 않았기 때문입니다.
 
 이 문서는 위 여섯 가지 고민을 순서대로 해소해 드립니다.
 
@@ -75,7 +75,7 @@ AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.c
 - 실시간·서버리스 패널은 `추론 요청` → `추론 결과` 왕복 화살표 하나로 끝납니다.
 - 비동기·배치 패널은 화살표가 세 갈래로 갈라집니다: 즉시 돌아오는 **요청 확인**(접수증), S3로 떨어지는 **결과**, 알림 리스너로 가는 **완료 통보**.
 
-- **Asynchronous**는 payload를 먼저 S3에 올리고 `invoke_endpoint_async(InputLocation=...)`로 **포인터만** 넘깁니다. 응답으로는 결과가 아니라 `OutputLocation`이 돌아오고, 완료 통보는 SNS로 받습니다(`AsyncInferenceConfig.OutputConfig.NotificationConfig`의 `SuccessTopic`/`ErrorTopic` — [결과 확인 방법](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference-check-predictions.html)).
+- **Asynchronous**는 payload를 먼저 S3에 올리고 `invoke_endpoint_async(InputLocation=...)`로 **포인터만** 넘깁니다. 응답으로는 결과가 아니라 `OutputLocation`이 돌아오고, 완료 통보는 SNS로 받습니다(`AsyncInferenceConfig.OutputConfig.NotificationConfig`의 `SuccessTopic`/`ErrorTopic`: [결과 확인 방법](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference-check-predictions.html)).
 - **Batch Transform**은 호출 API 자체가 없습니다. `CreateTransformJob`으로 Job을 띄우고 결과를 S3에서 회수합니다. 상태 변화는 EventBridge `SageMaker Transform Job State Change` 이벤트로 받습니다([SageMaker EventBridge 이벤트](https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html)).
 - 즉 **응답을 그 자리에서 되받는 것은 Real-time(과 Serverless)뿐**입니다. 이 kit의 04·05 노트북이 SNS 토픽도 EventBridge 규칙도 없이 `invoke_endpoint()` 한 줄로 끝나는 이유가 여기 있습니다.
 
@@ -300,7 +300,7 @@ Gemma를 서빙할 때 주의할 점은 다음과 같습니다(모두 **실행 �
 - **system role**: Gemma 템플릿에는 전용 system 슬롯이 없는 경우가 많습니다(정확한 동작은 모델별 `tokenizer_config`가 결정합니다). 그래도 이 kit의 코스는 `build_inference_messages(..., system_content=...)`로 만든 system role을 그대로 endpoint에 보내고, 서버의 chat template이 처리합니다. 이 문서에 인용한 실측값도 그 경로에서 나왔습니다.
 - **system role 거부 시**: 템플릿이 system role을 거부하는 모델을 만났을 때만 `fold_system_into_user()`로 첫 user 턴에 병합하세요(자동 폴백은 없습니다).
 - **형식 일치**: 학습과 추론의 프롬프트 형식이 어긋나면 점수가 떨어집니다. **학습에 쓴 형식과 같은 쪽**을 유지하는 것이 원칙입니다.
-- **dtype는 bf16 필수** — **fp16은 금지**입니다. Gemma에서 오버플로/NaN을 유발합니다.
+- **dtype는 bf16 필수**: **fp16은 금지**입니다. Gemma에서 오버플로/NaN을 유발합니다.
 - **LoRA 타깃(텍스트)**: all-linear에 `modules_to_save=["lm_head","embed_tokens"]`를 함께 지정합니다.
 - **LoRA 타깃(멀티모달)**: vision/audio proj가 매칭돼 크래시하므로, language_model 한정 `target_modules`에 `modules_to_save=None`을 씁니다.
 
@@ -498,14 +498,14 @@ sm.list_endpoints()   # 이 코스 prefix가 비어 있으면 그 코스 과금�
 
 호출과 관측:
 
-- `common/aws_utils.py` — endpoint 호출(`invoke_sagemaker_chat`), 스트리밍(`stream_sagemaker_chat`), CloudWatch 링크(`cw_links`), 비용 경고 문구(`COST_WARNING`)
-- `common/llm_gateway.py` — LiteLLM 통합 게이트웨이(`endpoint_chat`), endpoint와 Bedrock을 한 인터페이스로
-- `common/gemma_format.py` — Gemma chat 포맷 어댑터(`build_inference_messages`, `fold_system_into_user`)
+- `common/aws_utils.py`: endpoint 호출(`invoke_sagemaker_chat`), 스트리밍(`stream_sagemaker_chat`), CloudWatch 링크(`cw_links`), 비용 경고 문구(`COST_WARNING`)
+- `common/llm_gateway.py`: LiteLLM 통합 게이트웨이(`endpoint_chat`), endpoint와 Bedrock을 한 인터페이스로
+- `common/gemma_format.py`: Gemma chat 포맷 어댑터(`build_inference_messages`, `fold_system_into_user`)
 
 배포 설정:
 
-- `common/dlc.py` — 서빙 DLC 이미지 URI 해석(`resolve_serving_image`)과 엔진별 env 매핑(`serving_env`)
-- `common/config.py` — 엔진 선택(`SERVING_ENGINE`)·인스턴스 타입(`INFER_INSTANCE_TYPE`)·Bedrock 모델 ID(`BEDROCK_CLAUDE_MODEL_ID`) 등 프리셋과 환경변수
-- `.env` — 엔진별 완전 이미지 URI와 리전 오버라이드
+- `common/dlc.py`: 서빙 DLC 이미지 URI 해석(`resolve_serving_image`)과 엔진별 env 매핑(`serving_env`)
+- `common/config.py`: 엔진 선택(`SERVING_ENGINE`)·인스턴스 타입(`INFER_INSTANCE_TYPE`)·Bedrock 모델 ID(`BEDROCK_CLAUDE_MODEL_ID`) 등 프리셋과 환경변수
+- `.env`: 엔진별 완전 이미지 URI와 리전 오버라이드
 
 노트북 순서: `02_train_sft_sagemaker`(`model_data` 생성) → `03_deploy_endpoint`(배포·스모크 호출) → `99_cleanup`(과금 중단)

@@ -5,23 +5,23 @@
     코스입니다(`tracks/05_multimodal_extraction`).
     "영수증·전표·서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
 
-    - **선행 조건** — AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
+    - **선행 조건**: AWS 자격증명과 SageMaker 실행 role (`00_setup`이 확인).
       SageMaker가 처음이면 [SageMaker 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
-    - **여기서 다루지 않는 것** — 학습 방식은 [파인튜닝](../03_finetuning.md),
+    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
       배포·서빙은 [SageMaker 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은
       [서빙 컨테이너](../05_serving_containers.md)
-    - **이 코스에 없는 단계** — 합성 데이터·agentic 단계. 그 두 단계는 텍스트 코스(01~04)에 있습니다
-    - **다른 코스** — 텍스트에서 JSON을 뽑는 문제는 [추출](extraction.md)
+    - **이 코스에 없는 단계**: 합성 데이터·agentic 단계. 그 두 단계는 텍스트 코스(01~04)에 있습니다
+    - **다른 코스**: 텍스트에서 JSON을 뽑는 문제는 [추출](extraction.md)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
-- `tracks/05_multimodal_extraction/track_data.py` — cord-v2 로드, `{images, messages}` 어댑터, `INSTRUCTION`
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 멀티모달 SFT(`AutoModelForImageTextToText` + `AutoProcessor`)
-- `tracks/05_multimodal_extraction/samples/` — 배포 검증용 영수증 2장 + 정답 JSON(`README.md`에 선정 근거)
-- `tracks/05_multimodal_extraction/*.ipynb` — 이 코스의 노트북 5개
-- `common/config.py` — `TRACKS['mm_extraction']` 레지스트리(시드 데이터셋, `max_seq_length=2048`, `num_train_epochs=2`, `multimodal=True`)
-- `tracks/05_multimodal_extraction/_build_notebooks.py` — 이 코스 전용 `TrackSpec`과 노트북 빌더(공용 `_shared_build`에서 셀 헬퍼만 재사용)
+- `tracks/05_multimodal_extraction/track_data.py`: cord-v2 로드, `{images, messages}` 어댑터, `INSTRUCTION`
+- `tracks/05_multimodal_extraction/scripts/train_mm.py`: 멀티모달 SFT(`AutoModelForImageTextToText` + `AutoProcessor`)
+- `tracks/05_multimodal_extraction/samples/`: 배포 검증용 영수증 2장 + 정답 JSON(`README.md`에 선정 근거)
+- `tracks/05_multimodal_extraction/*.ipynb`: 이 코스의 노트북 5개
+- `common/config.py`: `TRACKS['mm_extraction']` 레지스트리(시드 데이터셋, `max_seq_length=2048`, `num_train_epochs=2`, `multimodal=True`)
+- `tracks/05_multimodal_extraction/_build_notebooks.py`: 이 코스 전용 `TrackSpec`과 노트북 빌더(공용 `_shared_build`에서 셀 헬퍼만 재사용)
 
 ---
 
@@ -169,11 +169,11 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어) — 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](../00_overview.md#멀티모달-코스-05의-별도-파이프라인))
-- [03 파인튜닝](../03_finetuning.md) — LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
-- [04 SageMaker 추론](../04_sagemaker_inference.md) — endpoint 3층 구조, 호출 스키마, payload·timeout 한도
-- [05 서빙 컨테이너](../05_serving_containers.md) — 엔진 선택, OOM·절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인) — 단계별 실행 순서, 비용 가드, 완료 기준
+- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](../00_overview.md#멀티모달-코스-05의-별도-파이프라인))
+- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
+- [04 SageMaker 추론](../04_sagemaker_inference.md): endpoint 3층 구조, 호출 스키마, payload·timeout 한도
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [실행 runbook](../RUN_E2E.md#멀티모달-코스-05-파이프라인): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.

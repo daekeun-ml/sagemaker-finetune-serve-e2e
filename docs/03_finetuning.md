@@ -5,25 +5,25 @@
     HuggingFace `transformers`/`trl`은 대략 알지만 SageMaker 학습 Job·DLC·LoRA 관용구는
     처음이어도 괜찮습니다.
 
-    - **선행 조건** — 각 코스의 `01_data_and_synthetic.ipynb`까지 실행해
+    - **선행 조건**: 각 코스의 `01_data_and_synthetic.ipynb`까지 실행해
       `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태.
       Training Job이 무엇이고 `/opt/ml/*` 경로 규약이 왜 있는지가 낯설면
       [SageMaker 기초](01_sagemaker_basics.md)부터
-    - **여기서 다루는 것** — 학습 경로 선택 · Gemma 관용구 · LoRA/QLoRA · 머지/re-export ·
+    - **여기서 다루는 것**: 학습 경로 선택 · Gemma 관용구 · LoRA/QLoRA · 머지/re-export ·
       `MaxRuntimeExceeded` 함정 · SFT→GRPO 데이터 규율
-    - **여기서 다루지 않는 것** — endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md),
+    - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker 추론](04_sagemaker_inference.md),
       합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)
 
 이 문서와 관련된 리포지토리 파일:
 
-- `common/config.py` — Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 코스 정의(`TRACKS` — 코드 식별자는 초기 이름을 그대로 유지합니다), HF 토큰 조회
-- `common/dlc.py` — DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)
-- `common/gemma_format.py` — 코스별 raw row를 표준 `messages`로 변환, 수동 호출용 `fold_system_into_user` 헬퍼
-- `common/grpo_data.py` — GRPO prompt 소스 준비(`holdout`/`synth`/`failures`)
-- `tracks/*/scripts/train.py` — SFT 학습 스크립트(LoRA/QLoRA, 머지, 텍스트 re-export)
-- `tracks/*/scripts/train_grpo.py` — GRPO 정련 스크립트(프로그램적 reward, 추출·분류 코스)
-- `tracks/05_multimodal_extraction/scripts/train_mm.py` — 이미지→JSON 멀티모달 SFT(vision tower 유지, re-export 없음)
-- `tracks/*/scripts/requirements.txt` — 학습 컨테이너 안에서 올리는 transformers/trl/peft 핀
+- `common/config.py`: Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 코스 정의(`TRACKS` — 코드 식별자는 초기 이름을 그대로 유지합니다), HF 토큰 조회
+- `common/dlc.py`: DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK 폴백)
+- `common/gemma_format.py`: 코스별 raw row를 표준 `messages`로 변환, 수동 호출용 `fold_system_into_user` 헬퍼
+- `common/grpo_data.py`: GRPO prompt 소스 준비(`holdout`/`synth`/`failures`)
+- `tracks/*/scripts/train.py`: SFT 학습 스크립트(LoRA/QLoRA, 머지, 텍스트 re-export)
+- `tracks/*/scripts/train_grpo.py`: GRPO 정련 스크립트(프로그램적 reward, 추출·분류 코스)
+- `tracks/05_multimodal_extraction/scripts/train_mm.py`: 이미지→JSON 멀티모달 SFT(vision tower 유지, re-export 없음)
+- `tracks/*/scripts/requirements.txt`: 학습 컨테이너 안에서 올리는 transformers/trl/peft 핀
 
 노트북 순서: `01_data_and_synthetic` → `02_train_sft_sagemaker` → (선택) `02a_train_grpo_sagemaker`
 
@@ -106,9 +106,9 @@
 
 맨 위 줄(AWS SDKs)도 이 kit이 실제로 씁니다. **Job을 만드는 것은 Python SDK지만, 만든 뒤 들여다보고 지우는 코드는 boto3입니다.**
 
-- 조회 — `common/aws_utils.py`의 `training_job_status()`가 `sagemaker` 클라이언트로 `describe_training_job`을 호출합니다.
-- 삭제 — `99_cleanup.ipynb`가 `delete_endpoint`/`delete_endpoint_config`/`delete_model`을 씁니다.
-- 호출 — endpoint 호출은 `sagemaker-runtime`의 `invoke_endpoint`입니다.
+- 조회: `common/aws_utils.py`의 `training_job_status()`가 `sagemaker` 클라이언트로 `describe_training_job`을 호출합니다.
+- 삭제: `99_cleanup.ipynb`가 `delete_endpoint`/`delete_endpoint_config`/`delete_model`을 씁니다.
+- 호출: endpoint 호출은 `sagemaker-runtime`의 `invoke_endpoint`입니다.
 
 Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 내려가면 됩니다.
 그 층은 그림의 언어 목록(Java·Node·Go 등) 어디서나 같아서, 학습 Job 제출을 Java 애플리케이션에서 해도 됩니다. 그때 없는 것은 `SourceCode`·`Compute` 같은 **편의 래퍼뿐**입니다.
@@ -182,7 +182,7 @@ LoraConfig(
 
 - 텍스트 전용 base라면 [PEFT `LoraConfig` API 문서](https://huggingface.co/docs/peft/en/package_reference/lora)의 `target_modules="all-linear"`로 모든 linear에 어댑터를 붙이고, `modules_to_save=["lm_head","embed_tokens"]`로 임베딩·출력 헤드를 full-train 대상에 넣습니다. LoRA는 원래 이 둘을 건드리지 않으므로, 빠뜨리면 chat 특수토큰 표현이 어긋납니다.
 - **gemma-4는 전 사이즈가 멀티모달입니다**(vision, E4B/12B는 audio 포함). 텍스트 SFT라도 로더가 `AutoModelForImageTextToText`이므로 타깃 결정이 달라집니다.
-- 이름 리스트나 `all-linear`를 주면 **크래시합니다.** language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다: `ValueError: Target module ... is not supported`.
+- 이름 리스트나 `all-linear`를 주면 **크래시합니다.** language의 proj는 평범한 `nn.Linear`지만 vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원하지 않습니다(`ValueError: Target module ... is not supported`).
 - 그래서 멀티모달에서는 **정규식으로 `language_model` 경로만 한정**합니다. 실측에서는 language의 `nn.Linear` 258개만 매칭됐고(ClippableLinear 0개), `get_peft_model`이 성공해 `lora_A` 516개가 부착됐습니다.
 - 멀티모달에서는 embed/lm_head를 `modules_to_save`로 두면 vision 임베딩까지 얽힐 수 있어 생략합니다(순수 텍스트 LoRA).
 
@@ -381,7 +381,7 @@ trainer = ModelTrainer(
 )
 ```
 
-- **넉넉히 잡아도 손해가 없습니다** — Job이 정상 종료되면 그 시점에 과금이 멈춥니다. 이 값은 요금이 아니라 **폭주 방지 상한**입니다.
+- **넉넉히 잡아도 손해가 없습니다**: Job이 정상 종료되면 그 시점에 과금이 멈춥니다. 이 값은 요금이 아니라 **폭주 방지 상한**입니다.
 - 반대로 실습 비용을 확실히 막으려 낮출 때는 **머지·업로드용으로 최소 15분**을 남기세요(E4B 실측: 머지 약 2분 + 업로드 약 3분. 모델이 커지면 늘어납니다).
 - 노트북은 제출 전에 **예상 시간을 계산해 한도와 비교하고, 초과하면 `assert`로 막습니다**. GPU·라이브러리 버전이 달라지면 기준 s/step이 움직여 `assert`가 실제와 어긋나므로, Job 로그의 실제 step 시간으로 갱신하세요.
 
@@ -413,9 +413,9 @@ trainer = ModelTrainer(
 | HF_TOKEN | 불필요(비워도 됨) | 필요(`MODEL_IS_GATED=1` + env/`hf auth login`) |
 | 전환 방법 | `MODEL_SIZE`(E2B/E4B/12B/26B-A4B/31B) | `MODEL_ID`로 직접 지정 |
 
-- **env에 시크릿을 넣지 않는 쪽을 권장합니다** — `hf auth login`만 해도 kit이 토큰을 인식합니다. 조회 순서는 (1) env `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` → (2) `hf auth login`이 저장한 파일 토큰(`$HF_HOME/token`)입니다(`common/config.py`의 `get_hf_token()`). ungated 모델에는 토큰을 넣지 않아도 되고, 넣어도 무해합니다.
+- **env에 시크릿을 넣지 않는 쪽을 권장합니다**: `hf auth login`만 해도 kit이 토큰을 인식합니다. 조회 순서는 (1) env `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` → (2) `hf auth login`이 저장한 파일 토큰(`$HF_HOME/token`)입니다(`common/config.py`의 `get_hf_token()`). ungated 모델에는 토큰을 넣지 않아도 되고, 넣어도 무해합니다.
 - 서빙 쪽은 다릅니다. 이 kit의 endpoint는 학습 산출 모델(S3 `model_data`)을 서빙하므로 HF에서 가중치를 당기지 않습니다. 토큰을 서빙 env에 실으면 `describe_endpoint` 같은 리소스 메타데이터에 평문으로 남으므로, `get_serving_hf_token()`은 **`MODEL_IS_GATED=1`일 때만** 토큰을 반환합니다.
-- **라이선스 전파** — Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다.
+- **라이선스 전파**: Gemma 라이선스(gemma-3 등)는 파인튜닝은 물론 **머지 산출물·서빙 결과물까지** use-restriction이 전파됩니다. apache-2.0(gemma-4)에는 그런 제약이 없습니다.
 - gated·ungated 여부와 라이선스는 바뀔 수 있으므로, 재배포·서빙 전에 쓰려는 모델의 카드에서 라이선스 배너를 다시 확인하세요. 옵션 경로라면 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it), 기본 경로라면 [`gemma-4-E4B-it` 모델 카드](https://huggingface.co/google/gemma-4-E4B-it)입니다.
 
 시드 데이터셋은 전부 permissive한 것으로 골랐습니다. 세부는 `common/config.py`의 `TRACKS`를 참조하세요.
@@ -482,10 +482,10 @@ def _to_grpo(example):
 | `failures` | `04_evaluate`에서 틀린 건만 | 03·04 선행 필요 | 가장 강함 |
 | `holdout` | SFT가 쓰지 않은 구간 | 무료·즉시 | 약함(같은 분포) |
 
-- **`synth`가 기본인 이유** — `holdout`은 무료지만 같은 분포라 advantage가 잘 생기지 않습니다. `synth`는 생성 프롬프트에 **난이도 제약**을 걸어 어려운 예시를 만듭니다. 제약은 **생성 프롬프트에만** 넣습니다 — critique에도 넣으면 시드와 다르다며 전부 기각합니다(실측 8/8 기각).
-- **`synth`의 함정** — SFT 합성과 **같은 시드**를 주면 분포가 또 겹칩니다. 노트북은 `NUM_SEED_SAMPLES` 이후 구간의 시드만 넘겨 이를 피합니다. RL은 정답이 학습 입력이 아니므로 prompt 생성이 SFT 합성보다 쉽고 쌉니다. 다만 이 kit의 reward는 프로그램적 채점이라 reference가 필요해 (input, output) 형태로 만듭니다.
-- **`failures`** — 실무에서 가장 효율적인 경로입니다. reward 신호가 강한 구간에만 집중합니다. 실패가 0건이면 GRPO로 얻을 것이 적다는 뜻이므로(좋은 신호) `N_EVAL`을 키워 더 어려운 케이스를 찾으세요.
-- **`holdout`** — 추가 비용 없이 파이프라인을 끝까지 볼 수 있게 하는 값입니다. 누출은 막지만, 학습 후 reward가 거의 변하지 않으면 [advantage ≈ 0 문제](#왜-학습이-안-되는가--advantage--0)로 보고 다른 소스로 옮기세요.
+- **`synth`가 기본인 이유**: `holdout`은 무료지만 같은 분포라 advantage가 잘 생기지 않습니다. `synth`는 생성 프롬프트에 **난이도 제약**을 걸어 어려운 예시를 만듭니다. 제약은 **생성 프롬프트에만** 넣습니다 — critique에도 넣으면 시드와 다르다며 전부 기각합니다(실측 8/8 기각).
+- **`synth`의 함정**: SFT 합성과 **같은 시드**를 주면 분포가 또 겹칩니다. 노트북은 `NUM_SEED_SAMPLES` 이후 구간의 시드만 넘겨 이를 피합니다. RL은 정답이 학습 입력이 아니므로 prompt 생성이 SFT 합성보다 쉽고 쌉니다. 다만 이 kit의 reward는 프로그램적 채점이라 reference가 필요해 (input, output) 형태로 만듭니다.
+- **`failures`**: 실무에서 가장 효율적인 경로입니다. reward 신호가 강한 구간에만 집중합니다. 실패가 0건이면 GRPO로 얻을 것이 적다는 뜻이므로(좋은 신호) `N_EVAL`을 키워 더 어려운 케이스를 찾으세요.
+- **`holdout`**: 추가 비용 없이 파이프라인을 끝까지 볼 수 있게 하는 값입니다. 누출은 막지만, 학습 후 reward가 거의 변하지 않으면 [advantage ≈ 0 문제](#왜-학습이-안-되는가--advantage--0)로 보고 다른 소스로 옮기세요.
 
 ??? info "더 읽을 거리 — 난이도 제약의 실측 효과"
     추출 코스 실측에서는 제약 없이 합성하면 8건 전부 인자 0개였습니다(시드 분포가 인자 없는 함수 94%).
