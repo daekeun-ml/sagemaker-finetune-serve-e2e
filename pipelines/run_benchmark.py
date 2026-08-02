@@ -41,6 +41,7 @@ import argparse  # noqa: E402
 from pipelines._common import (  # noqa: E402
     STATE_DIR,
     StateStore,
+    _region,
     load_courses,
 )
 from pipelines._config import load_config  # noqa: E402
@@ -102,7 +103,45 @@ def _result_dir(args, cfg) -> str | None:
     return data_dir(courses[args.course], cfg)
 
 
-def _bench_argv(endpoint_name: str, cfg, passthrough: list[str],
+def _diagnose_all_failed(endpoint_name: str, region: str) -> None:
+    """요청이 전부 실패했을 때 원인을 좁혀 준다.
+
+    🔴 가장 흔한 원인이 리전 불일치다(실측: 셸의 AWS_REGION 이 .env 를 덮어써서 us-east-1 로
+       요청 → endpoint 는 us-west-2 에 InService → 20건 전부 ValidationError). "이름·리전을
+       확인하세요" 라고만 하면 어느 리전으로 요청했는지도 보이지 않아 사용자가 같은 실수를
+       반복한다. 그래서 다른 리전에 실제로 있는지 여기서 찾아 준다.
+    """
+    import boto3
+
+    print(f"   요청한 리전: {region}   endpoint: {endpoint_name}")
+    try:
+        boto3.client("sagemaker", region_name=region).describe_endpoint(
+            EndpointName=endpoint_name)
+        print(f"   → 이 리전에 endpoint 는 있습니다. 상태와 CloudWatch 로그를 확인하세요.")
+        return
+    except Exception:                      # noqa: BLE001 — 없거나 권한이 없거나
+        print(f"   → {region} 에는 이 endpoint 가 없습니다.")
+
+    # 흔히 쓰는 리전 몇 곳만 훑는다. 전 리전을 도는 것은 느리고 대개 불필요하다.
+    for other in ("us-west-2", "us-east-1", "ap-northeast-2", "eu-west-1"):
+        if other == region:
+            continue
+        try:
+            st = boto3.client("sagemaker", region_name=other).describe_endpoint(
+                EndpointName=endpoint_name)["EndpointStatus"]
+        except Exception:                  # noqa: BLE001
+            continue
+        print(f"\n   ✅ {other} 에 있습니다(상태 {st}). 리전이 어긋났습니다:")
+        print(f"        AWS_REGION={other} python pipelines/run_benchmark.py "
+              f"--endpoint-name {endpoint_name}")
+        print("   🔴 셸의 AWS_REGION 이 .env 를 이깁니다(우선순위: 셸 env > .env > 기본값).")
+        print("      셸 값이 잘못됐다면 `unset AWS_REGION` 후 다시 실행하세요.")
+        return
+
+    print("   위 Error breakdown 이 원인입니다. 이름·상태(InService)·자격증명을 확인하세요.")
+
+
+def _bench_argv(endpoint_name: str, cfg, passthrough: list[str], region: str,
                 result_dir: str | None = None) -> list[str]:
     """config.yaml 의 benchmark 섹션을 sm-endpoint-bmt CLI 인자로 옮긴다.
 
@@ -119,7 +158,11 @@ def _bench_argv(endpoint_name: str, cfg, passthrough: list[str],
         print(f"⚠️  max_concurrency {b.max_concurrency} → {conc} (요청 {n}건보다 클 수 없습니다)")
     argv = [
         "--endpoint-name", endpoint_name,
-        "--region", os.environ.get("AWS_REGION") or "us-east-1",
+        # 🔴 os.environ 을 직접 읽지 않는다. load_config() 가 config.yaml 을 env 로 옮긴 뒤
+        #    common.config 를 다시 해석하므로, 리전의 유일한 출처는 _region() 이다(호출자가 넘긴다).
+        #    직접 읽고 기본값을 박아 두면 .env 의 AWS_REGION 과 어긋나 "Endpoint ... not found"
+        #    로 전부 실패한다(실측: endpoint 는 us-west-2 에 InService 인데 us-east-1 로 요청).
+        "--region", region,
         # 이 kit 의 서빙 컨테이너는 셋 다 messages 스키마(OpenAI chat)를 받는다.
         "--endpoint-type", "openai-chat",
         "--dataset-name", "random",
@@ -193,7 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"🔴 {e}")
         return 2
 
-    bench_argv = _bench_argv(endpoint_name, cfg, passthrough,
+    region = _region()
+    bench_argv = _bench_argv(endpoint_name, cfg, passthrough, region,
                              result_dir=_result_dir(args, cfg))
 
     if args.print_command:
@@ -238,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     failed = (result or {}).get("failed") or 0
     if not completed:
         print(f"\n🔴 성공한 요청이 없습니다(실패 {failed}건).")
-        print("   endpoint 이름·리전·상태(InService)를 확인하세요. 위 Error breakdown 이 원인입니다.")
+        _diagnose_all_failed(endpoint_name, region)
         return 1
     if failed:
         print(f"\n⚠️  {failed}건이 실패했습니다 — 위 지표는 성공한 {completed}건만의 값입니다.")

@@ -85,6 +85,10 @@ P99 TPOT (ms):                           15.57
 결과 JSON은 `--course`를 주면 그 코스의 `data/`에, 없으면 `bench_results/`에 저장됩니다. 파일명에
 endpoint 이름이 들어가므로 둘 다 gitignore 대상입니다.
 
+리전은 다른 스테이지와 같은 값(`common.config.AWS_REGION`)을 씁니다. 우선순위가 **셸 env >
+`.env`**라서, 셸에 `AWS_REGION`이 남아 있으면 `.env` 값이 무시되고 요청이 전부 실패합니다
+(`Endpoint ... not found`). 그 경우 도구가 다른 리전을 찾아 실행할 명령까지 알려 줍니다.
+
 ```bash
 python pipelines/run_benchmark.py --course extraction -- --num-prompts 500 --max-concurrency 32
 python pipelines/run_benchmark.py --course extraction -- --goodput ttft:200 tpot:50

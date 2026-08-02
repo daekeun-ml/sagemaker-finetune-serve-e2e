@@ -86,6 +86,23 @@ python pipelines/run_benchmark.py --course extraction --print-command   # 명령
 저장됩니다. 지정하지 않으면 도구가 현재 디렉터리에 쓰기 때문에 위치를 넘겨 줍니다. 파일명에
 endpoint 이름이 들어가서 둘 다 gitignore 대상입니다.
 
+!!! warning "리전이 어긋나면 전부 실패합니다"
+    리전은 다른 스테이지와 같은 값(`common.config.AWS_REGION`)을 씁니다. 우선순위가
+    **셸 env > `.env` > 기본값**이므로, 셸에 `AWS_REGION`이 export되어 있으면 `.env`의 값이
+    무시됩니다. endpoint가 다른 리전에 있으면 요청이 전부 `Endpoint ... not found`로 실패하고,
+    출력은 0으로 채운 표가 됩니다.
+
+    그때 `run_benchmark.py`가 다른 리전을 찾아 실행할 명령을 알려 주고 종료 코드 1을 씁니다.
+
+    ```
+    🔴 성공한 요청이 없습니다(실패 20건).
+       요청한 리전: us-east-1   endpoint: gemma-classification-vllm-...
+       → us-east-1 에는 이 endpoint 가 없습니다.
+
+       ✅ us-west-2 에 있습니다(상태 InService). 리전이 어긋났습니다:
+            AWS_REGION=us-west-2 python pipelines/run_benchmark.py --endpoint-name ...
+    ```
+
 !!! note "설치와 파이썬 버전"
     코어 의존성이라 `uv sync`로 함께 설치됩니다. 단 그 도구는 **Python 3.12 이상**이고 이 kit은
     3.10부터 지원하므로, `pyproject.toml`에 `python_version >= '3.12'` 마커가 달려 있습니다.
