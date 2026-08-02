@@ -14,6 +14,9 @@ python pipelines/run_extraction.py --stages all
 python pipelines/run_extraction.py --stages data,train
 python pipelines/run_extraction.py --stages deploy,eval
 
+# 배포된 endpoint 가 얼마나 빠른지 (TTFT/TPOT/ITL)
+python pipelines/run_extraction.py --stages bench
+
 # 끝나면 반드시 (endpoint 과금 중단)
 python pipelines/run_extraction.py --stages cleanup
 ```
@@ -28,9 +31,10 @@ python pipelines/run_extraction.py --stages cleanup
 | `run_domain_qa.py` | 도메인 QA | ❌ |
 | `run_multimodal.py` | 이미지 → JSON (영수증) | ❌ |
 
-스테이지 순서는 `data → train → grpo → deploy → eval → cleanup`입니다. `--stages all`은
-**grpo와 cleanup을 제외**합니다. cleanup은 방금 만든 endpoint를 실수로 지우지 않게, grpo는
-SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다.
+스테이지 순서는 `data → train → grpo → deploy → eval → bench → cleanup`입니다. `--stages all`은
+**grpo, bench, cleanup을 제외**합니다. cleanup은 방금 만든 endpoint를 실수로 지우지 않게, grpo는
+SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다. bench는 정확도와 다른 물음이라
+필요할 때 따로 부릅니다.
 
 GRPO까지 돌리려면 `--stages all+grpo`를 씁니다.
 
@@ -39,6 +43,37 @@ GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부
 
 에이전트 단계(`05_agentic_strands`, `06_agentcore_deploy`)는 노트북에만 있습니다. 질의를
 바꿔가며 응답을 보는 성격이라 스크립트로 만들 이득이 없습니다.
+
+## 속도 측정 (`--stages bench`)
+
+`eval`은 답이 맞는지, `bench`는 얼마나 빨리 오는지를 봅니다. 지표 정의는 `vllm bench serve`를
+따르므로 로컬 vLLM 측정치와 나란히 놓고 비교할 수 있습니다.
+
+| 지표 | 정의 |
+|---|---|
+| TTFT | 내용이 있는 첫 청크 도착 − 요청 전송 |
+| TPOT | (전체 지연 − TTFT) / (출력 토큰 − 1) |
+| ITL | 연속한 청크 사이의 간격 (TTFT는 포함하지 않습니다) |
+| E2EL | 요청 전송 → 마지막 청크 |
+
+리소스를 만들지 않고 이미 도는 endpoint를 호출합니다. `--endpoint-name`을 주면 이 kit 밖에서
+만든 endpoint도 잴 수 있습니다.
+
+```bash
+python pipelines/run_extraction.py --stages bench
+python pipelines/run_extraction.py --stages bench --endpoint-name my-endpoint
+```
+
+건수·동시성·부하율은 `config.yaml`의 `benchmark` 섹션에 있습니다. 기본값은 확인용으로 작게
+잡혀 있고(20건/동시 4), 용량 산정을 하려면 올리세요. `request_rate`를 숫자로 주면 초당 그만큼만
+보내며, 도착 간격은 지수분포를 씁니다. 고정 간격은 실제 트래픽보다 고르게 들어가 큐 대기를
+과소평가합니다.
+
+결과는 `tracks/<코스>/data/bench_results.json`에 요청별 값까지 저장됩니다.
+
+goodput, ramp-up, ShareGPT/HuggingFace 데이터셋, 백분위 지정, CloudWatch 대조가 필요하면
+[sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)를 쓰세요. 여기 있는 것은 배포
+직후 "쓸 만한 속도인가"에 답하기 위한 부분집합입니다.
 
 ## 상태는 파일로 넘깁니다
 

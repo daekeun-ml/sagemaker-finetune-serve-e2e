@@ -20,6 +20,9 @@ python pipelines/run_extraction.py --stages all
 python pipelines/run_extraction.py --stages data,train
 python pipelines/run_extraction.py --stages deploy,eval
 
+# 속도 측정 (TTFT/TPOT/ITL)
+python pipelines/run_extraction.py --stages bench
+
 # 정리 (endpoint 과금 중단)
 python pipelines/run_extraction.py --stages cleanup
 
@@ -37,9 +40,10 @@ python pipelines/run_extraction.py --stages all --dry-run
 | `run_domain_qa.py` | 도메인 QA | ❌ |
 | `run_multimodal.py` | 이미지 → JSON (영수증) | ❌ |
 
-스테이지는 `data → train → grpo → deploy → eval → cleanup` 순입니다. `--stages all`은
-**grpo와 cleanup을 제외**합니다. cleanup은 실수로 방금 만든 endpoint를 지우지 않게, grpo는
-SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다.
+스테이지는 `data → train → grpo → deploy → eval → bench → cleanup` 순입니다. `--stages all`은
+**grpo, bench, cleanup을 제외**합니다. cleanup은 실수로 방금 만든 endpoint를 지우지 않게, grpo는
+SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다. bench는 정확도와 다른 물음이라
+필요할 때 따로 부릅니다.
 
 GRPO까지 돌리려면 `--stages all+grpo`를 씁니다.
 
@@ -48,6 +52,49 @@ reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 �
 
 에이전트 단계(`05_agentic_strands`, `06_agentcore_deploy`)는 노트북에만 있습니다. 질의를
 바꿔가며 응답을 보는 성격이라 스크립트로 만들 이득이 없습니다.
+
+## 속도 측정 (`--stages bench`)
+
+`eval`이 답이 맞는지를 본다면 `bench`는 얼마나 빨리 오는지를 봅니다. 배포한 endpoint가 실제
+트래픽에서 쓸 만한지는 정확도만으로 답할 수 없습니다.
+
+| 지표 | 정의 |
+|---|---|
+| TTFT | 내용이 있는 첫 청크 도착 − 요청 전송 |
+| TPOT | (전체 지연 − TTFT) / (출력 토큰 − 1) |
+| ITL | 연속한 청크 사이의 간격 (TTFT는 포함하지 않습니다) |
+| E2EL | 요청 전송 → 마지막 청크 |
+
+정의는 `vllm bench serve`를 그대로 따릅니다. 다른 정의를 쓰면 로컬 vLLM 측정치와 대조할 수
+없어서 "느리다"는 판단의 근거가 사라집니다.
+
+리소스를 만들지 않고 이미 도는 endpoint를 호출합니다. `--endpoint-name`을 주면 이 kit 밖에서
+만든 endpoint도 잴 수 있습니다.
+
+```bash
+python pipelines/run_extraction.py --stages bench
+python pipelines/run_extraction.py --stages bench --endpoint-name my-endpoint
+```
+
+!!! note "알아 둘 것"
+    - 프롬프트는 무작위 토큰이 아니라 **held-out 텍스트**로 채웁니다. 프롬프트 성격이 prefill
+      시간을 바꾸므로, 실제 코스 입력으로 재야 이 태스크의 속도가 됩니다.
+    - 워밍업 요청은 지표에서 **제외**합니다. 첫 호출은 TLS 수립과 컨테이너 캐시가 섞여 TTFT
+      백분위를 혼자 끌어올립니다.
+    - `ignore_eos`로 항상 `output_len`까지 생성합니다. 이것이 없으면 요청마다 출력 길이가 달라
+      TPOT이 "모델이 얼마나 빨리 쓰나"가 아니라 "얼마나 짧게 답했나"를 재게 됩니다.
+    - 컨테이너가 usage를 보내지 않으면 출력 토큰 수가 청크 수 기반 근사가 되고, 그때는 TPOT과
+      tok/s도 근사라고 로그에 남깁니다.
+
+건수·동시성·부하율은 `config.yaml`의 `benchmark` 섹션에 있습니다. `request_rate`를 숫자로 주면
+초당 그만큼만 보내며, 도착 간격은 지수분포를 씁니다. 고정 간격은 실제 트래픽보다 고르게 들어가
+큐 대기를 과소평가합니다.
+
+결과는 `tracks/<코스>/data/bench_results.json`에 요청별 값까지 남습니다.
+
+goodput, ramp-up, ShareGPT/HuggingFace 데이터셋, 백분위 지정, CloudWatch 대조까지 필요하면
+[sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)를 쓰세요. 여기 있는 것은 배포
+직후 "쓸 만한 속도인가"에 답하기 위한 부분집합입니다.
 
 ## 단계 사이 상태 전달
 

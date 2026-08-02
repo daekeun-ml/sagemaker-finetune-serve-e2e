@@ -119,6 +119,20 @@ DEFAULTS: dict[str, Any] = {
         "workers": 8,
         "judge_max_examples": 20,
     },
+    # 부하 벤치마크. 평가(evaluation)와 재는 것이 다릅니다: 평가는 답이 맞는지, 벤치마크는
+    # 얼마나 빨리 오는지입니다. 기본값을 작게 둔 이유는 endpoint 가 시간당 과금이라 확인용
+    # 실행이 몇 초에 끝나야 하기 때문입니다. 실제 용량 산정을 하려면 값을 올리세요.
+    "benchmark": {
+        "num_prompts": 20,
+        "max_concurrency": 4,
+        "request_rate": "inf",          # "inf" = 한꺼번에 보냅니다. 숫자를 주면 초당 요청 수
+        "input_len": 256,
+        "output_len": 128,
+        # 🔴 워밍업은 지표에서 제외됩니다. 첫 호출은 커넥션 수립과 컨테이너 캐시가 섞여
+        #    TTFT 백분위를 혼자 끌어올립니다.
+        "num_warmups": 2,
+        "dry_run_num_prompts": 4,
+    },
     "aws": {
         "s3_bucket": "",
         "bedrock_model_id": "global.anthropic.claude-sonnet-5",
@@ -210,6 +224,17 @@ class EvalCfg:
 
 
 @dataclass(frozen=True)
+class BenchCfg:
+    num_prompts: int
+    dry_run_num_prompts: int
+    max_concurrency: int
+    request_rate: str                  # "inf" 또는 숫자 문자열 — CLI 에 그대로 넘긴다
+    input_len: int
+    output_len: int
+    num_warmups: int
+
+
+@dataclass(frozen=True)
 class AwsCfg:
     s3_bucket: str                     # 빈 문자열 = sagemaker default_bucket()
     bedrock_model_id: str
@@ -237,6 +262,7 @@ class PipelineConfig:
     serving: ServingCfg
     data: DataCfg
     evaluation: EvalCfg
+    benchmark: BenchCfg
     aws: AwsCfg
     runtime: RuntimeCfg
 
@@ -414,6 +440,18 @@ def _validate(cfg: dict[str, Any], *, allowed_sizes: tuple[str, ...],
     num("evaluation", "dry_run_num_examples", minimum=1)
     num("evaluation", "workers", minimum=1)
     num("evaluation", "judge_max_examples", minimum=0)   # 0 = LLM-judge 생략(Bedrock 비용 0)
+
+    num("benchmark", "num_prompts", minimum=1)
+    num("benchmark", "dry_run_num_prompts", minimum=1)
+    num("benchmark", "max_concurrency", minimum=1)
+    num("benchmark", "input_len", minimum=1)
+    num("benchmark", "output_len", minimum=1)
+    num("benchmark", "num_warmups", minimum=0)           # 0 = 워밍업 없음
+    # request_rate 만 숫자가 아닐 수 있다("inf"). num() 을 쓰면 문자열에서 걸린다.
+    rate = cfg["benchmark"].get("request_rate")
+    if not (rate in ("inf", float("inf"))
+            or (isinstance(rate, (int, float)) and not isinstance(rate, bool) and rate > 0)):
+        errors.append(f"benchmark.request_rate = {rate!r} — 양수 또는 \"inf\" 여야 합니다.")
 
     num("runtime", "poll_seconds", minimum=1)
 
@@ -685,6 +723,15 @@ def _build(cfg: dict[str, Any], source_path: str | None) -> PipelineConfig:
             dry_run_num_examples=int(cfg["evaluation"]["dry_run_num_examples"]),
             workers=int(cfg["evaluation"]["workers"]),
             judge_max_examples=int(cfg["evaluation"]["judge_max_examples"]),
+        ),
+        benchmark=BenchCfg(
+            num_prompts=int(cfg["benchmark"]["num_prompts"]),
+            dry_run_num_prompts=int(cfg["benchmark"]["dry_run_num_prompts"]),
+            max_concurrency=int(cfg["benchmark"]["max_concurrency"]),
+            request_rate=str(cfg["benchmark"]["request_rate"]),
+            input_len=int(cfg["benchmark"]["input_len"]),
+            output_len=int(cfg["benchmark"]["output_len"]),
+            num_warmups=int(cfg["benchmark"]["num_warmups"]),
         ),
         aws=AwsCfg(
             s3_bucket=str(cfg["aws"].get("s3_bucket", "") or ""),
