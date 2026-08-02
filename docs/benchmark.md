@@ -100,6 +100,12 @@ TPOT이 "모델이 얼마나 빨리 쓰나"가 아니라 "얼마나 짧게 답�
 | Peak concurrent requests | 12 | 12 | 0.0% |
 | Mean TPOT (ms) | 16.15 | 15.88 | 1.6% |
 | Median ITL (ms) | 15.85 | 15.86 | 0.0% |
+| Median TTFT (ms) | 54.84 | 48.22 | 12.1% |
+
+TTFT만 차이가 큽니다. 두 실행이 같은 시각이 아니었고(1시간 남짓 간격), 그 사이 서버 상태가
+달라졌기 때문으로 봅니다. TTFT 표준편차도 11.45 → 6.43으로 줄었습니다. 계산식 차이라면 TPOT과
+ITL도 같이 벌어져야 하는데 각각 1.6%와 0.0%이므로, 정의는 일치하고 실행 조건이 달랐다는 쪽이
+설명이 됩니다.
 
 전송 계층은 다릅니다. vLLM 쪽은 HTTP로 직접 붙고, sm-endpoint-bmt는 boto3
 `invoke_endpoint_with_response_stream`으로 SageMaker Runtime을 호출합니다. 그래서 검증용 프록시가
