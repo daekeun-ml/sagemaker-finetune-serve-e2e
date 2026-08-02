@@ -294,9 +294,16 @@ class StateStore:
     def summary(self, *, verbose: bool = False) -> str:
         """상태 요약. verbose=True 면 부가 기록(잡 이름·리전·엔진)까지 — `--show-state` 용."""
         lines = [f"state     : {self.path}"]
-        for k in STATE_KEYS:
-            v = self._data.get(k)
-            lines.append(f"  {k:16s}: {v if v else '(없음)'}")
+        # 🔴 첫 실행은 전 항목이 비어 있는 게 정상이다(bucket/role 은 첫 스테이지가 AWS 에서 해석하고,
+        #    나머지는 해당 스테이지가 만든다). 그걸 '(없음)' 다섯 줄로 늘어놓으면 설정이 잘못된 것처럼
+        #    보이므로, 아무것도 없을 때는 한 줄로 알린다.
+        filled = {k: self._data.get(k) for k in STATE_KEYS if self._data.get(k)}
+        if not filled and not verbose:
+            lines.append("  (첫 실행 — bucket·role·산출물은 각 스테이지가 채웁니다)")
+        else:
+            for k in STATE_KEYS:
+                v = self._data.get(k)
+                lines.append(f"  {k:16s}: {v if v else '(아직 없음)'}")
         if verbose:
             for k in BOOKKEEPING_KEYS:
                 v = self._data.get(k)
