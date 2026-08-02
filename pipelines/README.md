@@ -14,6 +14,9 @@ python pipelines/run_extraction.py --stages all
 python pipelines/run_extraction.py --stages data,train
 python pipelines/run_extraction.py --stages deploy,eval
 
+# 배포한 endpoint 가 얼마나 빠른지 (스테이지가 아니라 별도 진입점)
+python pipelines/run_benchmark.py --course extraction
+
 # 끝나면 반드시 (endpoint 과금 중단)
 python pipelines/run_extraction.py --stages cleanup
 ```
@@ -80,14 +83,7 @@ P99 TPOT (ms):                           15.57
 ```
 
 `config.yaml`의 `benchmark` 섹션이 건수·동시성·부하율·백분위·저장 여부를 정합니다. `--` 뒤에
-쓴 인자는 그 도구에 그대로 전달되며 설정을 덮습니다.
-
-결과 JSON은 `--course`를 주면 그 코스의 `data/`에, 없으면 `bench_results/`에 저장됩니다. 파일명에
-endpoint 이름이 들어가므로 둘 다 gitignore 대상입니다.
-
-리전은 다른 스테이지와 같은 값(`common.config.AWS_REGION`)을 씁니다. 우선순위가 **셸 env >
-`.env`**라서, 셸에 `AWS_REGION`이 남아 있으면 `.env` 값이 무시되고 요청이 전부 실패합니다
-(`Endpoint ... not found`). 그 경우 도구가 다른 리전을 찾아 실행할 명령까지 알려 줍니다.
+쓴 인자는 그 도구에 그대로 전달되며 그 설정을 덮습니다.
 
 ```bash
 python pipelines/run_benchmark.py --course extraction -- --num-prompts 500 --max-concurrency 32
@@ -98,6 +94,23 @@ python pipelines/run_benchmark.py --course extraction -- \
 
 goodput, ramp-up, ShareGPT/HuggingFace 데이터셋, CloudWatch 대조가 그 도구에 있습니다.
 전체 옵션은 `python -m sagemaker_benchmark --help`로 봅니다.
+
+결과 JSON은 `--course`를 주면 그 코스의 `data/`에, 없으면 `bench_results/`에 저장됩니다. 파일명에
+endpoint 이름이 들어가므로 둘 다 gitignore 대상입니다.
+
+**리전이 어긋나면 요청이 전부 실패합니다.** 리전은 다른 스테이지와 같은 값
+(`common.config.AWS_REGION`)을 쓰고, 우선순위가 **셸 env > `.env` > 기본값**입니다. 셸에
+`AWS_REGION`이 남아 있으면 `.env` 값이 무시되어 `Endpoint ... not found`가 나고, 출력은 0으로
+채운 표가 됩니다. 그때 다른 리전을 찾아 실행할 명령을 알려 주고 종료 코드 1을 씁니다.
+
+```
+🔴 성공한 요청이 없습니다(실패 20건).
+   요청한 리전: us-east-1   endpoint: gemma-classification-vllm-...
+   → us-east-1 에는 이 endpoint 가 없습니다.
+
+   ✅ us-west-2 에 있습니다(상태 InService). 리전이 어긋났습니다:
+        AWS_REGION=us-west-2 python pipelines/run_benchmark.py --endpoint-name ...
+```
 
 ## 상태는 파일로 넘깁니다
 
@@ -208,7 +221,8 @@ MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 |---|---|
 | `_config.py` | `config.yaml` 로더. 값을 `os.environ`으로 옮겨 `common/config.py`가 해석하게 합니다 |
 | `_common.py` | 스테이지 구현 + 상태 저장 + 이어받기 + 실행 드라이버 |
-| `run_*.py` | 코스별 진입점. 코스 특이값만 선언하고 드라이버에 넘깁니다 |
+| `run_<course>.py` | 코스별 진입점(5개). 코스 특이값만 선언하고 드라이버에 넘깁니다 |
+| `run_benchmark.py` | 속도 측정 진입점. 코스가 아니라 endpoint 하나를 대상으로 합니다 |
 
 `tracks/*/scripts/`와 혼동하지 마세요. 그쪽은 **SageMaker AI 컨테이너 안에서** 도는 `train.py`이고,
 여기는 그것을 **제출하는** 쪽입니다.
