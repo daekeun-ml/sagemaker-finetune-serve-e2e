@@ -1,10 +1,9 @@
-# 부하 벤치마크 — endpoint 속도 측정
-
-배포한 endpoint가 얼마나 빨리 응답하는지 재고, 그 수치를 로컬 vLLM 측정치와 나란히 비교합니다.
+# 속도 측정 — SageMaker AI Endpoint가 얼마나 빨리 응답하나
 
 !!! abstract "한 줄 요약"
     `python pipelines/run_benchmark.py --course <코스>` — TTFT / TPOT / ITL / E2EL을 mean, median,
-    p50/p95/p99로 냅니다. 지표 정의는 `vllm bench serve`를 그대로 따릅니다.
+    p50/p95/p99로 냅니다. 지표 정의는 `vllm bench serve`를 그대로 따르므로 로컬 vLLM 측정치와
+    나란히 놓고 비교할 수 있습니다.
 
 평가(`--stages eval`)와는 다른 물음입니다. 평가는 답이 맞는지, 벤치마크는 얼마나 빨리 오는지를
 봅니다. 배포한 모델이 정확도는 좋은데 첫 토큰이 2초 뒤에 오면 쓸 수 없습니다.
@@ -22,7 +21,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 python pipelines/run_benchmark.py --course classification --print-command
 ```
 
-리소스를 만들지 않습니다. 이미 도는 endpoint를 호출할 뿐입니다.
+리소스를 만들지 않습니다. 이미 도는 SageMaker AI real-time endpoint를 호출할 뿐입니다 (호출량만 늘고, endpoint 자체는 삭제 전까지 시간당 과금됩니다).
 
 ## 지표
 
