@@ -63,6 +63,53 @@ reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 �
 - `--show-state`로 현재 상태만 볼 수 있습니다.
 - 이 디렉토리는 gitignore 대상입니다(endpoint 이름과 S3 URI가 들어갑니다).
 
+## 중간에 끊겼을 때 — 다시 실행하면 이어집니다
+
+**Ctrl+C를 눌러도 학습 Job과 endpoint는 멈추지 않습니다.** AWS에서 계속 돌고 계속 과금됩니다.
+그래서 다시 실행할 때 같은 Job을 또 제출하면 GPU가 두 대 돌아갑니다.
+
+`--stages all`을 다시 실행하면 됩니다. 상태 파일에 남은 Job·endpoint 이름으로 실제 상태를
+조회해서 판단합니다.
+
+| 이전 실행이 남긴 것 | 다시 실행하면 |
+|---|---|
+| 학습 Job이 `InProgress` | 새로 제출하지 않고 **이어서 대기** |
+| 학습 Job이 `Completed` | 재학습 없이 **산출물만 회수** |
+| 학습 Job이 `Failed`/`Stopped` | 원인을 보여주고 중단 |
+| endpoint가 `Creating` | 새로 만들지 않고 `InService`까지 대기 |
+| endpoint가 `InService` | 그 endpoint를 그대로 사용 |
+| 콘솔에서 지운 리소스 | 없어진 것을 확인하고 새로 만듦 |
+
+진짜로 멈추려면 AWS 쪽에서 멈춰야 합니다.
+
+```bash
+aws sagemaker stop-training-job --training-job-name <state의 training_job> --region <리전>
+```
+
+!!! warning "--force는 진행 중인 것을 새로 만들지 않습니다"
+    `--force`는 "이미 만든 산출물이 있어도 다시 한다"는 뜻입니다. 다만 **돌고 있는 Job이나
+    endpoint는 `--force`로도 새로 만들지 않습니다.** 두 개가 동시에 과금되기 때문입니다.
+    의도적으로 멈춘 Job을 같은 설정으로 다시 제출할 때만 필요합니다.
+
+## 진행 로그
+
+스테이지 진행은 logger로 나옵니다(기본 `INFO`). 학습이 수십 분 도는 동안 타임스탬프가 없으면
+멈춘 것인지 느린 것인지 알 수 없습니다.
+
+```
+2026-08-02 06:53:35 | INFO | gemma_e2e.pipelines | [train] gemma-extraction-train-... 제출
+2026-08-02 06:53:41 | INFO | gemma_e2e.pipelines |   training job: InProgress / Training
+2026-08-02 06:53:41 | INFO | gemma_e2e.pipelines |   │ Starting training...
+2026-08-02 06:55:12 | INFO | gemma_e2e.pipelines |   │ {'loss': '1.813', 'grad_norm': '0.6953', ...}
+```
+
+Job이 `Training` 단계에 들어가면 **CloudWatch 로그를 함께 흘립니다.** 상태 문자열만 보면
+학습이 진행되는지 OOM으로 멈춰 있는지 구분할 수 없습니다. 로그 그룹은 Training 단계 진입 후에
+생기므로 그전에는 상태만 나옵니다.
+
+`--quiet`을 주면 `WARNING` 이상만 나옵니다(CI용). 실행 시작 헤더와 과금 확인 화면은 로그가 아니라
+사람이 읽는 출력이므로 `--quiet`에서도 그대로 보입니다.
+
 ## 설정
 
 설정은 [`config.yaml`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/config.yaml), 시크릿은 환경변수입니다.

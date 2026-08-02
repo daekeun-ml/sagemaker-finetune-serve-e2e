@@ -417,19 +417,73 @@ def warn_if_truncated(finish_reason: str | None, max_tokens: int, *, label: str 
     return False
 
 
+def _tail_training_logs(job_name: str, *, region: str, token: str | None) -> tuple[list[str], str | None]:
+    """학습 Job 의 CloudWatch 로그를 이어서 읽는다. (새 줄들, 다음 token) 을 반환.
+
+    상태만 찍으면(InProgress / Training) 안에서 무슨 일이 벌어지는지 알 수 없다. 학습이 도는지
+    OOM 으로 재시도 중인지, loss 가 내려가는지가 전부 이 로그에만 있다.
+    로그 그룹은 Job 이 Training 단계에 들어간 뒤에 생기므로, 그 전에는 조용히 넘어간다.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+
+    grp = "/aws/sagemaker/TrainingJobs"
+    cw = boto3.client("logs", region_name=region)
+    try:
+        # 스트림 이름은 <job>/algo-1-<epoch> 형태다. 단일 인스턴스 학습이라 첫 스트림만 본다.
+        st = cw.describe_log_streams(logGroupName=grp, logStreamNamePrefix=job_name,
+                                     limit=1).get("logStreams") or []
+        if not st:
+            return [], token          # Training 단계 진입 전
+        kw = dict(logGroupName=grp, logStreamName=st[0]["logStreamName"], limit=40)
+        # 🔴 filter_log_events 대신 get_log_events 를 쓴다. filter 쪽은 첫 호출에서 오래된
+        #    페이지를 돌려줘 빈 결과가 나오는 일이 있다. get 쪽은 startFromHead=False 로
+        #    '최신 40줄'을 확정적으로 준다.
+        r = cw.get_log_events(**kw, startFromToken=token) if token else \
+            cw.get_log_events(**kw, startFromHead=False)
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("ResourceNotFoundException", "InvalidParameterException"):
+            return [], token
+        raise
+    # tqdm 진행바는 한 메시지에 여러 프레임이 \r 로 이어져 온다(CloudWatch 는 #015 로 보낸다).
+    # 마지막 프레임만 남겨야 "0% → 100%" 가 한 줄로 보인다.
+    out = []
+    for ev in r.get("events", []):
+        m = ev["message"].rstrip().replace("#015", "\r").split("\r")[-1].strip()
+        if m:
+            out.append(m)
+    return out, r.get("nextForwardToken") or token
+
+
 def _wait_training_job(job, *, poll_seconds: int) -> str:
     """학습 잡이 종료될 때까지 폴링. 마지막 상태 문자열을 반환."""
     from common import aws_utils
 
     last = ""
+    token: str | None = None
+    tailing = False
     while True:
         job.refresh()
         st = job.training_job_status
         secondary = getattr(job, "secondary_status", None)
         line = f"{st} / {secondary}"
         if line != last:
-            print(f"  training job: {line}")
+            log.info(f"  training job: {line}")
             last = line
+
+        # 🔴 Training 단계에 들어가면 CloudWatch 로그를 함께 흘린다. 상태 문자열만으로는
+        #    학습이 진행되는지 OOM 으로 멈춰 있는지 구분할 수 없다.
+        if secondary in ("Training", "Uploading") or st in ("Failed", "Stopped"):
+            if not tailing:
+                log.info("  ── CloudWatch 로그 ──────────────────────────────")
+                tailing = True
+            try:
+                msgs, token = _tail_training_logs(job.training_job_name, region=_region(),
+                                                  token=token)
+                for m in msgs:
+                    log.info(f"  │ {m[:180]}")
+            except Exception as e:      # 로그를 못 읽어도 학습 대기는 계속한다
+                log.warning(f"  (로그 조회 실패: {type(e).__name__} — 상태 폴링은 계속합니다)")
         if st in ("Completed", "Failed", "Stopped"):
             if st != "Completed":
                 # 🔴 MaxRuntimeExceeded 는 FailureReason 이 비어 있어(상태만 Stopped) 원인이 안 보인다.
@@ -437,6 +491,102 @@ def _wait_training_job(job, *, poll_seconds: int) -> str:
                 aws_utils.training_job_status(job.training_job_name, _region())
             return st
         time.sleep(poll_seconds)
+
+
+def _endpoint_status(endpoint_name: str) -> str | None:
+    """endpoint 상태 문자열. 없으면 None (dry-run 산출물이면 조회하지 않는다)."""
+    if not endpoint_name or endpoint_name.startswith(DRY_PREFIX):
+        return None
+    import boto3
+    from botocore.exceptions import ClientError
+    try:
+        d = boto3.client("sagemaker", region_name=_region()).describe_endpoint(
+            EndpointName=endpoint_name)
+        return d["EndpointStatus"]
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("ValidationException", "ResourceNotFound"):
+            return None                      # 이미 지워졌다
+        raise
+
+
+def _resume_training_job(job_name: str, *, region: str, label: str,
+                         poll_seconds: int) -> tuple[str, str | None]:
+    """이전 실행이 제출해 둔 학습 Job 을 이어받는다. (상태, model_data) 를 반환.
+
+    🔴 왜 필요한가: `--stages all` 로 Job 을 제출한 뒤 Ctrl+C 를 누르거나 세션이 끊겨도
+       **Job 은 AWS 에서 계속 돕니다**. 그런데 스킵 판단이 완료 산출물(model_data)만 본다면,
+       다시 실행했을 때 "아직 없네" 하고 **같은 Job 을 또 제출**합니다. GPU 인스턴스가 두 대
+       도는 것이고, 그만큼 청구됩니다.
+       그래서 산출물이 없어도 **Job 이름이 남아 있으면 그 Job 의 상태를 먼저 조회**합니다.
+
+    반환하는 상태:
+      "InProgress" — 이어서 대기하고 완료되면 model_data 를 돌려준다
+      "Completed"  — 이미 끝났다. model_data 만 회수한다(재학습 없음)
+      "Failed"/"Stopped" — 왜 실패했는지 보여주고 호출자가 중단한다
+      "NotFound"   — Job 이 사라졌다(콘솔에서 지웠거나 이름이 어긋남). 새로 제출해도 된다
+    """
+    from common import aws_utils
+    from sagemaker.core.resources import TrainingJob
+
+    try:
+        job = TrainingJob.get(job_name)
+    except Exception as e:                       # 이름이 없거나 권한/리전 불일치
+        print(f"[{label}] 이전 Job '{job_name}' 을 조회할 수 없습니다({type(e).__name__}). "
+              "새로 제출합니다.")
+        return "NotFound", None
+
+    st = job.training_job_status
+    started = getattr(job, "training_start_time", None)
+    elapsed = ""
+    if started:
+        try:
+            mins = int((time.time() - started.timestamp()) // 60)
+            elapsed = f", {mins}분 경과"
+        except Exception:
+            pass
+
+    if st == "InProgress":
+        print(f"[{label}] 🔴 이전 실행이 제출한 Job 이 아직 돌고 있습니다: {job_name} "
+              f"({getattr(job, 'secondary_status', '?')}{elapsed})\n"
+              f"        새로 제출하지 않고 이어서 대기합니다. "
+              f"멈추려면 콘솔이나 `aws sagemaker stop-training-job` 을 쓰세요.")
+        _print_console_links(region, training_job=job_name)
+        st = _wait_training_job(job, poll_seconds=poll_seconds)
+
+    if st == "Completed":
+        md = job.model_artifacts.s3_model_artifacts
+        print(f"[{label}] 이전 Job 이 이미 완료돼 있습니다: {job_name}\n"
+              f"        학습을 다시 돌리지 않고 산출물을 씁니다: {md}")
+        return "Completed", md
+
+    # Failed / Stopped
+    print(f"[{label}] 이전 Job 이 {st} 상태입니다: {job_name}")
+    aws_utils.training_job_status(job_name, region)
+    return st, None
+
+
+def _resume_or_submit_guard(state: StateStore, key: str, *, label: str, cfg: PipelineConfig,
+                            force: bool) -> str | None:
+    """제출 전에 이전 Job 을 확인한다. model_data 를 얻었으면 그 값을, 아니면 None.
+
+    force=True 라도 **돌고 있는 Job 을 그냥 두고 새로 제출하지는 않는다** — 두 대가 동시에
+    과금되기 때문이다. 그 경우엔 무엇을 멈춰야 하는지 알려 주고 중단한다.
+    """
+    prev = state.get(key)
+    if not prev or str(prev).startswith(DRY_PREFIX):
+        return None
+
+    st, md = _resume_training_job(prev, region=_region(), label=label,
+                                 poll_seconds=cfg.runtime.poll_seconds)
+    if st == "Completed":
+        return md
+    if st == "NotFound":
+        return None
+    if st == "InProgress":     # _resume_training_job 이 끝까지 기다렸으므로 여기 오면 실패로 끝난 것
+        raise RuntimeError(f"이어받은 Job 이 완료되지 못했습니다: {prev}")
+    raise RuntimeError(
+        f"이전 Job 이 {st} 상태입니다({prev}). 위 로그에서 원인을 확인하세요.\n"
+        f"  같은 설정으로 다시 제출하려면: state 에서 {key} 를 지우거나 --force 를 붙이세요.")
 
 
 def _submit_training_job(*, cfg: PipelineConfig, ctx: AwsContext, base_job_name: str,
@@ -624,7 +774,7 @@ def stage_data(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         # 🔴 멀티모달 코스는 학습 데이터를 S3 로 올리지 않는다 — train_mm.py 가 컨테이너 안에서
         #    seed_dataset(cord-v2)을 직접 받는다(이미지가 parquet 에 내장돼 로컬 왕복이 비싸다).
         #    그래서 이 스테이지는 '시드가 실제로 로드되는지' 확인만 한다.
-        print(f"[data] {course.key}: 멀티모달 코스 — 학습 데이터는 컨테이너 안에서 로드합니다.")
+        log.info(f"[data] {course.key}: 멀티모달 코스 — 학습 데이터는 컨테이너 안에서 로드합니다.")
         seeds = td.load_seed_examples(2, token=_hf_token())
         print(f"  시드 로드 확인: {len(seeds)}건 (images/messages 컬럼 = TRL VLM 포맷)")
         state.mark_stage("data")
@@ -637,9 +787,9 @@ def stage_data(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
 
     if os.path.isfile(train_path) and not force:
         n_lines = sum(1 for _ in open(train_path, encoding="utf-8"))
-        print(f"[data] skip — {train_path} 가 이미 있습니다({n_lines}건). 다시 만들려면 --force.")
+        log.info(f"[data] skip — {train_path} 가 이미 있습니다({n_lines}건). 다시 만들려면 --force.")
     else:
-        print(f"[data] {course.key}: 시드 {n_seed}건 + 합성 {n_synth}건")
+        log.info(f"[data] {course.key}: 시드 {n_seed}건 + 합성 {n_synth}건")
         seeds = td.load_seed_examples(n_seed, token=_hf_token())
         print(f"  파싱된 시드: {len(seeds)}건")
 
@@ -667,7 +817,7 @@ def stage_data(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
 
     if cfg.runtime.dry_run:
         train_s3 = f"{DRY_PREFIX}{cfg.data.s3_prefix}/{course.key}/data/train.jsonl"
-        print(f"[data] dry-run — S3 업로드 생략 ({train_s3})")
+        log.info(f"[data] dry-run — S3 업로드 생략 ({train_s3})")
     else:
         from common import aws_utils
         ctx = aws_context(cfg, state)
@@ -737,7 +887,7 @@ def stage_train(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
                 *, force: bool = False) -> dict[str, Any]:
     """SFT 학습 잡 제출 + 완료 대기 → model_data(S3 아티팩트)."""
     if state.get("model_data") and not force:
-        print(f"[train] skip — model_data 가 이미 있습니다: {state.get('model_data')}\n"
+        log.info(f"[train] skip — model_data 가 이미 있습니다: {state.get('model_data')}\n"
               "        다시 학습하려면 --force (한 시간짜리 학습을 다시 돌립니다).")
         return {"model_data": state.get("model_data")}
 
@@ -787,7 +937,7 @@ def stage_train(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         cap_hours=tr.max_runtime_hours)
 
     if cfg.runtime.dry_run:
-        print(f"[train] dry-run — 학습 잡을 제출하지 않습니다.\n"
+        log.info(f"[train] dry-run — 학습 잡을 제출하지 않습니다.\n"
               f"        entry={course.train_entry} source_dir={course.scripts_dir}\n"
               f"        instance={tr.instance_type} runtime_limit={tr.max_runtime_hours}h "
               f"channels={[c[0] for c in channels] or '(없음)'}\n"
@@ -798,7 +948,22 @@ def stage_train(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         return {"model_data": model_data}
 
     ctx = aws_context(cfg, state)
-    print(f"[train] {course.key}: {course.train_entry} → {tr.instance_type}")
+
+    # 🔴 train 과 같은 이유 — 이전 GRPO Job 이 돌고 있으면 이어받는다.
+    resumed = _resume_or_submit_guard(state, "grpo_job", label="grpo", cfg=cfg, force=force)
+    if resumed:
+        state.set(grpo_model_data=resumed, model_data=resumed)
+        state.mark_stage("grpo")
+        return {"grpo_model_data": resumed}
+
+    # 🔴 제출 전에 이전 실행이 남긴 Job 을 확인한다(중복 제출 = 중복 과금).
+    resumed = _resume_or_submit_guard(state, "training_job", label="train", cfg=cfg, force=force)
+    if resumed:
+        state.set(model_data=resumed)
+        state.mark_stage("train")
+        return {"model_data": resumed}
+
+    log.info(f"[train] {course.key}: {course.train_entry} → {tr.instance_type}")
     job = _submit_training_job(
         cfg=cfg, ctx=ctx, base_job_name=course.train_job_prefix,
         entry_script=course.train_entry, source_dir=course.scripts_dir,
@@ -813,7 +978,7 @@ def stage_train(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
             "  Stopped 이고 FailureReason 이 비어 있으면 MaxRuntimeExceeded 입니다 — "
             "config.yaml 의 training.max_runtime_hours 를 올리세요.")
     model_data = job.model_artifacts.s3_model_artifacts
-    print(f"[train] 완료 — model_data: {model_data}")
+    log.info(f"[train] 완료 — model_data: {model_data}")
     state.set(model_data=model_data)
     state.mark_stage("train")
     return {"model_data": model_data}
@@ -837,7 +1002,7 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         # 스테이지 함수를 직접 호출하는 경로를 위한 방어선 — 같은 이유를 같은 문구로 낸다.
         raise RuntimeError(unsupported_reason(course, "grpo") or "grpo 미지원")
     if state.get("grpo_model_data") and not force:
-        print(f"[grpo] skip — grpo_model_data 가 이미 있습니다: {state.get('grpo_model_data')}\n"
+        log.info(f"[grpo] skip — grpo_model_data 가 이미 있습니다: {state.get('grpo_model_data')}\n"
               "       다시 돌리려면 --force.")
         return {"grpo_model_data": state.get("grpo_model_data")}
 
@@ -875,7 +1040,7 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         cap_hours=g.max_runtime_hours)
 
     if cfg.runtime.dry_run:
-        print(f"[grpo] dry-run — 학습 잡을 제출하지 않습니다 (prompts {len(rows)}건, "
+        log.info(f"[grpo] dry-run — 학습 잡을 제출하지 않습니다 (prompts {len(rows)}건, "
               f"source={g.prompt_source}, runtime_limit={g.max_runtime_hours}h)")
         grpo_model_data = f"{DRY_PREFIX}{course.grpo_job_prefix}/model.tar.gz"
         state.set(grpo_model_data=grpo_model_data, model_data=grpo_model_data)
@@ -892,7 +1057,7 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     sft_model_data = aws_utils.ensure_model_data_in_region(
         sft_model_data, ctx.region, job_prefix=course.train_job_prefix)
 
-    print(f"[grpo] {course.key}: reward_kind={kind}, base={sft_model_data}")
+    log.info(f"[grpo] {course.key}: reward_kind={kind}, base={sft_model_data}")
     job = _submit_training_job(
         cfg=cfg, ctx=ctx, base_job_name=course.grpo_job_prefix,
         entry_script="train_grpo.py", source_dir=course.scripts_dir,
@@ -907,7 +1072,7 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         raise RuntimeError(f"GRPO 잡이 {status} 상태입니다 ({job.training_job_name}). "
                            "CloudWatch 로그를 확인하세요.")
     grpo_model_data = job.model_artifacts.s3_model_artifacts
-    print(f"[grpo] 완료 — grpo_model_data: {grpo_model_data}")
+    log.info(f"[grpo] 완료 — grpo_model_data: {grpo_model_data}")
     # deploy 는 model_data 를 서빙한다 → GRPO 결과를 배포하도록 갱신하고, SFT 와 비교할 수 있게
     # grpo_model_data 는 따로 보관한다.
     state.set(grpo_model_data=grpo_model_data, model_data=grpo_model_data)
@@ -962,10 +1127,30 @@ def _grpo_prompts(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
 def stage_deploy(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
                  *, force: bool = False) -> dict[str, Any]:
     """ModelBuilder 로 real-time endpoint 배포 + invoke 스모크 → endpoint_name."""
-    if state.get("endpoint_name") and not force:
-        print(f"[deploy] skip — endpoint_name 이 이미 있습니다: {state.get('endpoint_name')}\n"
-              "         새로 띄우려면 --force (⚠️ 이전 endpoint 는 계속 과금됩니다 — cleanup 먼저).")
-        return {"endpoint_name": state.get("endpoint_name")}
+    prev_ep = state.get("endpoint_name")
+    if prev_ep and not force:
+        # 🔴 이름만 보고 끝내지 않는다. Creating 중에 끊겼거나 콘솔에서 지웠을 수 있으므로
+        #    실제 상태를 확인한다. 이름에 타임스탬프가 붙어(endpoint_prefix-engine-<epoch>)
+        #    재제출하면 **다른 이름의 endpoint 가 하나 더 생기고 둘 다 과금**된다.
+        st = _endpoint_status(prev_ep)
+        if st == "InService":
+            log.info(f"[deploy] skip — endpoint 가 이미 서비스 중입니다: {prev_ep}")
+            return {"endpoint_name": prev_ep}
+        if st == "Creating":
+            log.info(f"[deploy] 🔴 이전 실행이 만든 endpoint 가 생성 중입니다: {prev_ep}\n"
+                  "         새로 만들지 않고 InService 까지 기다립니다.")
+            _wait_endpoint(prev_ep, poll_seconds=cfg.runtime.poll_seconds)
+            return {"endpoint_name": prev_ep}
+        if st in ("Failed", "RollingBack", "Deleting", "OutOfService"):
+            raise RuntimeError(
+                f"이전 endpoint 가 {st} 상태입니다({prev_ep}).\n"
+                "  CloudWatch 로그로 원인을 확인하고, 정리하려면 --stages cleanup 을 먼저 실행하세요.")
+        if st is None:
+            log.info(f"[deploy] state 의 endpoint '{prev_ep}' 가 존재하지 않습니다(삭제됨). 새로 만듭니다.")
+        else:
+            log.info(f"[deploy] skip — endpoint_name 이 이미 있습니다: {prev_ep} ({st})\n"
+                  "         새로 띄우려면 --force (⚠️ 이전 endpoint 는 계속 과금됩니다 — cleanup 먼저).")
+            return {"endpoint_name": prev_ep}
 
     model_data = state.get("model_data")
     if not model_data:
@@ -997,7 +1182,7 @@ def stage_deploy(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         hf_token=config.get_serving_hf_token(),   # gated 모델일 때만 채워진다
     )
 
-    print(f"[deploy] {course.key}: engine={engine} image={serve_image}")
+    log.info(f"[deploy] {course.key}: engine={engine} image={serve_image}")
     print(f"         instance={cfg.serving.instance_type} max_model_len={course.serve_max_model_len}")
     print(f"         serve_env={serve_env}")
 
@@ -1009,7 +1194,7 @@ def stage_deploy(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         until_deleted=True)
 
     if cfg.runtime.dry_run:
-        print("[deploy] dry-run — endpoint 를 만들지 않습니다(시간당 과금 리소스).")
+        log.info("[deploy] dry-run — endpoint 를 만들지 않습니다(시간당 과금 리소스).")
         endpoint_name = f"{DRY_PREFIX}{course.endpoint_prefix}-{engine}"
         state.set(endpoint_name=endpoint_name, engine=engine)
         state.mark_stage("deploy")
@@ -1036,7 +1221,7 @@ def stage_deploy(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     mb.deploy(endpoint_name=endpoint_name, initial_instance_count=1,
               instance_type=cfg.serving.instance_type, wait=False)  # 비동기 — 끊겨도 배포는 계속된다
     state.set(endpoint_name=endpoint_name, engine=engine)
-    print(f"[deploy] 생성 중: {endpoint_name}")
+    log.info(f"[deploy] 생성 중: {endpoint_name}")
     _print_console_links(ctx.region, endpoint_name=endpoint_name)
 
     _wait_endpoint(endpoint_name, poll_seconds=cfg.runtime.poll_seconds)
@@ -1111,7 +1296,7 @@ def stage_eval(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         # 🔴 실패로 다루지 않는다(grpo 와 다른 점). eval 이 없는 것은 이 코스의 검증 방식이 다르다는
         #    뜻이고, `--stages deploy,eval` 은 다섯 코스에 공통으로 안내하는 명령이다 — 여기서 예외를
         #    던지면 deploy 가 성공했는데도 종료 코드가 1이 되어 뒤 작업(스크립트·CI)이 실패로 읽는다.
-        print("[eval] " + (unsupported_reason(course, "eval") or "eval 미지원"))
+        log.info("[eval] " + (unsupported_reason(course, "eval") or "eval 미지원"))
         return {}
 
     endpoint_name = state.get("endpoint_name")
@@ -1121,10 +1306,10 @@ def stage_eval(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     _, _, n_eval = _counts(cfg)
     td = load_track_data(course)
     heldout = _load_heldout(course, cfg, td, n_eval)
-    print(f"[eval] {course.key}: held-out {len(heldout)}건 → {endpoint_name}")
+    log.info(f"[eval] {course.key}: held-out {len(heldout)}건 → {endpoint_name}")
 
     if cfg.runtime.dry_run or _is_dry_value(endpoint_name):
-        print("[eval] dry-run — endpoint 를 호출하지 않습니다(호출당 과금 + 실제 endpoint 필요).")
+        log.info("[eval] dry-run — endpoint 를 호출하지 않습니다(호출당 과금 + 실제 endpoint 필요).")
         state.mark_stage("eval")
         return {"n": len(heldout), "dry_run": True}
 
@@ -1151,7 +1336,7 @@ def stage_eval(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
 
     scores = _score(course, cfg, td, heldout, preds)
     scores["truncated"] = truncated
-    print("[eval] scores: " + json.dumps(scores, ensure_ascii=False, sort_keys=True))
+    log.info("[eval] scores: " + json.dumps(scores, ensure_ascii=False, sort_keys=True))
 
     # GRPO 'failures' 소스가 읽을 수 있게 남긴다(노트북은 같은 커널의 변수를 썼다).
     with open(_eval_preds_path(course, cfg), "w", encoding="utf-8") as f:
@@ -1233,13 +1418,13 @@ def stage_cleanup(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     """
     endpoint_name = state.get("endpoint_name")
     if not endpoint_name:
-        print("[cleanup] 지울 endpoint 가 상태에 없습니다 — 이미 정리됐거나 배포하지 않았습니다.")
+        log.info("[cleanup] 지울 endpoint 가 상태에 없습니다 — 이미 정리됐거나 배포하지 않았습니다.")
         print(f"          계정에 남은 것이 있는지 확인: prefix '{course.endpoint_prefix}' "
               "(콘솔 또는 --force 로 prefix 일괄 정리)")
         if not force:
             return {}
     if cfg.runtime.dry_run or _is_dry_value(endpoint_name):
-        print(f"[cleanup] dry-run — 삭제할 실제 리소스가 없습니다 ({endpoint_name}).")
+        log.info(f"[cleanup] dry-run — 삭제할 실제 리소스가 없습니다 ({endpoint_name}).")
         state.clear("endpoint_name")
         state.mark_stage("cleanup")
         return {}
@@ -1254,7 +1439,7 @@ def stage_cleanup(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         listed = [e["EndpointName"]
                   for e in sm.list_endpoints(NameContains=course.endpoint_prefix)["Endpoints"]]
         targets += [n for n in listed if n not in targets]
-        print(f"[cleanup] --force: prefix '{course.endpoint_prefix}' 로 찾은 endpoint {listed}")
+        log.info(f"[cleanup] --force: prefix '{course.endpoint_prefix}' 로 찾은 endpoint {listed}")
 
     for name in targets:
         model_names: list[str] = []
@@ -1278,7 +1463,7 @@ def stage_cleanup(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     state.mark_stage("cleanup")
     remaining = [e["EndpointName"]
                  for e in sm.list_endpoints(NameContains=course.endpoint_prefix)["Endpoints"]]
-    print(f"[cleanup] 남은 이 코스 endpoint: {remaining or 'none ✅ (이 코스 과금 멈춤)'}")
+    log.info(f"[cleanup] 남은 이 코스 endpoint: {remaining or 'none ✅ (이 코스 과금 멈춤)'}")
     if remaining and not force:
         print("          --force 를 주면 prefix 로 찾은 잔여 리소스까지 정리합니다.")
     return {"deleted": deleted, "remaining": remaining}
@@ -1535,11 +1720,15 @@ def build_parser(default_course: str | None = None) -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true",
                    help="과금 리소스를 만들지 않고 전 경로를 밟는다(config.yaml runtime.dry_run 을 이긴다)")
     p.add_argument("--force", action="store_true",
-                   help="이미 만들어진 산출물이 있어도 스테이지를 다시 실행한다")
+                   help="이미 만들어진 산출물이 있어도 스테이지를 다시 실행한다"
+                        " (진행 중인 Job·endpoint 는 --force 로도 새로 만들지 않는다 —"
+                        " 중복 과금을 막기 위해 이어받거나 중단한다)")
     p.add_argument("--state-dir", default=STATE_DIR, help=f"상태 파일 디렉토리(기본 {STATE_DIR})")
     p.add_argument("--state", default=None, metavar="PATH",
                    help="상태 파일 경로를 통째로 지정(--state-dir 보다 우선). "
                         "--dry-run 과 함께 주면 접미사 .dryrun 이 붙는다")
+    p.add_argument("--quiet", action="store_true",
+                   help="진행 로그를 줄인다(WARNING 이상만). CI 에서 유용하다")
     p.add_argument("--show-state", action="store_true", help="상태만 출력하고 종료")
     return p
 
@@ -1563,7 +1752,9 @@ def main(argv: list[str] | None = None, *, default_course: str | None = None) ->
     except (ValueError, RuntimeError, FileNotFoundError, TypeError, AttributeError) as e:
         print(f"🔴 {e}")
         return 2
-    setup_logging(cfg.runtime.log_level)   # 진입점에서 1회 — 라이브러리는 핸들러를 건드리지 않는다
+    # 진입점에서 1회. 라이브러리는 핸들러를 건드리지 않는다.
+    # 기본 INFO 인 이유: 학습이 수십 분 도는 동안 화면이 조용하면 멈춘 것으로 오해한다.
+    setup_logging("WARNING" if args.quiet else cfg.runtime.log_level)
 
     if args.show_state:
         # --dry-run 과 함께 주면 dry-run 상태 파일을 본다(실제 실행 상태와 별개 파일).
