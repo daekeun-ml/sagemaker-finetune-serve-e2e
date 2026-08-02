@@ -163,6 +163,36 @@ def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int
     return revived
 
 
+def _prune_artifact(output_dir: str, logger) -> None:
+    """서빙에 쓰이지 않는 것을 지운다. /opt/ml/model 전체가 tar.gz 로 S3 에 올라가기 때문이다.
+
+    🔴 실측: E4B 학습 산출물이 11.37GB 였고 업로드에 3분 14초가 걸렸다. 그 안에는
+       서빙이 절대 열지 않는 것들이 함께 들어 있었다.
+         checkpoint-*/  — optimizer.pt / rng_state.pth / scheduler.pt. 학습 재개용이고,
+                          이 kit 은 재개를 지원하지 않는다(save_total_limit=1 로 1개만 남겨도
+                          그 1개가 수 GB 다).
+         adapter/       — 머지 소스. 머지된 모델이 이미 루트에 있으므로 중복이다.
+       지우면 업로드 시간과 S3 요금이 함께 줄고, 배포 시 컨테이너가 받는 양도 줄어든다.
+       ⚠️ 학습을 이어서 하거나 adapter 만 따로 배포할 계획이면 이 함수를 부르지 말 것.
+    """
+    import shutil
+
+    removed = 0
+    for name in sorted(os.listdir(output_dir)):
+        path = os.path.join(output_dir, name)
+        if not os.path.isdir(path):
+            continue
+        if name.startswith("checkpoint-") or name == "adapter":
+            size = sum(os.path.getsize(os.path.join(r, f))
+                       for r, _, fs in os.walk(path) for f in fs)
+            shutil.rmtree(path, ignore_errors=True)
+            removed += size
+            logger.info("Pruned %s (%.2f GB) — 서빙에 쓰이지 않습니다", name, size / 1024**3)
+    if removed:
+        logger.info("아티팩트에서 %.2f GB 제거 — 업로드 시간과 S3 요금이 그만큼 줄어듭니다",
+                    removed / 1024**3)
+
+
 def main() -> None:
     _configure_logging()
     args = parse_args()
@@ -285,6 +315,9 @@ def main() -> None:
     else:
         trainer.save_model(args.output_dir)
         processor.save_pretrained(args.output_dir)
+
+    if not args.dry_run:
+        _prune_artifact(args.output_dir, logger)
 
     if args.dry_run:
         logger.info("DRY-RUN complete — multimodal pipeline OK.")

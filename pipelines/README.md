@@ -28,8 +28,11 @@ python pipelines/run_extraction.py --stages cleanup
 | `run_domain_qa.py` | 도메인 QA | ❌ |
 | `run_multimodal.py` | 이미지 → JSON (영수증) | ❌ |
 
-스테이지 순서는 `data → train → grpo → deploy → eval → cleanup`이고, `--stages all`은
-**cleanup을 제외**합니다(방금 만든 endpoint를 실수로 지우지 않게).
+스테이지 순서는 `data → train → grpo → deploy → eval → cleanup`입니다. `--stages all`은
+**grpo와 cleanup을 제외**합니다. cleanup은 방금 만든 endpoint를 실수로 지우지 않게, grpo는
+SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니다.
+
+GRPO까지 돌리려면 `--stages all+grpo`를 씁니다.
 
 GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부합니다. 요약·QA는 reward를
 프로그램으로 채점할 수 없어 rollout이 전부 만점이 되고 advantage가 0이 됩니다.

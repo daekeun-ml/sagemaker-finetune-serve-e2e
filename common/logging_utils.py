@@ -30,6 +30,47 @@ _NOISY = ("botocore", "boto3", "urllib3", "s3transfer", "sagemaker", "httpx", "h
 _CONFIGURED = False
 
 
+# ── 컬러 ────────────────────────────────────────────────────────────────────
+# 🔴 터미널에서만 켠다. 파일로 리다이렉트하거나 CI 로그로 흘리면 ANSI 코드가
+#    그대로 남아 오히려 읽기 어려워진다. NO_COLOR 관례(https://no-color.org)도 따른다.
+_RESET = "\033[0m"
+_COLORS = {
+    "DEBUG": "\033[38;5;244m",    # 회색
+    "INFO": "\033[38;5;39m",      # 파랑
+    "WARNING": "\033[38;5;214m",  # 주황
+    "ERROR": "\033[38;5;196m",    # 빨강
+    "CRITICAL": "\033[48;5;196;97m",
+}
+_DIM = "\033[38;5;244m"
+
+
+def _color_enabled(stream) -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return bool(getattr(stream, "isatty", lambda: False)())
+
+
+class _ColorFormatter(logging.Formatter):
+    """레벨과 부수 정보에만 색을 넣는다. 메시지 본문은 건드리지 않는다.
+
+    본문에 색을 칠하면 로그를 복사해 붙일 때 코드가 섞이고, 메시지 안의 수치를
+    읽는 데 방해가 된다. 시간·로거명은 흐리게, 레벨만 색으로 구분한다.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        lvl = record.levelname
+        c = _COLORS.get(lvl, "")
+        ts = self.formatTime(record, self.datefmt)
+        name = record.name
+        msg = record.getMessage()
+        if record.exc_info:
+            msg += "\n" + self.formatException(record.exc_info)
+        return (f"{_DIM}{ts}{_RESET} {_DIM}|{_RESET} {c}{lvl:<7}{_RESET} "
+                f"{_DIM}| {name} |{_RESET} {msg}")
+
+
 def setup_logging(
     level: str | int | None = None,
     *,
@@ -37,11 +78,13 @@ def setup_logging(
     stream=None,
     quiet_third_party: bool = True,
     force: bool = False,
+    color: bool | None = None,
 ) -> logging.Logger:
     """루트 로깅을 1회 구성(멱등). 앱/노트북 진입점에서 호출.
 
     level: 문자열("INFO")/정수/None(=env LOG_LEVEL, 기본 INFO).
     force: True면 이미 구성됐어도 핸들러를 교체(노트북에서 레벨 바꿔 재호출 시).
+    color: None이면 터미널 여부로 자동 판단. NO_COLOR/FORCE_COLOR env를 따른다.
     반환: 이 kit의 루트 로거(gemma_e2e) — 필요하면 직접 써도 됨.
     """
     global _CONFIGURED
@@ -52,8 +95,12 @@ def setup_logging(
         # 노트북/재실행 환경에서 핸들러 중복 누적 방지: 기존 핸들러 정리 후 1개만.
         for h in list(root.handlers):
             root.removeHandler(h)
-        handler = logging.StreamHandler(stream or sys.stdout)
-        handler.setFormatter(logging.Formatter(fmt, datefmt=DATE_FORMAT))
+        out = stream or sys.stdout
+        handler = logging.StreamHandler(out)
+        if color is None:
+            color = _color_enabled(out)
+        handler.setFormatter(_ColorFormatter(datefmt=DATE_FORMAT) if color
+                             else logging.Formatter(fmt, datefmt=DATE_FORMAT))
         root.addHandler(handler)
         _CONFIGURED = True
 

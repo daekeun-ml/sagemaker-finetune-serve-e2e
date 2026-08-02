@@ -34,6 +34,7 @@ import json
 import math
 import os
 import sys
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -417,6 +418,12 @@ def warn_if_truncated(finish_reason: str | None, max_tokens: int, *, label: str 
     return False
 
 
+# 컨테이너 로거가 이미 붙인 타임스탬프·레벨·모듈. 우리 로거가 또 붙이므로 떼어낸다.
+_TS_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s*\|\s*\w+\s*\|\s*[\w.]+\s*\|\s*")
+# 학습 진행과 무관해 화면만 채우는 줄.
+_LOG_NOISE = re.compile(r"huggingface\.co/api/telemetry|resolve-cache/models|HTTP Request: HEAD|urllib3|filelock")
+
+
 def _tail_training_logs(job_name: str, *, region: str, token: str | None) -> tuple[list[str], str | None]:
     """학습 Job 의 CloudWatch 로그를 이어서 읽는다. (새 줄들, 다음 token) 을 반환.
 
@@ -439,19 +446,26 @@ def _tail_training_logs(job_name: str, *, region: str, token: str | None) -> tup
         # 🔴 filter_log_events 대신 get_log_events 를 쓴다. filter 쪽은 첫 호출에서 오래된
         #    페이지를 돌려줘 빈 결과가 나오는 일이 있다. get 쪽은 startFromHead=False 로
         #    '최신 40줄'을 확정적으로 준다.
-        r = cw.get_log_events(**kw, startFromToken=token) if token else \
+        # 🔴 이어 읽을 때의 파라미터는 nextToken 이다(startFromToken 은 존재하지 않는다).
+        #    첫 호출은 startFromHead=False 로 '최신 40줄'만 가져온다.
+        r = cw.get_log_events(**kw, nextToken=token) if token else \
             cw.get_log_events(**kw, startFromHead=False)
     except ClientError as e:
         if e.response["Error"]["Code"] in ("ResourceNotFoundException", "InvalidParameterException"):
             return [], token
         raise
-    # tqdm 진행바는 한 메시지에 여러 프레임이 \r 로 이어져 온다(CloudWatch 는 #015 로 보낸다).
-    # 마지막 프레임만 남겨야 "0% → 100%" 가 한 줄로 보인다.
+    # 컨테이너 로그를 그대로 흘리면 두 가지가 읽기를 방해한다.
+    #  1) tqdm 진행바: 한 메시지에 수십 프레임이 #015(=\r) 로 이어져 온다. 마지막 프레임만 남긴다.
+    #  2) 컨테이너 안 로거의 자체 타임스탬프: 우리 로거가 또 시간을 붙여 두 번 찍힌다. 떼어낸다.
     out = []
     for ev in r.get("events", []):
         m = ev["message"].rstrip().replace("#015", "\r").split("\r")[-1].strip()
-        if m:
-            out.append(m)
+        if not m:
+            continue
+        m = _TS_PREFIX.sub("", m)        # '2026-08-02 06:56:18 | INFO | httpx | ' 제거
+        if _LOG_NOISE.search(m):         # HF 텔레메트리·config.json HEAD 요청 등
+            continue
+        out.append(m)
     return out, r.get("nextForwardToken") or token
 
 
@@ -462,6 +476,8 @@ def _wait_training_job(job, *, poll_seconds: int) -> str:
     last = ""
     token: str | None = None
     tailing = False
+    upload_started: float | None = None
+    last_tick = -1
     while True:
         job.refresh()
         st = job.training_job_status
@@ -470,6 +486,13 @@ def _wait_training_job(job, *, poll_seconds: int) -> str:
         if line != last:
             log.info(f"  training job: {line}")
             last = line
+            if secondary == "Uploading":
+                # 🔴 컨테이너 로그는 'Training Container Execution Completed' 에서 끝난다.
+                #    그 뒤 S3 업로드는 SageMaker AI 가 하는 일이라 로그가 없어, 화면이 몇 분간
+                #    조용해진다. 멈춘 것으로 오해하지 않게 무엇을 기다리는지 알려 준다.
+                log.info("  (모델 아티팩트를 S3 로 올리는 중입니다. 컨테이너 로그는 여기서 끝나고,"
+                         " 크기에 따라 수 분 걸립니다.)")
+                upload_started = time.time()
 
         # 🔴 Training 단계에 들어가면 CloudWatch 로그를 함께 흘린다. 상태 문자열만으로는
         #    학습이 진행되는지 OOM 으로 멈춰 있는지 구분할 수 없다.
@@ -483,7 +506,14 @@ def _wait_training_job(job, *, poll_seconds: int) -> str:
                 for m in msgs:
                     log.info(f"  │ {m[:180]}")
             except Exception as e:      # 로그를 못 읽어도 학습 대기는 계속한다
-                log.warning(f"  (로그 조회 실패: {type(e).__name__} — 상태 폴링은 계속합니다)")
+                log.warning(f"  (로그 조회 실패: {type(e).__name__}. 상태 폴링은 계속합니다)")
+
+        # 업로드는 로그가 없으므로 경과 시간만이라도 흘려 준다.
+        if secondary == "Uploading" and upload_started:
+            waited = int(time.time() - upload_started)
+            if waited and waited // 30 != last_tick:
+                last_tick = waited // 30
+                log.info(f"  업로드 대기 중… {waited // 60}분 {waited % 60}초 경과")
         if st in ("Completed", "Failed", "Stopped"):
             if st != "Completed":
                 # 🔴 MaxRuntimeExceeded 는 FailureReason 이 비어 있어(상태만 Stopped) 원인이 안 보인다.
@@ -658,6 +688,20 @@ _HOURLY_USD_US_EAST_1: dict[str, float] = {
 _cost_warning_shown = False
 
 
+# ── CLI 화면 컬러 ───────────────────────────────────────────────────────────
+# 로그는 logging_utils 의 _ColorFormatter 가 칠한다. 여기는 print 로 내는 '화면'
+# (실행 시작 헤더·과금 확인) 전용이다. 같은 규칙으로 터미널에서만 켠다.
+def _c(text: str, code: str) -> str:
+    from common.logging_utils import _color_enabled
+    return f"\033[{code}m{text}\033[0m" if _color_enabled(sys.stdout) else text
+
+
+def _bold(t: str) -> str:   return _c(t, "1")
+def _dim(t: str) -> str:    return _c(t, "38;5;244")
+def _warn(t: str) -> str:   return _c(t, "38;5;214")
+def _danger(t: str) -> str: return _c(t, "1;38;5;196")
+
+
 def print_billing_preview(*, what: str, instance_type: str, region: str,
                           cap_hours: float | None = None,
                           until_deleted: bool = False) -> None:
@@ -673,7 +717,7 @@ def print_billing_preview(*, what: str, instance_type: str, region: str,
     from common import aws_utils
 
     rate = _HOURLY_USD_US_EAST_1.get(instance_type)
-    print(f"  💳 과금 시작 — 만들 것: {what}  [{instance_type} x1]")
+    print(_danger(f"  💳 과금 시작") + f" — 만들 것: {what}  [{_bold(instance_type)} x1]")
     if rate is None:
         # 표에 없는 인스턴스로 바꿨다는 뜻 → 추정치를 꾸며내지 않고 어디서 확인하는지 알려 준다.
         print(f"     시간당 요금: 요금표에 없는 인스턴스입니다 — "
@@ -949,13 +993,6 @@ def stage_train(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
 
     ctx = aws_context(cfg, state)
 
-    # 🔴 train 과 같은 이유 — 이전 GRPO Job 이 돌고 있으면 이어받는다.
-    resumed = _resume_or_submit_guard(state, "grpo_job", label="grpo", cfg=cfg, force=force)
-    if resumed:
-        state.set(grpo_model_data=resumed, model_data=resumed)
-        state.mark_stage("grpo")
-        return {"grpo_model_data": resumed}
-
     # 🔴 제출 전에 이전 실행이 남긴 Job 을 확인한다(중복 제출 = 중복 과금).
     resumed = _resume_or_submit_guard(state, "training_job", label="train", cfg=cfg, force=force)
     if resumed:
@@ -1010,13 +1047,32 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
     if not sft_model_data:
         raise RuntimeError(_missing(course, "model_data", "train", state))
 
+    # 🔴 프롬프트 준비보다 **먼저** 확인한다. _grpo_prompts 가 Bedrock 합성을 돌리므로,
+    #    이미 제출된 Job 이 있는데 여기까지 오면 토큰당 과금이 또 발생한다(실측 사고).
+    if not cfg.runtime.dry_run:
+        resumed = _resume_or_submit_guard(state, "grpo_job", label="grpo", cfg=cfg, force=force)
+        if resumed:
+            state.set(grpo_model_data=resumed, model_data=resumed)
+            state.mark_stage("grpo")
+            return {"grpo_model_data": resumed}
+
     g = cfg.grpo
-    rows = _grpo_prompts(course, cfg, state, kind)
     grpo_path = os.path.join(data_dir(course, cfg), "grpo_train.jsonl")
 
     from common import grpo_data as gd
-    gd.describe(rows, source=g.prompt_source)
-    gd.write_grpo_jsonl(rows, grpo_path)   # 0건이면 여기서 즉시 실패(빈 파일 업로드 방지)
+
+    # 🔴 data 스테이지와 같은 규칙 — 파일이 있으면 다시 만들지 않는다.
+    #    prompt_source=synth 면 이 준비 과정이 Bedrock 을 부르므로(토큰당 과금),
+    #    중단 후 재실행할 때마다 합성이 다시 도는 것은 그대로 요금이다.
+    if os.path.isfile(grpo_path) and not force:
+        n_prompts = sum(1 for _ in open(grpo_path, encoding="utf-8"))
+        log.info(f"[grpo] 프롬프트 재사용 — {grpo_path} ({n_prompts}건). "
+                 "다시 만들려면 --force.")
+    else:
+        rows = _grpo_prompts(course, cfg, state, kind)
+        gd.describe(rows, source=g.prompt_source)
+        gd.write_grpo_jsonl(rows, grpo_path)   # 0건이면 여기서 즉시 실패(빈 파일 업로드 방지)
+        n_prompts = len(rows)
 
     hyperparameters: dict[str, Any] = {
         # model_id 는 멀티모달 감지 폴백용. 실제 base 는 'model' 채널(SFT 산출물)에서 로드한다.
@@ -1040,7 +1096,7 @@ def stage_grpo(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         cap_hours=g.max_runtime_hours)
 
     if cfg.runtime.dry_run:
-        log.info(f"[grpo] dry-run — 학습 잡을 제출하지 않습니다 (prompts {len(rows)}건, "
+        log.info(f"[grpo] dry-run — 학습 잡을 제출하지 않습니다 (prompts {n_prompts}건, "
               f"source={g.prompt_source}, runtime_limit={g.max_runtime_hours}h)")
         grpo_model_data = f"{DRY_PREFIX}{course.grpo_job_prefix}/model.tar.gz"
         state.set(grpo_model_data=grpo_model_data, model_data=grpo_model_data)
@@ -1508,10 +1564,12 @@ def _missing(course: CourseSpec, key: str, producer_stage: str,
 
 def resolve_stages(requested: str | list[str] | None,
                    course: CourseSpec | None = None) -> list[str]:
-    """--stages 값을 정규 순서로 정렬·중복 제거. 'all' 은 cleanup 을 뺀 전 단계.
+    """--stages 값을 정규 순서로 정렬·중복 제거.
 
-    🔴 cleanup 은 'all' 에 넣지 않는다 — 방금 만든 endpoint 를 자동으로 지우면 평가/데모를
-       할 수 없다. 정리는 명시적으로 요청해야 한다.
+    🔴 'all' 에서 빼는 두 단계:
+       · cleanup — 방금 만든 endpoint 를 자동으로 지우면 평가·데모를 할 수 없다.
+       · grpo    — SFT 로 충분한 경우가 많고, GPU 시간이 한 번 더 든다. 필수가 아니므로
+                   기본에서 빼고 원할 때만 요청하게 한다. 'all+grpo' 로 켠다.
 
     course 를 주면 그 코스에 없는 스테이지를 걸러낸다. 두 경우를 **다르게** 다룬다:
       · 'all'      → 조용히 뺀다. 'all' 은 "이 코스의 전 단계"라는 뜻이고, 계획 줄에
@@ -1522,9 +1580,12 @@ def resolve_stages(requested: str | list[str] | None,
                      `--stages deploy,eval` 은 다섯 코스에 공통으로 안내하는 명령이고, 코스마다
                      종료 코드가 갈리면 "한 번 배우면 되는 CLI" 라는 전제가 깨진다.
     """
-    explicit = requested not in (None, "", "all", ["all"])
+    ALL_PLUS = ("all+grpo", ["all+grpo"])
+    explicit = requested not in (None, "", "all", ["all"], *ALL_PLUS)
     if not explicit:
-        names = [s for s in STAGE_ORDER if s != "cleanup"]
+        want_grpo = requested in ALL_PLUS
+        skip = {"cleanup"} if want_grpo else {"cleanup", "grpo"}
+        names = [s for s in STAGE_ORDER if s not in skip]
     else:
         raw = (requested if isinstance(requested, list)
                else [p.strip() for p in requested.split(",")])
@@ -1622,8 +1683,8 @@ def _announce_billing(plan: list[str], cfg: PipelineConfig) -> None:
         return
     billable = [s for s in plan if s in ("train", "grpo", "deploy")]
     if billable:
-        print(f"🔴 이 실행에는 과금 단계가 있습니다: {', '.join(billable)} "
-              "— 각 단계 직전에 만들 리소스와 대략 요금을 다시 알립니다.")
+        print(_danger("🔴 이 실행에는 과금 단계가 있습니다") + f": {_bold(', '.join(billable))}.\n"
+              "   각 단계 직전에 만들 리소스와 대략 요금을 다시 알립니다.")
 
 
 def run_stages(course_key: str, stages: str | list[str] | None, cfg: PipelineConfig,
@@ -1647,12 +1708,13 @@ def run_stages(course_key: str, stages: str | list[str] | None, cfg: PipelineCon
                        path=state_path)
     plan = resolve_stages(stages, course)   # 이 코스에 없는 단계는 여기서 걸러지거나 거부된다
 
-    print("=" * 78)
-    print(f"course    : {course.key} ({course.dir_name})")
+    print(_dim("=" * 78))
+    print(f"{_bold('course')}    : {_bold(course.key)} ({course.dir_name})")
     print(cfg.summary())
     print(state.summary())
-    print(f"stages    : {' → '.join(plan)}" + ("   [--force]" if force else ""))
-    print("=" * 78)
+    print(f"{_bold('stages')}    : {' → '.join(plan)}"
+          + (_warn("   [--force]") if force else ""))
+    print(_dim("=" * 78))
     # 🔴 첫 스테이지 전에 알린다 — data 가 몇 분 돈 뒤에 경고해도 이미 늦다.
     _announce_billing(plan, cfg)
 
@@ -1715,7 +1777,9 @@ def build_parser(default_course: str | None = None) -> argparse.ArgumentParser:
     p.add_argument("--course", default=default_course,
                    help="코스 키 (extraction/classification/summarization/domain_qa/mm_extraction)")
     p.add_argument("--stages", default="all",
-                   help=f"콤마 구분 스테이지. 허용: {','.join(STAGE_ORDER)} (기본 all = cleanup 제외)")
+                   help=(f"콤마 구분 스테이지. 허용: {','.join(STAGE_ORDER)}. "
+                         "기본 all = grpo·cleanup 제외(둘 다 필수가 아니고 GPU 시간·과금이 더 든다). "
+                         "GRPO 까지 돌리려면 all+grpo"))
     p.add_argument("--config", default=None, help="config.yaml 경로(기본 <repo>/config.yaml)")
     p.add_argument("--dry-run", action="store_true",
                    help="과금 리소스를 만들지 않고 전 경로를 밟는다(config.yaml runtime.dry_run 을 이긴다)")

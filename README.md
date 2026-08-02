@@ -39,7 +39,8 @@ python pipelines/run_extraction.py --stages all --dry-run
 **스크립트 (Python)** — 검증된 코스를 다시 돌릴 때, CI, 무인 실행
 
 ```bash
-python pipelines/run_extraction.py --stages all       # 전 구간
+python pipelines/run_extraction.py --stages all       # 데이터→학습→배포→평가
+python pipelines/run_extraction.py --stages all+grpo  # GRPO 정련까지 (선택)
 
 python pipelines/run_extraction.py --stages data,train    # 학습만 하고
 python pipelines/run_extraction.py --stages deploy,eval   # 나중에 배포

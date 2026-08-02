@@ -264,6 +264,72 @@ def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
     logger.info("Re-exported TEXT-ONLY (%s) to %s", text_cls_name, output_dir)
 
 
+def _prune_artifact(output_dir: str, logger) -> None:
+    """서빙에 쓰이지 않는 것을 지운다. /opt/ml/model 전체가 tar.gz 로 S3 에 올라가기 때문이다.
+
+    🔴 실측: E4B 학습 산출물이 11.37GB 였고 업로드에 3분 14초가 걸렸다. 그 안에는
+       서빙이 절대 열지 않는 것들이 함께 들어 있었다.
+         checkpoint-*/  — optimizer.pt / rng_state.pth / scheduler.pt. 학습 재개용이고,
+                          이 kit 은 재개를 지원하지 않는다(save_total_limit=1 로 1개만 남겨도
+                          그 1개가 수 GB 다).
+         adapter/       — 머지 소스. 머지된 모델이 이미 루트에 있으므로 중복이다.
+       지우면 업로드 시간과 S3 요금이 함께 줄고, 배포 시 컨테이너가 받는 양도 줄어든다.
+       ⚠️ 학습을 이어서 하거나 adapter 만 따로 배포할 계획이면 이 함수를 부르지 말 것.
+    """
+    import shutil
+
+    removed = 0
+    for name in sorted(os.listdir(output_dir)):
+        path = os.path.join(output_dir, name)
+        if not os.path.isdir(path):
+            continue
+        if name.startswith("checkpoint-") or name == "adapter":
+            size = sum(os.path.getsize(os.path.join(r, f))
+                       for r, _, fs in os.walk(path) for f in fs)
+            shutil.rmtree(path, ignore_errors=True)
+            removed += size
+            logger.info("Pruned %s (%.2f GB) — 서빙에 쓰이지 않습니다", name, size / 1024**3)
+    if removed:
+        logger.info("아티팩트에서 %.2f GB 제거 — 업로드 시간과 S3 요금이 그만큼 줄어듭니다",
+                    removed / 1024**3)
+
+
+def _resolve_sft_base(base_model_dir: str | None, logger) -> str | None:
+    """SFT 산출물이 마운트된 채널에서 base 로 쓸 디렉터리를 찾는다. 없으면 None.
+
+    🔴 `model` 채널에 model.tar.gz 를 주면 SageMaker AI 는 **압축을 풀지 않는다**
+       (S3DataType=S3Prefix 라 파일을 그대로 내려놓는다). 그래서 채널 루트에는
+       config.json 이 아니라 model.tar.gz 하나만 있다. 실측으로 이 때문에 GRPO 가
+       SFT 산출물을 못 찾고 HF base 로 조용히 폴백했다 — SFT 에 쓴 시간과 비용이
+       결과에 반영되지 않는데 로그만 보면 성공처럼 보인다.
+       여기서 tar 를 직접 풀어 그 경로를 돌려준다.
+    """
+    import tarfile
+
+    if not base_model_dir or not os.path.isdir(base_model_dir):
+        return None
+
+    # (1) 이미 풀려 있는 경우 — prefix 로 넘겼거나 이전 실행이 풀어 둔 경우
+    if os.path.isfile(os.path.join(base_model_dir, "config.json")):
+        return base_model_dir
+
+    # (2) tar.gz 가 있으면 푼다
+    tars = [f for f in os.listdir(base_model_dir) if f.endswith((".tar.gz", ".tgz"))]
+    if not tars:
+        return None
+    src = os.path.join(base_model_dir, tars[0])
+    dest = os.path.join(base_model_dir, "_extracted")
+    if not os.path.isfile(os.path.join(dest, "config.json")):
+        os.makedirs(dest, exist_ok=True)
+        logger.info("SFT 아티팩트 압축 해제: %s → %s", src, dest)
+        with tarfile.open(src, "r:gz") as tf:
+            tf.extractall(dest)          # noqa: S202 — 우리가 만든 학습 산출물이다
+    if os.path.isfile(os.path.join(dest, "config.json")):
+        return dest
+    logger.warning("압축은 풀었지만 config.json 이 없습니다: %s", dest)
+    return None
+
+
 def main() -> None:
     _configure_logging()
     args = parse_args()
@@ -282,9 +348,18 @@ def main() -> None:
         logger.info("DRY-RUN: epochs=1, num_generations<=4, short completions")
 
     # ---- base 모델 소스 결정: SFT 산출물(base_model_dir) 우선, 없으면 HF base(model_id) ----
-    if args.base_model_dir and os.path.isfile(os.path.join(args.base_model_dir, "config.json")):
-        base_src = args.base_model_dir
+    sft_dir = _resolve_sft_base(args.base_model_dir, logger)
+    if sft_dir:
+        base_src = sft_dir
         logger.info("GRPO from SFT checkpoint: %s (정석 RLHF: SFT→GRPO)", base_src)
+    elif args.base_model_dir:
+        # 🔴 채널은 왔는데 못 읽었다. 조용히 HF base 로 넘어가면 SFT 를 건너뛴 결과가
+        #    성공처럼 보인다. 무엇이 잘못됐는지 알 수 있게 여기서 멈춘다.
+        raise RuntimeError(
+            f"SFT 산출물을 읽을 수 없습니다: {args.base_model_dir}\n"
+            f"  디렉터리 내용: {sorted(os.listdir(args.base_model_dir))[:10]}\n"
+            "  model 채널에는 학습 Job 의 output/model.tar.gz 를 넘기세요.\n"
+            "  SFT 없이 base 에서 GRPO 를 하려면 --base_model_dir '' 로 비우세요.")
     else:
         base_src = args.model_id
         logger.info("GRPO from HF base: %s (SFT 없이 base에서 GRPO)", base_src)
@@ -402,6 +477,9 @@ def main() -> None:
     else:
         trainer.save_model(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+
+    if not args.dry_run:
+        _prune_artifact(args.output_dir, logger)
 
     if args.dry_run:
         logger.info("DRY-RUN complete — GRPO pipeline OK.")
