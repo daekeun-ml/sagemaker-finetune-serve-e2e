@@ -50,3 +50,22 @@
 [data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
   background-color: var(--md-default-fg-color--lightest);
 }
+
+/* 바깥 테두리를 없애고 행 구분선만 남깁니다. Material 기본값은 표 전체를
+   `border: .05rem solid` + `border-radius`로 감싸는데, 컬럼이 2~3개인 표는
+   폭이 좁아서 그 테두리가 내용을 가둔 작은 상자처럼 보입니다(이 문서에는 2열
+   표가 많습니다). 구분선은 헤더 아래 경계와 행 사이 `border-top`으로 이미
+   충분하므로, 가두는 선만 걷어냅니다.
+   🔴 `display: inline-block`은 그대로 둡니다. 이것이 표를 내용 폭에 맞추고
+   `overflow: auto`로 넓은 표를 가로 스크롤시키는 장치라, table로 바꾸면 긴 표가
+   본문을 밀어냅니다(위 가로 스크롤 규칙이 기대는 지점입니다). */
+.md-typeset table:not([class]) {
+  border: none;
+  border-radius: 0;
+}
+
+/* 첫 행의 `border-top`은 헤더 아래 경계선과 겹쳐 선이 두 겹으로 보입니다.
+   헤더가 있는 표에서만 제거합니다(헤더 없는 표는 첫 행 선이 위 경계 역할). */
+.md-typeset table:not([class]) thead + tbody tr:first-child td {
+  border-top: none;
+}
