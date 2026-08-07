@@ -33,3 +33,20 @@
 .md-typeset table:not([class]) th :not(pre) > code {
   word-break: break-all;
 }
+
+/* 표 헤더에만 옅은 회색을 깔아 본문 행과 구분합니다. Material 기본값은 흰 배경 +
+   굵은 글씨뿐이어서, 이 문서처럼 표가 많으면 헤더가 첫 데이터 행처럼 읽힙니다.
+   본문 행은 줄무늬 없이 단색으로 둡니다(헤더 경계만 필요한 것이고, 줄무늬까지
+   더하면 셀 안의 admonition/코드와 배경이 겹쳐 지저분해집니다). */
+.md-typeset table:not([class]) th {
+  background-color: #f0f1f3;
+  color: var(--md-default-fg-color);
+  border-bottom: 2px solid var(--md-default-fg-color--lightest);
+  font-weight: 600;
+}
+
+/* 다크 모드에 같은 회색을 깔면 배경보다 밝아져 헤더가 튀어 보입니다.
+   테마 변수로 살짝만 띄웁니다(스킴을 바꿔도 따라옵니다). */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+}
