@@ -109,12 +109,12 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 
 ## 저자
 
-| | |
-|---|---|
-| LinkedIn | [linkedin.com/in/daekeun-kim](https://www.linkedin.com/in/daekeun-kim) |
-| GitHub | [github.com/daekeun-ml](https://github.com/daekeun-ml) |
-| Hugging Face | [huggingface.co/daekeun-ml](https://huggingface.co/daekeun-ml) |
-| 기술 블로그 | [housekdk.gitbook.io](https://housekdk.gitbook.io/) |
+**김대근 (Daekeun Kim)** / AWS Principal AI Specialist Solutions Architect
+
+[LinkedIn](https://www.linkedin.com/in/daekeun-kim) |
+[GitHub](https://github.com/daekeun-ml) |
+[Hugging Face](https://huggingface.co/daekeun-ml) |
+[기술 블로그](https://housekdk.gitbook.io/)
 
 ## License
 
