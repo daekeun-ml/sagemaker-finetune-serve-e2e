@@ -19,7 +19,7 @@ permissions:
   pages: write
   id-token: write
 
-# 배포는 하나만 진행하고, 중복 실행은 취소합니다.
+# 배포는 하나만 진행하고, 중복 실행은 취소하지 않습니다(순서 보장).
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -28,18 +28,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 🔴 액션 버전은 Node 24 런타임 세대로 올려 둡니다. checkout@v4 / setup-uv@v5 세대는
+      #    Node 20 에서 돌아가고, GitHub 이 Node 20 을 폐기 예고한 상태라 워크플로에
+      #    "Node.js 20 actions are deprecated" 경고가 붙습니다(언젠가 실패로 바뀝니다).
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      # setup-uv 는 v8 부터 major 무빙 태그(v8, v9)를 만들지 않으므로 정확한 버전을 씁니다.
+      # v9 로 쓰면 "Unable to resolve action ... unable to find version" 으로 실패합니다.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
 
+      # 🔴 --only-group docs 를 씁니다. --group docs 로 하면 메인 의존성(torch, vllm 계열
+      #    CUDA 휠 등)까지 설치되어 캐시가 GB 단위로 불고 복원에만 수십 초가 걸립니다.
+      #    문서 빌드에 필요한 것은 mkdocs-material 뿐입니다.
       # mkdocs.yml 의 strict: true 가 깨진 링크를 빌드 실패로 만듭니다.
       # 문서를 옮기거나 이름을 바꿨을 때 배포 전에 잡는 것이 목적입니다.
       - name: Build site
-        run: uv run --group docs mkdocs build
+        run: uv run --only-group docs mkdocs build --strict
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -53,4 +61,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
