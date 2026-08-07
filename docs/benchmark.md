@@ -1,7 +1,7 @@
-# 속도 측정 — SageMaker AI Endpoint의 TTFT·TPOT·ITL을 `vllm bench serve` 규약으로
+# 속도 측정: SageMaker AI Endpoint의 TTFT, TPOT, ITL을 `vllm bench serve` 규약으로
 
 !!! abstract "한 줄 요약"
-    `python pipelines/run_benchmark.py --course <코스>` — TTFT / TPOT / ITL / E2EL을 mean, median,
+    `python pipelines/run_benchmark.py --course <코스>`: TTFT / TPOT / ITL / E2EL을 mean, median,
     p50/p95/p99로 냅니다. 지표 정의는 `vllm bench serve`를 그대로 따르므로 로컬 vLLM 측정치와
     나란히 놓고 비교할 수 있습니다.
 
@@ -10,13 +10,13 @@
 
 ## 왜 별도 도구가 필요한가
 
-vLLM을 직접 띄우면 `vllm bench serve` 한 줄로 TTFT·TPOT·ITL이 나옵니다. SageMaker AI Endpoint에도
+vLLM을 직접 띄우면 `vllm bench serve` 한 줄로 TTFT, TPOT, ITL이 나옵니다. SageMaker AI Endpoint에도
 부하 측정 수단이 있지만, 재는 대상이 다릅니다.
 
 | Tool | Metrics | Token-level |
 |---|---|---|
 | `vllm bench serve` | TTFT / TPOT / ITL / E2EL, goodput, ramp-up | ✅ |
-| SageMaker Inference Recommender | `ModelLatency`, `MaxInvocations`, `CostPerHour`, `CostPerInference`, CPU·메모리 사용률 | ❌ |
+| SageMaker Inference Recommender | `ModelLatency`, `MaxInvocations`, `CostPerHour`, `CostPerInference`, CPU, 메모리 사용률 | ❌ |
 | CloudWatch endpoint 지표 | `ModelLatency`, `OverheadLatency`, `Invocations` | ❌ |
 
 Inference Recommender는 인스턴스 타입과 컨테이너 설정을 바꿔 가며 **어느 조합이 싸고 빠른지**를
@@ -89,10 +89,10 @@ TPOT p99가 39.93ms인 이유입니다.
 
 이 kit의 분류 코스 endpoint를 측정한 값입니다.
 
-**서빙 조건** — `ml.g6.2xlarge`(L4 24GB) 1대, vLLM DLC 0.26.0,
+**서빙 조건**: `ml.g6.2xlarge`(L4 24GB) 1대, vLLM DLC 0.26.0,
 `max_model_len 1024` / `max_num_seqs 32` / `gpu_memory_utilization 0.90`, gemma-4 E4B QLoRA 머지본
 
-**부하** — random 데이터셋 20건, 동시 4, 입력 256 / 출력 128 토큰
+**부하**: random 데이터셋 20건, 동시 4, 입력 256 / 출력 128 토큰
 
 ```
 ============ Serving Benchmark Result ============
@@ -163,7 +163,7 @@ ITL도 같이 벌어져야 하는데 각각 1.6%와 0.0%이므로, 정의는 일
 
 ## 부하를 조절하기
 
-건수·동시성·부하율은 `config.yaml`의 `benchmark` 섹션에서 정합니다.
+건수, 동시성, 부하율은 `config.yaml`의 `benchmark` 섹션에서 정합니다.
 
 | Key | Default | Description |
 |---|---|---|
@@ -207,7 +207,7 @@ python pipelines/run_benchmark.py --course classification -- \
   --tokenizer google/gemma-4-E4B-it
 ```
 
-ShareGPT·HuggingFace 데이터셋으로 바꾸거나 CloudWatch `ModelLatency`와 대조하는 것도 됩니다.
+ShareGPT, HuggingFace 데이터셋으로 바꾸거나 CloudWatch `ModelLatency`와 대조하는 것도 됩니다.
 전체 옵션은 `python -m sagemaker_benchmark --help`에 있습니다.
 
 ## 결과를 파일로 남기기

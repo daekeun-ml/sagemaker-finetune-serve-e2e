@@ -1,26 +1,26 @@
-# 추출 → JSON 코스 — 텍스트에서 스키마에 맞는 JSON 뽑기
+# 추출 → JSON 코스: 텍스트에서 스키마에 맞는 JSON 뽑기
 
 !!! info "Scope"
     자연어 텍스트에서 **스키마가 정해진 JSON**을 뽑아내야 하는 개발자를 위한
     코스입니다(`tracks/01_extraction_to_json`, 이 kit의 플래그십).
 
-    - **선행 조건**: [시작하기](../getting_started.md)의 설치와 AWS 자격증명·Amazon SageMaker AI 실행 role
+    - **선행 조건**: [시작하기](../getting_started.md)의 설치와 AWS 자격증명과 Amazon SageMaker AI 실행 role
       (`00_setup`이 확인). SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
-    - **여기서 다루는 것**: task 정의 · 시드 데이터셋 · 성공 기준 · 노트북 구성 · 코스별 설정값
+    - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포·서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
+      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
     - **다른 코스**: 이미지 입력(영수증 등)은 [멀티모달 추출](multimodal.md),
       라벨 하나만 고르는 문제는 [분류](classification.md)
 
-이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/01_extraction_to_json/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
-- `tracks/01_extraction_to_json/scripts/train.py` · `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
+- `tracks/01_extraction_to_json/scripts/train.py`, `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
 - `tracks/01_extraction_to_json/*.ipynb`: 이 코스의 노트북 10개
 - `common/config.py`: `TRACKS['extraction']` 레지스트리 항목(시드 데이터셋, `max_seq_length=2048`)
-- `common/eval_utils.py`: `eval_extraction()`(valid_json_rate · name_accuracy · arg_f1)
-- `tracks/01_extraction_to_json/_build_notebooks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙·생성 길이, GRPO reward 종류)
+- `common/eval_utils.py`: `eval_extraction()`(valid_json_rate, name_accuracy, arg_f1)
+- `tracks/01_extraction_to_json/_build_notebooks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙과 생성 길이, GRPO reward 종류)
 
 ---
 
@@ -53,7 +53,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 }
 ```
 
-**출력**(정답 — 이것만 생성하도록 학습합니다)
+**출력**(정답: 이것만 생성하도록 학습합니다)
 
 ```json
 {"name": "calculate_bmi", "arguments": {"weight": 70, "height": 1.75}}
@@ -66,11 +66,11 @@ You are a helpful assistant with access to the following functions. Use them if 
 
     | 프롬프트 구성 | 응답 |
     |---|---|
-    | system 없음 · 스키마 없음 | `"I do not have real-time access to weather..."` — 일반 챗봇처럼 답합니다 |
-    | system 있음 · 스키마 없음 | `{"name": "get_current_weather", ...}` — 함수명을 추측합니다 |
+    | system 없음, 스키마 없음 | `"I do not have real-time access to weather..."`: 일반 챗봇처럼 답합니다 |
+    | system 있음, 스키마 없음 | `{"name": "get_current_weather", ...}`: 함수명을 추측합니다 |
     | system + 스키마 | `{"name": "get_weather", "arguments": {...}}` ✅ 정확 |
 
-    배포 후 호출부(`04_evaluate`·`05_agentic_strands`)는 모두 세 번째 형태로 보냅니다. 스키마를 빼고 테스트한 뒤 "학습이 안 됐다"고 판단하는 것이 이 코스에서 가장 흔한 오진입니다.
+    배포 후 호출부(`04_evaluate`, `05_agentic_strands`)는 모두 세 번째 형태로 보냅니다. 스키마를 빼고 테스트한 뒤 "학습이 안 됐다"고 판단하는 것이 이 코스에서 가장 흔한 오진입니다.
 
 ---
 
@@ -84,7 +84,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     이 시드는 `{"arguments": {}}`처럼 **인자가 비어 있는 호출**이 많습니다. `common/grpo_data.py`가 쓰는 glaive 뒷부분 구간에서 94%입니다. SFT에는 문제가 없지만, GRPO에서는 채점이 사실상 "함수명 맞았나"로 축소되어 rollout이 전부 만점이 되고 학습 신호가 사라집니다.
     그래서 `02a`의 기본 prompt 소스(`synth`)는 생성 프롬프트에 난이도 제약을 걸어 **인자 2개 이상**을 강제합니다(제약 적용 후 실측: 인자 없음 0건 / 평균 인자 2.1개). 자세한 근거는 [RL prompt 소스 3가지](../03_finetuning.md#rl-prompt-소스-3가지)에 있습니다.
 
-시드는 300건(`config.NUM_SEED_SAMPLES`)만 앞에서 잘라 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, 이 리포의 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧아 약 475자이므로 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정--num_synthetic-기본값) 참고).
+시드는 300건(`config.NUM_SEED_SAMPLES`)만 앞에서 잘라 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, 이 리포의 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧아 약 475자이므로 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값) 참고).
 
 ---
 
@@ -114,35 +114,35 @@ You are a helpful assistant with access to the following functions. Use them if 
 
     92%가 망가진 모델이 `arg_f1` 만점을 받습니다. 즉 이 held-out에서 `arg_f1`은 실질적으로 **50건 중 4건으로만 계산**됩니다.
 
-    그래서 판단 순서는 **`valid_json_rate` → `name_accuracy` → `arg_f1`**입니다. 앞의 두 지표가 형식·함수 선택의 게이트 역할을 하고, `arg_f1`은 그 게이트를 통과한 뒤 인자 채우기 품질을 보는 값으로 읽으세요. 인자 단위 성능을 제대로 재려면 `02a`의 `synth` prompt처럼 **인자 2개 이상**을 강제한 held-out을 따로 만들어야 합니다.
+    그래서 판단 순서는 **`valid_json_rate` → `name_accuracy` → `arg_f1`**입니다. 앞의 두 지표가 형식과 함수 선택의 게이트 역할을 하고, `arg_f1`은 그 게이트를 통과한 뒤 인자 채우기 품질을 보는 값으로 읽으세요. 인자 단위 성능을 제대로 재려면 `02a`의 `synth` prompt처럼 **인자 2개 이상**을 강제한 held-out을 따로 만들어야 합니다.
 
-평가는 `04_evaluate.ipynb`가 endpoint를 `temperature=0.0`으로 호출해 수행하고, held-out은 학습에 쓴 앞 300건을 **명시적으로 건너뛴 뒤** 그 다음 50건(`N_EVAL`, dry-run은 20)을 씁니다. 합성 데이터로 평가하면 teacher 모방도를 재는 데 그칩니다. [held-out 규율](../02_synthetic_data.md#held-out-규율--합성으로-평가-금지)을 참고하세요.
+평가는 `04_evaluate.ipynb`가 endpoint를 `temperature=0.0`으로 호출해 수행하고, held-out은 학습에 쓴 앞 300건을 **명시적으로 건너뛴 뒤** 그 다음 50건(`N_EVAL`, dry-run은 20)을 씁니다. 합성 데이터로 평가하면 teacher 모방도를 재는 데 그칩니다. [held-out 규율](../02_synthetic_data.md#held-out-규율-합성으로-평가-금지)을 참고하세요.
 
 ---
 
 ## 노트북 순서
 
-이 코스의 노트북은 **10개**입니다. `02a`(GRPO)와 `02b`(로컬 서빙)를 모두 갖는 두 코스 중 하나입니다(다른 하나는 [분류 코스](classification.md), 요약·도메인 QA는 `02a`가 없어 9개입니다).
+이 코스의 노트북은 **10개**입니다. `02a`(GRPO)와 `02b`(로컬 서빙)를 모두 갖는 두 코스 중 하나입니다(다른 하나는 [분류 코스](classification.md), 요약과 도메인 QA는 `02a`가 없어 9개입니다).
 
 | 노트북 | 산출물 |
 |---|---|
-| `00_setup` | 자격증명·리전·role 확인, `role`·`bucket` `%store` 저장 |
-| `01_data_and_synthetic` | 시드 300건 파싱 + grounded 합성 → `data/train.jsonl`, 토큰 길이·중복 EDA(JSON 파싱률 점검 포함) |
-| `02_train_sft_sagemaker` | SageMaker AI 학습 잡(TRL SFT + QLoRA) → 머지된 모델 아티팩트, `%store md_extraction` |
+| `00_setup` | 자격증명, 리전, role 확인, `role`, `bucket` `%store` 저장 |
+| `01_data_and_synthetic` | 시드 300건 파싱 + grounded 합성 → `data/train.jsonl`, 토큰 길이, 중복 EDA(JSON 파싱률 점검 포함) |
+| `02_train_sft_sagemaker` | SageMaker AI 학습 Job(TRL SFT + QLoRA) → 머지된 모델 아티팩트, `%store md_extraction` |
 | `02a_train_grpo_sagemaker` | **(선택)** SFT 산출물을 base로 GRPO 정련 → 새 아티팩트 |
-| `02b_local_serve` | **(선택)** 로컬 GPU vLLM 프리플라이트 — 배포 전 30초 안에 같은 오류를 재현 |
+| `02b_local_serve` | **(선택)** 로컬 GPU vLLM 프리플라이트: 배포 전 30초 안에 같은 오류를 재현 |
 | `03_deploy_endpoint` | `gemma-extraction-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
-| `04_evaluate` | held-out `valid_json_rate`·`name_accuracy`·`arg_f1` |
+| `04_evaluate` | held-out `valid_json_rate`, `name_accuracy`, `arg_f1` |
 | `05_agentic_strands` | `extract_structured_json` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
 | `06_agentcore_deploy` | AgentCore Runtime 배포(로컬 dev → 클라우드) |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제, 로컬 모델 정리 |
 
-`02a`가 있는 이유는 **reward를 프로그램으로 채점할 수 있기 때문**입니다. `scripts/train_grpo.py`의 `reward_extraction`은 유효 JSON에 0.3, 함수명 일치에 0.3, 인자 F1에 0.4를 배분합니다. 요약·도메인 QA에는 이런 채점 함수가 없어 GRPO 노트북이 아예 생성되지 않습니다. 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나).
+`02a`가 있는 이유는 **reward를 프로그램으로 채점할 수 있기 때문**입니다. `scripts/train_grpo.py`의 `reward_extraction`은 유효 JSON에 0.3, 함수명 일치에 0.3, 인자 F1에 0.4를 배분합니다. 요약과 도메인 QA에는 이런 채점 함수가 없어 GRPO 노트북이 아예 생성되지 않습니다. 판단 근거는 [왜 추출과 분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출과-분류-코스에만-grpo가-있나).
 
 `02b`가 있는 이유는 배포 실패 원인이 대개 모델 파일 문제인데 endpoint는 한 번 띄우는 데 5~15분이 걸리기 때문입니다. 클라우드와 같은 엔진(vLLM)으로 로컬에서 먼저 확인하면 이 왕복이 사라집니다. 로컬 GPU가 없으면 건너뛰어도 됩니다(`has_local_serve=True`인 텍스트 코스 공통, 멀티모달 05에는 없습니다). 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`입니다.
 
 !!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
-    `DRY_RUN=1`이면 시드 8건 · 합성 6건 · held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md)에 정리돼 있습니다.
+    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md)에 정리돼 있습니다.
 
 ---
 
@@ -152,7 +152,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 | 설정 | 값 | 근거 |
 |---|---|---|
-| `seed_dataset` | `glaiveai/glaive-function-calling-v2` | apache-2.0 · ungated |
+| `seed_dataset` | `glaiveai/glaive-function-calling-v2` | apache-2.0, ungated |
 | `max_seq_length` | **2048** | 입력에 툴 스키마 JSON이 통째로 들어가 길어집니다(분류 코스는 512) |
 | `serve_max_model_len` | **미지정 → 4096** | spec에 값이 없어 `max_seq_length × 2`가 됩니다([학습 길이와 서빙 길이](../00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
 | `gen_max_tokens` | **256** | 정답 JSON은 짧습니다. 길이가 문제되는 코스와의 대조는 [max_tokens 절단과 finish_reason](../05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다 |
@@ -161,14 +161,14 @@ You are a helpful assistant with access to the following functions. Use them if 
 | `endpoint_prefix` | `gemma-extraction` | `%store` 오염을 피하는 코스 전용 키(`ep_extraction`)와 cleanup 필터에 함께 쓰입니다 |
 | 스트리밍 기본값 | `False` | JSON은 완성돼야 파싱이 되고 애초에 짧아 토큰을 흘려도 체감 이득이 없습니다 |
 
-`max_seq_length`는 요약 코스(2048)와 값이 같지만 이유가 다릅니다. 요약은 **입력 문서**가 길고, 이 코스는 **스키마**가 깁니다. 그래서 요약 코스는 `serve_max_model_len`·`gen_max_tokens`를 명시적으로 올렸고(4096/512), 이 코스는 기본값으로 충분합니다.
+`max_seq_length`는 요약 코스(2048)와 값이 같지만 이유가 다릅니다. 요약은 **입력 문서**가 길고, 이 코스는 **스키마**가 깁니다. 그래서 요약 코스는 `serve_max_model_len`, `gen_max_tokens`를 명시적으로 올렸고(4096/512), 이 코스는 기본값으로 충분합니다.
 
-??? question "오해 — “function calling 데이터로 학습하니 이 모델은 툴을 실행하는 거죠?”"
+??? question "오해: “function calling 데이터로 학습하니 이 모델은 툴을 실행하는 거죠?”"
     아닙니다. 이 코스가 학습하는 것은 **함수 호출을 표현하는 JSON을 생성하는 능력**이고, 그 JSON을 실제로 실행하는 주체는 호출자 쪽 코드입니다.
     `05_agentic_strands`에서 실행 오케스트레이션은 Bedrock Claude가 맡고, SLM endpoint는 `extract_structured_json` tool로서 구조화 JSON만 반환합니다. SLM = 빠른 구조화 추출기, Claude = 추론기라는 역할 대비가 가장 선명한 코스라 플래그십으로 삼았습니다([Agentic loop](../06_agentic.md)).
 
-??? question "오해 — “툴 호출이 목적이 아니면 이 코스는 안 맞나요?”"
-    출력 스키마가 정해진 추출 문제 전반에 그대로 옮겨집니다. 규약서에서 당사자·금액·기간을 뽑거나, 문의 메일에서 주문번호·요청유형을 뽑는 작업은 형태가 같습니다. `{"name": ..., "arguments": {...}}` 대신 원하는 스키마를 `SYSTEM_PROMPT`에 넣고, `track_data.py`의 파서를 자기 데이터에 맞게 바꾸면 됩니다(다른 코스들도 이 파일만 교체해 만들었습니다).
+??? question "오해: “툴 호출이 목적이 아니면 이 코스는 안 맞나요?”"
+    출력 스키마가 정해진 추출 문제 전반에 그대로 옮겨집니다. 규약서에서 당사자, 금액, 기간을 뽑거나, 문의 메일에서 주문번호와 요청유형을 뽑는 작업은 형태가 같습니다. `{"name": ..., "arguments": {...}}` 대신 원하는 스키마를 `SYSTEM_PROMPT`에 넣고, `track_data.py`의 파서를 자기 데이터에 맞게 바꾸면 됩니다(다른 코스들도 이 파일만 교체해 만들었습니다).
     다만 `eval_extraction()`은 `name`/`arguments` 구조를 가정하므로, 스키마를 바꾸면 채점 함수도 같이 손봐야 합니다.
 
 ---
@@ -177,11 +177,11 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 - [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교와 공통 `common/` 레이어
 - [02 합성 데이터](../02_synthetic_data.md): grounded 합성과 held-out 규율
-- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지·re-export
+- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 re-export
 - [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
-- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM·절단 실측 함정
+- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
 - [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
 
 !!! danger "비용과 cleanup"
-    학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint·endpoint-config·model을 모두 지우세요.
+    학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.
     `02a`의 GRPO는 prompt당 rollout을 여러 개 생성하므로 SFT보다 오래 걸립니다(노트북 기본 `MAX_RUNTIME_HOURS=6`). 합성 데이터 생성과 `05_agentic_strands`는 Bedrock 호출로 별도 과금되고, `06`으로 AgentCore를 배포했다면 `bash agentcore/cleanup_agent.sh --aws`도 필요합니다.

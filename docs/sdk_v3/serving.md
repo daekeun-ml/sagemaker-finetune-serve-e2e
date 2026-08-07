@@ -1,4 +1,4 @@
-# SDK V3 배포 — ModelBuilder와 endpoint
+# SDK V3 배포: ModelBuilder와 endpoint
 
 !!! info "Scope"
     V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다.
@@ -52,9 +52,9 @@
     `ModelBuilder`에는 `model_path`도 있지만 그건 **로컬 경로**입니다. S3 URI는 `s3_model_data_url`에 넣어야 합니다([model_data 로드 경로](../04_sagemaker_inference.md#model_data-로드-경로)).
     그리고 `Mode`는 **두 개가 따로 있습니다**. `sagemaker.serve.mode.function_pointers.Mode`는 `IN_PROCESS`/`LOCAL_CONTAINER`/`SAGEMAKER_ENDPOINT`(int 값, 서빙용)이고, `sagemaker.train.model_trainer.Mode`는 `LOCAL_CONTAINER`/`SAGEMAKER_TRAINING_JOB`(str 값, 학습용)입니다. 이름이 같은 `LOCAL_CONTAINER` 멤버가 양쪽에 있는데 값이 달라 서로 대입할 수 없습니다.
 
-## 사라진 role과 image_uri — intelligence layer
+## 사라진 role과 image_uri: intelligence layer
 
-V3 코드가 짧아진 것은 인자를 생략해도 되게 만든 계층이 있기 때문입니다. `ModelBuilder`는 실행 role·프레임워크·컨테이너·입출력 serializer·모델 서버를 **자동으로 판별**하고, 모델과 부속 아티팩트를 배포 가능한 형태로 포장합니다.
+V3 코드가 짧아진 것은 인자를 생략해도 되게 만든 계층이 있기 때문입니다. `ModelBuilder`는 실행 role, 프레임워크, 컨테이너, 입출력 serializer, 모델 서버를 **자동으로 판별**하고, 모델과 부속 아티팩트를 배포 가능한 형태로 포장합니다.
 
 | 없어진 인자 | 무엇이 대신하나 | 직접 주고 싶으면 |
 |---|---|---|
@@ -72,7 +72,7 @@ V2의 `model.deploy()`는 모델 등록과 endpoint 생성을 한 번에 했습�
 
 그래서 **한 번 build하고 여러 번 deploy**할 수 있고, endpoint를 띄우기 전에 Model 설정을 확인할 수 있습니다.
 
-프레임워크별 모델 클래스도 정리됐습니다. V2에는 범용 `Model` 외에 `PyTorchModel`·`TensorFlowModel` 같은 것들이 따로 있었고 각자 생성자 시그니처와 기본 이미지, 각자의 특이점을 가졌습니다. V3의 `ModelBuilder` 하나가 PyTorch·TensorFlow·HuggingFace·Scikit-learn·XGBoost·JumpStart 모델·커스텀 컨테이너를 모두 받습니다.
+프레임워크별 모델 클래스도 정리됐습니다. V2에는 범용 `Model` 외에 `PyTorchModel`, `TensorFlowModel` 같은 것들이 따로 있었고 각자 생성자 시그니처와 기본 이미지, 각자의 특이점을 가졌습니다. V3의 `ModelBuilder` 하나가 PyTorch, TensorFlow, HuggingFace, Scikit-learn, XGBoost, JumpStart 모델과 커스텀 컨테이너를 모두 받습니다.
 
 ## 컨테이너와 모델 서버는 다른 것입니다
 
@@ -80,7 +80,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 
 | | 무엇인가 |
 |---|---|
-| **추론 컨테이너** | Docker 이미지. OS·Python·CUDA 드라이버·프레임워크 라이브러리·모델 서버 소프트웨어가 한 이미지에 구워져 있고, Amazon SageMaker AI가 ML 인스턴스에서 실제로 실행하는 것 |
+| **추론 컨테이너** | Docker 이미지. OS, Python, CUDA 드라이버, 프레임워크 라이브러리, 모델 서버 소프트웨어가 한 이미지에 구워져 있고, Amazon SageMaker AI가 ML 인스턴스에서 실제로 실행하는 것 |
 | **모델 서버** | 그 컨테이너 **안에서 도는 HTTP 애플리케이션**. 포트를 열고 모델을 메모리에 올리고 요청을 받아 추론해 응답 |
 
 같은 프레임워크라도 이미지에 따라 서버가 다릅니다. PyTorch DLC는 TorchServe를 싣고, 같은 PyTorch용 다른 이미지는 DJL Serving이나 Triton을 쓸 수 있습니다.
@@ -89,32 +89,32 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 |---|---|---|
 | TorchServe | PyTorch 모델, 범용 | PyTorch DLC |
 | TGI (Text Generation Inference) | LLM 텍스트 생성 (HuggingFace) | HF TGI DLC |
-| TEI (Text Embeddings Inference) | 임베딩·유사도 모델 | HF TEI DLC |
+| TEI (Text Embeddings Inference) | 임베딩, 유사도 모델 | HF TEI DLC |
 | DJL Serving | 대형 모델 추론, 모델 병렬 | DJL DeepSpeed DLC |
 | Triton | 멀티 프레임워크, 고처리량 | Triton DLC |
 | TF Serving | TensorFlow/Keras 모델 | TensorFlow DLC |
-| MMS (Multi-Model Server) | 경량·다중 모델 호스팅 | MXNet/범용 DLC |
+| MMS (Multi-Model Server) | 경량, 다중 모델 호스팅 | MXNet/범용 DLC |
 | SMD | 커스텀 orchestrator | SageMaker AI 관리형 DLC |
 
-이 kit은 이 표에 없는 조합을 씁니다: vLLM·SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
+이 kit은 이 표에 없는 조합을 씁니다: vLLM, SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
 
-## 배포 3모드 — 테스트에서 프로덕션까지
+## 배포 3모드: 테스트에서 프로덕션까지
 
 `ModelBuilder`는 같은 코드로 세 곳에 배포합니다.
 
 | 모드 | 쓸 때 | 한계 |
 |---|---|---|
 | **in-process** | 빠른 프로토타이핑, 추론 로직 디버깅, `InferenceSpec` 코드 테스트. Docker 불필요, 수 초에 시작 | 모델 서버도 컨테이너 격리도 없어 **실제 서빙 스택을 검증하지 못합니다.** JumpStart 모델은 불가 |
-| **local container** | SageMaker AI에 올리기 전 **전체 서빙 스택** 검증. 실제 컨테이너 이미지·모델 서버·직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 당기고 컨테이너를 띄우므로 in-process보다 느림 |
-| **SageMaker AI endpoint** | 프로덕션과 부하 테스트. 전 추론 유형(real-time·serverless·async·batch), 오토스케일링, 멀티 모델 endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
+| **local container** | SageMaker AI에 올리기 전 **전체 서빙 스택** 검증. 실제 컨테이너 이미지, 모델 서버, 직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 당기고 컨테이너를 띄우므로 in-process보다 느림 |
+| **SageMaker AI endpoint** | 프로덕션과 부하 테스트. 전 추론 유형(real-time, serverless, async, batch), 오토스케일링, 멀티 모델 endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
 
-**이 kit은 local container를 프리플라이트로 씁니다.** 코스별 `02b_local_serve` 노트북이 그 단계이고, endpoint를 띄우기 전에 이미지·엔진·체크포인트 조합이 실제로 뜨는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 그 절차가 있습니다).
+**이 kit은 local container를 프리플라이트로 씁니다.** 코스별 `02b_local_serve` 노트북이 그 단계이고, endpoint를 띄우기 전에 이미지, 엔진, 체크포인트 조합이 실제로 뜨는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 그 절차가 있습니다).
 
 ## 추론 호출
 
 여기가 **V2와 V3가 같은 유일한 지점**입니다. endpoint 호출은 SageMaker Python SDK가 아니라 boto3 `sagemaker-runtime` 클라이언트의 일이고, 그 API는 SDK 메이저 버전과 무관합니다. 이 kit의 `common/aws_utils.py`가 처음부터 boto3로 부르기 때문에 V3 전환에서 **호출 코드는 한 줄도 바뀌지 않았습니다**.
 
-=== "V3 · V2 공통 (이 kit의 경로)"
+=== "V3, V2 공통 (이 kit의 경로)"
 
     ```python
     import boto3, json
@@ -144,7 +144,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 kit을 읽다 보면 "vLLM DLC"�
 
 V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps`/`json.loads`를 직접 하라는 것이 [공식 안내](https://sagemaker.readthedocs.io/en/stable/inference/index.html)이고, boto3 경로는 원래 그렇게 하고 있었으므로 이 축의 마이그레이션 비용이 0이 됩니다. SDK 객체로 부르고 싶다면 `Endpoint.get(name).invoke(body=..., content_type=...)`(스트리밍은 `invoke_with_response_stream`)도 있지만, boto3 쪽이 의존성이 얇아 이 kit은 그대로 둡니다. 호출 스키마 자체는 [invoke_endpoint 호출 스키마](../04_sagemaker_inference.md#invoke_endpoint-호출-스키마)를 보세요.
 
-## 리소스 조회·정리
+## 리소스 조회와 정리
 
 노트북 세션이 끊겨 `trainer`/`mb` 객체를 잃어도, **이름만 알면 리소스 객체로 다시 붙습니다**. V2에서 `sm.describe_training_job` 응답 dict를 파싱하던 자리가 여기입니다.
 

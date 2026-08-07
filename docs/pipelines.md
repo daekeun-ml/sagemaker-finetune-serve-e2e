@@ -1,10 +1,10 @@
-# 파이프라인 — 코스를 파이썬으로 한 번에 실행
+# 파이프라인: 코스를 파이썬으로 한 번에 실행
 
 !!! info "Scope"
     노트북 대신 **파이썬 스크립트로 코스를 실행하는 방법**을 다룹니다.
 
     - **여기서 다루는 것**: 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현
-    - **여기서 다루지 않는 것**: 학습 내용 자체(LoRA·하이퍼파라미터)는
+    - **여기서 다루지 않는 것**: 학습 내용 자체(LoRA, 하이퍼파라미터)는
       [파인튜닝](03_finetuning.md), 서빙 엔진 선택은 [서빙 컨테이너](05_serving_containers.md)
     - **노트북이 맞는 경우**: 처음 배우는 중이거나 중간 산출물을 눈으로 보고 싶을 때.
       두 경로의 선택 기준은 [실행 runbook](RUN_E2E.md#두-가지-실행-방법)
@@ -16,7 +16,7 @@
 # 전 구간
 python pipelines/run_extraction.py --stages all
 
-# 나눠서 — 학습만 돌려두고 나중에 배포
+# 나눠서: 학습만 돌려두고 나중에 배포
 python pipelines/run_extraction.py --stages data,train
 python pipelines/run_extraction.py --stages deploy,eval
 
@@ -43,16 +43,16 @@ SFT로 충분한 경우가 많고 GPU 시간이 한 번 더 들기 때문입니�
 
 GRPO까지 돌리려면 `--stages all+grpo`를 씁니다.
 
-GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부합니다. 요약·QA는
+GRPO가 없는 코스에 `--stages grpo`를 주면 이유를 설명하고 거부합니다. 요약과 QA는
 reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 되고 advantage가 0이 됩니다.
 
 에이전트 단계(`05_agentic_strands`, `06_agentcore_deploy`)는 노트북에만 있습니다. 질의를
 바꿔가며 응답을 보는 성격이라 스크립트로 만들 이득이 없습니다.
 
-## 속도 측정 — `run_benchmark.py`
+## 속도 측정: `run_benchmark.py`
 
 `eval`이 답이 맞는지를 본다면 벤치마크는 얼마나 빨리 오는지를 봅니다. 파이프라인 스테이지가 아니라
-별도 진입점입니다 — `run_<course>.py`는 앞 단계가 뒤 단계의 선행조건인 배포 흐름이고, 벤치마크는
+별도 진입점입니다: `run_<course>.py`는 앞 단계가 뒤 단계의 선행조건인 배포 흐름이고, 벤치마크는
 이미 있는 endpoint를 설정만 바꿔 몇 번씩 다시 재는 일입니다.
 
 ```bash
@@ -61,7 +61,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 ```
 
 측정은 `vllm bench serve`를 참조해 만든 [sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)가
-하고, TTFT / TPOT / ITL / E2EL을 mean·median·p50/p95/p99로 냅니다.
+하고, TTFT / TPOT / ITL / E2EL을 mean, median, p50/p95/p99로 냅니다.
 
 사용법, 실측 수치, vLLM 대조 결과, 설정은 [속도 측정](benchmark.md)에 있습니다.
 
@@ -82,12 +82,12 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 - `--show-state`로 현재 상태만 볼 수 있습니다.
 - 이 디렉토리는 gitignore 대상입니다(endpoint 이름과 S3 URI가 들어갑니다).
 
-## 중간에 끊겼을 때 — 다시 실행하면 이어집니다
+## 중간에 끊겼을 때: 다시 실행하면 이어집니다
 
 **Ctrl+C를 눌러도 학습 Job과 endpoint는 멈추지 않습니다.** AWS에서 계속 돌고 계속 과금됩니다.
 그래서 다시 실행할 때 같은 Job을 또 제출하면 GPU가 두 대 돌아갑니다.
 
-`--stages all`을 다시 실행하면 됩니다. 상태 파일에 남은 Job·endpoint 이름으로 실제 상태를
+`--stages all`을 다시 실행하면 됩니다. 상태 파일에 남은 Job, endpoint 이름으로 실제 상태를
 조회해서 판단합니다.
 
 | 이전 실행이 남긴 것 | 다시 실행하면 |
@@ -135,10 +135,10 @@ Job이 `Training` 단계에 들어가면 **CloudWatch 로그를 함께 흘립니
 
 | | 어디에 |
 |---|---|
-| 모델 크기·인스턴스·엔진·이미지 태그·샘플 수·epoch | `config.yaml` (커밋됨) |
-| `HF_TOKEN` · `SAGEMAKER_ROLE_ARN` · `AWS_REGION` | env / `.env` (커밋 안 됨) |
+| 모델 크기, 인스턴스, 엔진, 이미지 태그, 샘플 수, epoch | `config.yaml` (커밋됨) |
+| `HF_TOKEN`, `SAGEMAKER_ROLE_ARN`, `AWS_REGION` | env / `.env` (커밋 안 됨) |
 
-우선순위는 **셸·`.env`의 기존 env > `config.yaml` > `common/config.py` 기본값**입니다.
+우선순위는 **셸과 `.env`의 기존 env > `config.yaml` > `common/config.py` 기본값**입니다.
 한 번만 바꿀 때는 셸에서 넘기면 됩니다.
 
 ```bash
@@ -149,7 +149,7 @@ MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 
 ## --dry-run이 보장하는 것
 
-과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 Job·endpoint뿐 아니라
+과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 Job, endpoint뿐 아니라
 **Bedrock 호출도 하지 않습니다.** Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 +
 critique 약 100회가 실제로 청구됩니다. dry-run은 시드를 복제해 형식만 검증하고,
 GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
@@ -170,5 +170,5 @@ GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 ## 이어서 볼 문서
 
 - [실행 runbook](RUN_E2E.md): 노트북 경로의 단계별 핸드오프와 비용 가드
-- [전체 지도](00_overview.md): 문서·노트북 대응 관계
-- [파인튜닝](03_finetuning.md) · [SageMaker AI 추론](04_sagemaker_inference.md)
+- [전체 지도](00_overview.md): 문서와 노트북 대응 관계
+- [파인튜닝](03_finetuning.md), [SageMaker AI 추론](04_sagemaker_inference.md)

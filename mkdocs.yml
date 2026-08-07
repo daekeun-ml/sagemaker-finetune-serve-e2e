@@ -78,7 +78,7 @@ nav:
   - 개념부터 이해하기:
       - 00 전체 지도: 00_overview.md
       - 01 SageMaker AI 기초: 01_sagemaker_basics.md
-  - 파인튜닝 · 서빙 가이드:
+  - 파인튜닝, 서빙 가이드:
       - 02 합성 데이터: 02_synthetic_data.md
       - 03 파인튜닝: 03_finetuning.md
       - 04 SageMaker AI 추론: 04_sagemaker_inference.md
@@ -93,14 +93,14 @@ nav:
       - 요약: courses/summarization.md
       - 도메인 QA: courses/domain_qa.md
       - 멀티모달 추출: courses/multimodal.md
-  # 노트북과 파이썬 두 경로를 한 그룹에 묶습니다 — 둘은 '같은 코스를 어떻게 돌리나'의
+  # 노트북과 파이썬 두 경로를 한 그룹에 묶습니다: 둘은 '같은 코스를 어떻게 돌리나'의
   # 선택지라, 떨어뜨려 놓으면 하나만 있는 줄 압니다.
   - 직접 실행하기:
       - 노트북으로 완주 (JupyterLab): RUN_E2E.md
       - 스크립트로 실행 (Python): pipelines.md
       # 벤치마크는 파이프라인 스테이지가 아니라 별도 진입점입니다. '직접 실행하기' 에 두는 이유는
       # 배포 다음에 하는 일이고, 찾는 사람이 pipelines 문서 근처를 볼 것이기 때문입니다.
-      - 속도 측정 (TTFT · TPOT · ITL): benchmark.md
+      - 속도 측정 (TTFT, TPOT, ITL): benchmark.md
   # SDK V3는 가이드 번호 체계(00~06, 파이프라인 순서)에 넣지 않습니다. 순서대로 읽는 문서가
   # 아니라 V2 코드를 옮길 때 찾아보는 참조 문서라, 번호를 붙이면 '일곱 번째로 읽는 것'으로 오해됩니다.
   - SageMaker SDK V3:
@@ -113,7 +113,7 @@ extra_css:
 
 extra:
   # 모든 페이지 하단 푸터에 아이콘으로 붙습니다(Material 기본).
-  # 🔴 이 리포 링크는 넣지 않습니다 — repo_url 로 이미 우측 상단 헤더에 있고,
+  # 🔴 이 리포 링크는 넣지 않습니다: repo_url 로 이미 우측 상단 헤더에 있고,
   #    푸터에 또 두면 GitHub 아이콘이 두 개가 되어 어느 쪽이 저자 계정인지 구분되지 않습니다.
   #    여기는 저자 프로필만 둡니다.
   social:

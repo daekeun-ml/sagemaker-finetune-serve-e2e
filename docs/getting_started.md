@@ -9,18 +9,18 @@
 
 ---
 
-## 큰 그림 — 3가지 실행 방식
+## 큰 그림: 3가지 실행 방식
 
 | 방식 | 무엇 | GPU/AWS 필요? | 언제 |
 |---|---|---|---|
-| **A. 스모크 테스트** | 순수 로직 검증(데이터 어댑터·포맷터·메트릭) | ❌ 아무것도 불필요 | 코드가 멀쩡한지 5초 확인 |
-| **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량·짧게 실제 학습 | ✅ 필요 — GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
-| **C. SageMaker AI E2E** | 태스크별 실습 코스(노트북 한 세트)로 클라우드 학습→배포→agentic 완주 | ✅ 필요 — AWS 계정 + 과금 | 진짜 파인튜닝·서빙 |
+| **A. 스모크 테스트** | 순수 로직 검증(데이터 어댑터, 포맷터, 메트릭) | ❌ 아무것도 불필요 | 코드가 멀쩡한지 5초 확인 |
+| **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량, 짧게 실제 학습 | ✅ 필요: GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
+| **C. SageMaker AI E2E** | 태스크별 실습 코스(노트북 한 세트)로 클라우드 학습→배포→agentic 완주 | ✅ 필요: AWS 계정 + 과금 | 진짜 파인튜닝, 서빙 |
 
 **초심자 추천 순서: A → B → C** (아래에서 그대로 따라 하면 됩니다.)
 
 !!! tip "전체를 완주할 거라면"
-    단계별 핸드오프·비용·체크리스트·문제해결은 [실행 runbook](RUN_E2E.md)에 정리돼 있습니다.
+    단계별 핸드오프, 비용, 체크리스트, 문제해결은 [실행 runbook](RUN_E2E.md)에 정리돼 있습니다.
 
 ---
 
@@ -41,12 +41,12 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 !!! warning "LiteLLM은 코어 의존성이 아닙니다"
     litellm이 요구하는 `importlib-metadata>=8`이 sagemaker(`<7`)와 충돌합니다.
     `common/llm_gateway.py`(LiteLLM 경유 호출)가 필요하면 **별도 환경**에 설치하세요:
-    `pip install 'litellm>=1.93.0'`. 코어 파이프라인(학습·배포·agentic)은 boto3를 직접
+    `pip install 'litellm>=1.93.0'`. 코어 파이프라인(학습, 배포, agentic)은 boto3를 직접
     호출하므로 litellm 없이 완결됩니다.
 
 ---
 
-## 방식 A — 스모크 테스트
+## 방식 A: 스모크 테스트
 
 가장 먼저 이걸로 코드가 멀쩡한지 확인하세요. **모델 다운로드도, AWS도 필요 없습니다.**
 
@@ -54,14 +54,14 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 cd ~/sagemaker-finetune-serve-e2e
 python tests/test_smoke.py
 ```
-기대 출력: 마지막 줄이 `9/9 passed`(테스트를 추가하면 그만큼 늘어납니다). 실패 없이 끝나는지만 보면 됩니다. 데이터 어댑터·Gemma 포맷터·합성 파서·메트릭 로직·멀티모달 코스 등록을 검증합니다.
+기대 출력: 마지막 줄이 `9/9 passed`(테스트를 추가하면 그만큼 늘어납니다). 실패 없이 끝나는지만 보면 됩니다. 데이터 어댑터와 Gemma 포맷터와 합성 파서와 메트릭 로직과 멀티모달 코스 등록을 검증합니다.
 
 ---
 
-## 방식 B — 로컬 GPU dry-run
+## 방식 B: 로컬 GPU dry-run
 
 **"파이썬 dry-run"이 바로 이겁니다.** `scripts/train.py`는 self-contained라 로컬과 SageMaker AI에서
-같은 파일이 돕니다. `--dry_run`이면 소량(≤32행)·1 epoch·짧은 시퀀스로 파이프라인만 검증합니다.
+같은 파일이 돕니다. `--dry_run`이면 소량(≤32행), 1 epoch, 짧은 시퀀스로 파이프라인만 검증합니다.
 
 ### HF 캐시 위치 지정 (선택)
 모델 가중치(~24GB)를 홈 기본 캐시 말고 별도 폴더에:
@@ -95,9 +95,9 @@ python tracks/01_extraction_to_json/scripts/train.py \
 
 ---
 
-## 방식 C — SageMaker AI E2E
+## 방식 C: SageMaker AI E2E
 
-**"초심자를 위한 주피터 노트북"이 바로 이겁니다.** kit에는 태스크 하나를 데이터 준비부터 학습·배포·평가·정리까지
+**"초심자를 위한 주피터 노트북"이 바로 이겁니다.** kit에는 태스크 하나를 데이터 준비부터 학습, 배포, 평가, 정리까지
 끝내는 **실습 코스가 5개** 있고, 각 텍스트 코스 폴더에
 `00`~`06`,`99` 노트북이 (+ 선택 `02a`/`02b`), 멀티모달 코스에는 별도의 짧은 세트가 있습니다. 번호 순서대로 실행하면 됩니다.
 폴더 이름과 코드 식별자는 초기 이름인 `track`을 그대로 씁니다(`tracks/`, `track_data.py`). 아래에서 말하는 코스와 같은 것입니다.
@@ -105,30 +105,30 @@ python tracks/01_extraction_to_json/scripts/train.py \
 ### 어느 노트북부터
 ```
 tracks/01_extraction_to_json/     ← 플래그십 (여기부터 시작 추천)
-├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
+├── 00_setup.ipynb                ① 환경, 자격증명, 설치 확인
 ├── 01_data_and_synthetic.ipynb   ② 데이터 준비 + grounded 합성
 ├── 02_train_sft_sagemaker.ipynb      ③ SageMaker AI 학습 Job (+ 로컬 dry-run 셀 포함)
-├── 02a_train_grpo_sagemaker.ipynb    (선택) SFT→GRPO 정련 (RLHF) — 추출·분류 코스만
+├── 02a_train_grpo_sagemaker.ipynb    (선택) SFT→GRPO 정련 (RLHF): 추출, 분류 코스만
 ├── 02b_local_serve.ipynb             (선택) 배포 전 로컬 vLLM 검증
 ├── 03_deploy_endpoint.ipynb      ④ real-time endpoint 배포 (vLLM 기본)
 ├── 04_evaluate.ipynb             ⑤ held-out 평가 (성공기준 수치화)
 ├── 05_agentic_strands.ipynb      ⑥ SLM + Bedrock Claude agentic 루프
 ├── 06_agentcore_deploy.ipynb     ⑦ AgentCore 프로덕션 배포
-└── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
+└── 99_cleanup.ipynb              리소스 삭제 (과금 중단: 반드시 실행)
 ```
-다른 텍스트 task는 `02_classification/`, `03_summarization/`, `04_domain_qa/`이고 **구조·순서 동일**입니다.
-- `02a_train_grpo_sagemaker`(SFT→GRPO 정련)는 **추출·분류 코스에만** 있습니다(리워드가 프로그램적으로 계산됨). 요약·domain_qa에는 없습니다.
+다른 텍스트 task는 `02_classification/`, `03_summarization/`, `04_domain_qa/`이고 **구조와 순서 동일**입니다.
+- `02a_train_grpo_sagemaker`(SFT→GRPO 정련)는 **추출과 분류 코스에만** 있습니다(리워드가 프로그램적으로 계산됨). 요약과 domain_qa에는 없습니다.
 - `02b_local_serve`(배포 전 로컬 vLLM 프리플라이트)는 모든 텍스트 코스에서 선택적으로 제공됩니다.
 
 **멀티모달 코스는 구조가 다릅니다.** `tracks/05_multimodal_extraction/`(이미지 → 구조화 JSON 추출, 영수증, gemma-4 vision)은
 합성 데이터 단계가 없고 이미지 입력이라 노트북 세트가 짧습니다:
 ```
 tracks/05_multimodal_extraction/  ← 이미지 입력 (텍스트 코스와 별개 구조)
-├── 00_setup.ipynb                ① 환경·자격증명·설치 확인
+├── 00_setup.ipynb                ① 환경, 자격증명, 설치 확인
 ├── 01_data_explore.ipynb         ② cord-v2 영수증 이미지 + 구조화 JSON 탐색 (합성 단계 없음)
 ├── 02_train_mm_sagemaker.ipynb   ③ SageMaker AI 학습 (vision tower 동결 + language LoRA)
 ├── 03_deploy_mm_endpoint.ipynb   ④ 멀티모달 endpoint 배포 (이미지 입력 허용, 텍스트 전용 re-export 아님)
-└── 99_cleanup.ipynb              리소스 삭제 (과금 중단 — 반드시 실행)
+└── 99_cleanup.ipynb              리소스 삭제 (과금 중단: 반드시 실행)
 ```
 멀티모달 코스가 쓰는 시드와 스크립트:
 
@@ -150,7 +150,7 @@ export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID
 # export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만
 export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라우드 학습 시 0
 ```
-`DRY_RUN=1`이면 노트북이 소량·저비용으로 파이프라인만 확인합니다. 확인 후 `0`으로 바꿔 실제 실행하세요.
+`DRY_RUN=1`이면 노트북이 소량과 저비용으로 파이프라인만 확인합니다. 확인 후 `0`으로 바꿔 실제 실행하세요.
 
 ??? tip "HF 토큰을 한 번만 저장하기 (gated 모델을 쓸 때)"
     `config.get_hf_token()`은 **env(`HF_TOKEN`) → `hf auth login` 저장 토큰** 순으로 조회하므로
@@ -174,7 +174,7 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 
 ### 비용 주의
 - real-time endpoint는 **삭제 전까지 시간당 과금**됩니다 → 실습 후 반드시 **`99_cleanup.ipynb`** 실행.
-- Bedrock 호출·AgentCore도 과금 → 자세한 건 각 노트북 상단 경고 + [`docs/04_sagemaker_inference.md`](04_sagemaker_inference.md).
+- Bedrock 호출과 AgentCore도 과금 → 자세한 건 각 노트북 상단 경고 + [`docs/04_sagemaker_inference.md`](04_sagemaker_inference.md).
 
 ---
 
@@ -195,7 +195,7 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 
 ## 자주 막히는 곳
 - **"어느 노트북부터?"** → `tracks/01_extraction_to_json/00_setup.ipynb`.
-- **"GPU에서 그냥 돌려보고 싶다"** → 위 [방식 B](#방식-b--로컬-gpu-dry-run)(dry-run), AWS 불필요.
-- **"AWS 없이 코드만 확인"** → 위 [방식 A](#방식-a--스모크-테스트)(스모크 테스트).
+- **"GPU에서 그냥 돌려보고 싶다"** → 위 [방식 B](#방식-b-로컬-gpu-dry-run)(dry-run), AWS 불필요.
+- **"AWS 없이 코드만 확인"** → 위 [방식 A](#방식-a-스모크-테스트)(스모크 테스트).
 - **"gated 모델 접근 오류"** → gemma-3은 HF 약관 수락 + `HF_TOKEN` 필요. 또는 ungated `gemma-4-12B-it` 사용.
 - **"과금이 무섭다"** → `DRY_RUN=1`로 시작, 끝나면 `99_cleanup.ipynb` 필수.
