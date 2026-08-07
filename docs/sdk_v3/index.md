@@ -184,20 +184,20 @@ except ModuleNotFoundError:
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
-??? question "오개념 — “V3로 올리면 기존 V2 코드가 그대로 돕니까?”"
+??? question "오해 — “V3로 올리면 기존 V2 코드가 그대로 돕니까?”"
     아닙니다. V3는 **backward compatible이 아닙니다**. 3.16.0 설치본에서 대표적인 V2 진입점 여덟 개를 전부 시도해 봤고 하나도 살아 있지 않았습니다. 일곱 개는 `ModuleNotFoundError`, `sagemaker.Session()`은 `AttributeError`입니다.
     "`DeprecationWarning`이 뜨지만 일단 돈다"는 완충 구간은 **없습니다**. `pip install -U sagemaker`로 3.x가 들어오면 V2 노트북은 첫 import 셀에서 멈춥니다. 준비가 안 됐으면 `pip install "sagemaker<3"`으로 고정하세요(V2 End-of-Support는 2027-07-06입니다).
 
-??? question "오개념 — “SDK를 V3로 바꾸면 endpoint 호출 코드도 바꿔야 하나요?”"
+??? question "오해 — “SDK를 V3로 바꾸면 endpoint 호출 코드도 바꿔야 하나요?”"
     호출을 boto3로 하고 있다면 **한 줄도 바꿀 필요가 없습니다**. endpoint 호출은 `sagemaker-runtime` 서비스의 `InvokeEndpoint` API이고, SageMaker Python SDK의 메이저 버전과 무관합니다. 이 kit의 `common/aws_utils.py`는 처음부터 boto3 클라이언트를 직접 쓰기 때문에 V3 전환의 영향을 받지 않았습니다.
     바꿔야 하는 것은 `sagemaker.predictor.Predictor`와 serializer/deserializer에 **의존하던 코드**뿐입니다. 그 자리는 boto3 직접 호출이나 `core.resources.Endpoint.invoke()`로 대체합니다.
 
-??? question "오개념 — “ModelTrainer·ModelBuilder는 V3에서 새로 나온 클래스다”"
+??? question "오해 — “ModelTrainer·ModelBuilder는 V3에서 새로 나온 클래스다”"
     둘 다 V2 후반부터 이미 있었습니다(`sagemaker.modules.train.model_trainer`, `sagemaker.serve.builder.model_builder`에 V2 API 문서 페이지가 지금도 살아 있습니다). V3가 한 일은 **이 둘을 유일한 지원 인터페이스로 승격**하고, 경로를 `sagemaker.train`/`sagemaker.serve`로 옮기고, 대안(estimator·Model·Predictor)을 삭제한 것입니다. 그래서 늦은 2.x 코드베이스에서 오는 분은 클래스 이름은 이미 알고 있고 **import 경로와 config 객체만** 새로 익히면 됩니다.
 
-??? question "오개념 — “sagemaker-core 버전이 2.x면 V2인가요?”"
+??? question "오해 — “sagemaker-core 버전이 2.x면 V2인가요?”"
     아닙니다. V3는 `sagemaker-core`/`sagemaker-train`/`sagemaker-serve`/`sagemaker-mlops`로 쪼개진 모듈 구조이고 **각 하위 패키지는 독립적으로 버전이 매겨집니다**. `sagemaker` 3.16.0 설치본이 `sagemaker-core` 2.x를 끌고 오는 것이 정상입니다. 확인할 것은 우산 패키지 하나뿐입니다. `importlib.metadata.version("sagemaker")`가 3으로 시작하면 V3입니다.
 
 ---

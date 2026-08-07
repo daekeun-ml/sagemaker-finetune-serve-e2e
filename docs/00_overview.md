@@ -48,7 +48,7 @@
 - Gemma 특유의 함정(chat template의 system role 거부, fp16 NaN, packing cross-contamination)을 모르고 시작하면 **조용히 망가진 학습**을 얻게 됩니다.
 - 합성 데이터를 teacher 그대로 만들고 **그걸로 평가**하면 성능을 과대평가하게 됩니다.
 
-이 kit은 위 함정을 코드 주석·노트북·본 문서에 오개념 노트로 박아 두어, 초심자가 밟지 않도록 돕습니다.
+이 kit은 위 함정을 코드 주석·노트북·본 문서의 "오해" 노트로 박아 두어, 초심자가 밟지 않도록 돕습니다.
 
 ---
 
@@ -288,7 +288,7 @@
 | `tracks/*/scripts/train.py` · `train_grpo.py` | self-contained 학습 (로컬 dry-run ↔ SageMaker AI 겸용) |
 | `agentcore/app.py` | AgentCore Runtime 엔트리포인트 ([bedrock-agentcore SDK](https://github.com/aws/bedrock-agentcore-sdk-python)로 Strands 에이전트 호스팅) |
 
-??? question "오개념 — “코스끼리 뭔가 공유하니 순서대로 해야 하나?”"
+??? question "오해 — “코스끼리 뭔가 공유하니 순서대로 해야 하나?”"
     **그렇지 않습니다.** 5개 코스는 **완전히 독립된 E2E**입니다. 관심 있는 코스 하나만 `00→99`로 돌려도 완결됩니다.
     `common/`은 코드 중복을 제거하기 위한 것일 뿐, 실행 의존성이 아닙니다.
 
@@ -323,7 +323,7 @@
     - 합계 base만 약 19.1GB. 여기에 activation·optimizer를 얹으면 22GiB에서는 sharding이 강제됩니다.
     - 호스트 RAM은 병목이 아닙니다(merge peak 약 68GB vs 384GiB).
 
-??? question "오개념 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
+??? question "오해 — “Gemma는 gated니까 HF 토큰부터 받아야 하지 않나요?”"
     **gemma-4는 아닙니다.** 라이선스는 **모델 계열**을 따릅니다. Gemma 3/2/3n은 gated + Gemma Terms(서빙 시 use-restriction 전파 의무)이지만,
     **Gemma 4는 apache-2.0 + ungated**여서 토큰·약관 수락이 없습니다. `MODEL_IS_GATED` 기본값이 `0`인 것도 이 때문입니다.
     gated 모델을 `MODEL_ID`로 지정할 때만 `MODEL_IS_GATED=1` + 토큰이 필요합니다. gated + Gemma Terms의 대표 예는 [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it)입니다. **재배포/서빙 전 그 페이지의 라이선스 배너를 재확인**하세요.
@@ -391,7 +391,7 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 **GPU dry-run은 L40S에서 검증되었습니다.** 다른 GPU/메모리에서는 배치·seq 길이를 재조정해야 할 수 있습니다. 파이프라인이 확인되면 `DRY_RUN=0`으로 실제 실행하세요.
 
-??? question "오개념 — “로컬 `transformers`와 SageMaker AI가 같은 버전이겠지?”"
+??? question "오해 — “로컬 `transformers`와 SageMaker AI가 같은 버전이겠지?”"
     **그렇지 않습니다.** 로컬 env의 `transformers`는 데이터 준비/dry-run용이고, **SageMaker AI 컨테이너 버전은 DLC 이미지 태그**가 결정합니다.
     컨테이너 안에서 상위 버전이 필요하면 `tracks/*/scripts/requirements.txt`가 이를 업그레이드합니다.
     이 kit의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다. baked-in `transformers`에 묶이지 않습니다.
@@ -435,11 +435,11 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
 앞에서 다루지 않은, kit 전체를 볼 때 자주 나오는 착각들입니다.
 
-??? question "오개념 — “AWS 예제는 다 DJL LMI인데, 이 kit은 왜 vLLM이 기본인가요?”"
+??? question "오해 — “AWS 예제는 다 DJL LMI인데, 이 kit은 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
     LMI도 됩니다. 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 kit이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회로 확인). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK 폴백에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다. 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
@@ -447,21 +447,21 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 컨테이너 이야기는 학습 쪽에서도 같은 형태로 반복됩니다.
 
-??? question "오개념 — “학습은 HF DLC를 써야 하는 거 아닌가요?”"
+??? question "오해 — “학습은 HF DLC를 써야 하는 거 아닌가요?”"
     **꼭 그렇지 않습니다.** 이 kit은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
     [HF DLC](https://huggingface.co/docs/sagemaker/index)의 baked-in `transformers`는 gemma-4에 필요한 버전보다 낮을 수 있는데, 베이스를 PyTorch DLC로 두면 컨테이너 안에서 최신으로 맞출 수 있습니다.
     학습 이미지는 **리전별 private ECR**(`763104351884.dkr.ecr.<region>...`)만 허용됩니다. `public.ecr.aws` URI를 주면 `CreateTrainingJob`이 거부합니다.
 
 학습·서빙을 지나면 평가 단계에서 tier를 헷갈리게 됩니다.
 
-??? question "오개념 — “SageMaker AI 관리형 evaluator로 채점하면 되지 않나요?”"
+??? question "오해 — “SageMaker AI 관리형 evaluator로 채점하면 되지 않나요?”"
     **이 kit의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova·일부 JumpStart) 전용입니다.
     gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다.
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다(빠르고 저렴하다는 부수 효과도 있습니다).
 
 마지막은 이 kit에서 가장 비싼 착각인 과금에 관한 것입니다.
 
-??? question "오개념 — “endpoint를 안 부르면 공짜겠지?”"
+??? question "오해 — “endpoint를 안 부르면 공짜겠지?”"
     **그렇지 않습니다.** real-time endpoint는 **호출 여부와 무관하게 provisioned 인스턴스가 시간당 과금**됩니다.
     쓰지 않는다면 삭제하는 것이 정답입니다([비용과 cleanup](#비용과-cleanup)).
 

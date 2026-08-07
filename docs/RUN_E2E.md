@@ -82,7 +82,7 @@
 
 그래서 1차 완주도 "무료 리허설"은 아닙니다. 무엇이 실제로 과금되는지는 다음 착각에서 갈립니다.
 
-??? question "오개념 — “DRY_RUN=1이면 과금이 아예 없는 거죠?”"
+??? question "오해 — “DRY_RUN=1이면 과금이 아예 없는 거죠?”"
     **아닙니다.** `DRY_RUN=1`은 **양을 줄이는 스위치**일 뿐입니다. Bedrock 합성 호출은 건수만큼 과금되고, `03_deploy_endpoint`를 실행하면 GPU endpoint가 실제로 떠서 시간당 과금됩니다.
     비용이 0인 검증은 `tests/test_smoke.py`(순수 로직)와 로컬 GPU dry-run뿐입니다.
 
@@ -273,7 +273,7 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증·gemma-4 vi
 - 공통 로직은 `common/`이 공유하므로, 텍스트 코스 간 차이는 데이터 어댑터(`tracks/*/track_data.py`)와 `config.TRACKS` 레지스트리뿐입니다.
 - 여러 코스를 동시에 띄우면 GPU 인스턴스 비용이 코스 수만큼 늘어납니다. **한 코스씩 완주하고 정리하는 방식**을 권장합니다.
 
-??? question "오개념 — “코스를 옮기면 `%store` 값도 알아서 바뀌겠지?”"
+??? question "오해 — “코스를 옮기면 `%store` 값도 알아서 바뀌겠지?”"
     **그렇지 않습니다.** `%store`는 IPython 프로필 단위라 **코스를 넘어 공유**됩니다. 전역 `endpoint_name`/`model_data`는 마지막에 실행한 코스 값이 남아, 엉뚱한 endpoint를 호출하거나 다른 코스 모델을 배포하게 됩니다.
     그래서 노트북은 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 먼저 읽고, `train_path`는 아예 코스 로컬 파일(`data/train.jsonl`)로 고정합니다.
 
@@ -333,7 +333,7 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 
 각 노트북은 학습·배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links()`). Job 로그, endpoint 기동, OOM, Bedrock 호출량을 여기서 실시간으로 볼 수 있습니다.
 
-??? question "오개념 — “endpoint를 호출하지 않으면 요금도 안 나오죠?”"
+??? question "오해 — “endpoint를 호출하지 않으면 요금도 안 나오죠?”"
     **아닙니다.** real-time endpoint는 호출 여부와 무관하게 **provisioned 인스턴스가 시간당** 과금됩니다. 오토스케일도 통상 최소 1대는 유지합니다.
     쓰지 않는다면 삭제가 정답입니다. 비용 관점의 전체 비교는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 있습니다.
 

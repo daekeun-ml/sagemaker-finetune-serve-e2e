@@ -119,7 +119,7 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 2. **요청-응답 채널**: Real-time은 동기 응답(HTTP), Async는 **S3 입력 → 큐 → S3 출력 + SNS 알림**, Batch는 S3 데이터셋을 Job 단위로 훑습니다. 채널이 다르면 payload/timeout 한도도 달라집니다. HTTP 왕복에 묶인 Real-time·Serverless는 6 MB/4 MB·60초, S3를 거치는 Async는 1 GB·1시간입니다.
 3. **스케일 바닥값**: Async는 인스턴스를 0까지 축소할 수 있어 유휴 비용을 줄일 수 있지만, Real-time은 (오토스케일을 걸더라도) 통상 1대 이상을 유지합니다. 이것이 바로 **상시 과금**이 발생하는 원인입니다.
 
-??? question "오개념 — “Serverless가 제일 싸니까 LLM도 Serverless로 하면 되지 않나요?”"
+??? question "오해 — “Serverless가 제일 싸니까 LLM도 Serverless로 하면 되지 않나요?”"
     **아닙니다.** SageMaker Serverless Inference에는 **GPU가 없습니다**(CPU 전용). Gemma 같은 SLM/LLM은 GPU 없이는 사실상 돌아가지 않거나, 돌아가더라도 실용 불가 수준으로 느립니다.
     "간헐적인 트래픽이니 Serverless가 저렴하겠다"는 판단은 CPU 모델(작은 임베딩, 전통 ML)에나 맞는 이야기입니다. LLM/SLM에는 Real-time(또는 GPU가 붙는 Async/Batch)을 쓰세요.
     GPU는 단독 항목이 아니라 **기능 제외 목록의 첫 줄**입니다. GPU·Multi-Model Endpoint·VPC 구성·network isolation·data capture·다중 production variant·Model Monitor·inference pipeline이 함께 빠집니다. RAM도 최대 6,144 MB(6 GB)까지만 고를 수 있어서, bf16 E4B 가중치 14.23 GiB는 **애초에 올라가지 않습니다**.
@@ -161,7 +161,7 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 **왜 3층으로 나뉘어 있을까요?** 이렇게 분리되어 있는 덕분에 **무중단 배포**(새 EndpointConfig로 교체), **A/B 테스트(production variant)**, **오토스케일**이 가능해집니다.
 
-다만 이런 배포 가드레일(blue/green·canary·rolling)은 SageMaker AI endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오개념](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오개념)).
+다만 이런 배포 가드레일(blue/green·canary·rolling)은 SageMaker AI endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)).
 
 [SageMaker Python SDK](https://github.com/aws/sagemaker-python-sdk) v3에서는 이 3층을 `ModelBuilder`가 한 번에 만듭니다. v2의 `Model`/`HuggingFaceModel` 클래스는 제거되었습니다. 그래서 이 kit의 `03_deploy_endpoint`는 `ModelBuilder(image_uri=..., s3_model_data_url=..., env_vars=...)` → `.build()` → `.deploy()` 경로를 씁니다.
 
@@ -248,7 +248,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 | 과금 | 인스턴스 시간당(삭제 전까지) | 호출 토큰량 |
 | 이 kit의 위치 | 파인튜닝 Gemma 서빙 | agentic reasoning·합성 데이터 생성 |
 
-??? question "오개념 — “내 endpoint도 Bedrock API로 부르면 되지 않나요?”"
+??? question "오해 — “내 endpoint도 Bedrock API로 부르면 되지 않나요?”"
     **아닙니다.** endpoint는 `sagemaker-runtime.invoke_endpoint()`로, Bedrock은 `bedrock-runtime.converse()`로 호출하는 **완전히 다른 서비스**입니다.
     이 kit은 `common/llm_gateway.py`(LiteLLM)로 두 백엔드를 하나의 인터페이스처럼 쓰지만, 내부적으로 각각 올바른 서비스로 라우팅하는 것일 뿐 같은 API를 쓰는 것이 아닙니다.
     Bedrock Claude는 inference-profile prefix(`us.` / `eu.` / `apac.` / `global.`)가 필요합니다. 모델 ID는 **하드코딩 금지, env로 주입**입니다. `common/config.BEDROCK_CLAUDE_MODEL_ID`(기본 `global.anthropic.claude-sonnet-5`)를 참고하세요.
@@ -345,7 +345,7 @@ SageMaker AI 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 �
 
 컨테이너를 하나로 통일하고 싶은 마음이 들 수 있는데, 실제로는 그렇게 되지 않습니다.
 
-??? question "오개념 — “서빙 컨테이너 하나면 다 되는 것 아닌가요?”"
+??? question "오해 — “서빙 컨테이너 하나면 다 되는 것 아닌가요?”"
     **아닙니다.** 컨테이너마다 지원 모델, payload 스키마, 스트리밍 방식, 내부 백엔드가 다릅니다. 같은 Gemma라도 OpenAI 호환 서버와 TGI generation 스키마는 payload가 서로 다릅니다(`_parse_endpoint_response()`가 응답을 방어적으로 파싱하는 이유입니다).
     "한 컨테이너로 모든 것을 해결한다"가 아니라, **모델·처리량·기능 요구에 맞춰 선택**해야 합니다.
     참고로 **DLAMI와 DLC는 다릅니다.** DLAMI는 노드(호스트) 머신 이미지, DLC는 그 위에서 도는 워크로드 컨테이너이며, DLC는 관리형 Job 전용이 아니라 EC2/ECS/EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
@@ -431,20 +431,20 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
-앞 절에서 다루지 않은, 배포 단계에서 자주 나오는 착각들입니다. 티어 귀속 오류("blue/green을 HyperPod에서도 쓸 수 있겠지")는 이 문서가 아니라 [티어를 헷갈리게 만드는 오개념](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오개념)에서 제외 목록까지 포함해 다룹니다.
+앞 절에서 다루지 않은, 배포 단계에서 자주 나오는 착각들입니다. 티어 귀속 오류("blue/green을 HyperPod에서도 쓸 수 있겠지")는 이 문서가 아니라 [티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)에서 제외 목록까지 포함해 다룹니다.
 
 가장 자주 나오는 것은 스트리밍에 대한 기대치입니다.
 
-??? question "오개념 — “스트리밍을 켜면 처리량도 올라가지 않나요?”"
+??? question "오해 — “스트리밍을 켜면 처리량도 올라가지 않나요?”"
     **아닙니다.** 스트리밍이 줄이는 것은 **첫 토큰까지의 체감 대기**뿐입니다. 실측에서 첫 응답은 0.42초로 빨라졌지만 완료 시각은 15.9초 vs 16.2초로 사실상 같았습니다.
     동시 처리량(throughput)을 결정하는 것은 연속 배칭과 [max_num_seqs 기본값](#24gb-gpu-cuda-oom--max_num_seqs-기본값)이지 스트리밍 여부가 아닙니다.
     응답이 JSON/라벨처럼 **완성돼야 쓸 수 있는** 태스크라면 스트리밍을 켤 이유가 거의 없습니다.
 
 마지막은 삭제와 과금에 관한 것입니다.
 
-??? question "오개념 — “호출하지 않으면 endpoint 요금도 안 나오죠?”"
+??? question "오해 — “호출하지 않으면 endpoint 요금도 안 나오죠?”"
     **아닙니다.** Real-time endpoint는 호출이 0건이어도 **켜져 있는 동안 인스턴스 시간당** 과금됩니다.
     `endpoint_name`으로 삭제해도 **model은 조용히 남습니다**. `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 생성하기 때문입니다.
     시간당 과금은 endpoint에서만 발생하지만, config/model이 남으면 계정당 개수 제한에 걸립니다. 정리 순서는 [비용과 cleanup](#비용과-cleanup)을 보세요.

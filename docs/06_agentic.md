@@ -93,7 +93,7 @@
 | 모델 관리 | AWS 관리형(모델 ID만 지정) | 우리가 학습·배포·운영 |
 | 커스터마이즈 | 프롬프트/few-shot 위주 | 가중치 자체를 파인튜닝(LoRA) |
 
-??? question "오개념 — “Claude 하나로 다 하면 안 되나요?”"
+??? question "오해 — “Claude 하나로 다 하면 안 되나요?”"
     됩니다. 다만 도메인 전용 추출/분류에서는 (1) 작은 파인튜닝 SLM이 **더 저렴하고 지연도 낮으며** (2) 출력 포맷이 **더 안정적**입니다.
     반대로 SLM 하나로 다중 스텝 추론을 시키기는 어렵습니다. 그래서 **역할 분담**이 핵심입니다.
 
@@ -148,13 +148,13 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
     - 메시지·`inferenceConfig` 스키마는 [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정합니다.
     - 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
 
-??? question "오개념 — “LiteLLM 쓰면 둘이 같은 거 아닌가요?”"
+??? question "오해 — “LiteLLM 쓰면 둘이 같은 거 아닌가요?”"
     그렇지 않습니다. `common/llm_gateway.py`의 [LiteLLM](https://github.com/BerriAI/litellm)은 **호출 인터페이스만** OpenAI 호환 `completion()`으로 통일해 줄 뿐, 내부적으로는 여전히 `bedrock/converse/<model>`와 `sagemaker_chat/<endpoint>`로 **다른 백엔드에 라우팅**합니다.
     "같은 서비스"가 된 것이 아니라 "같은 함수 시그니처로 부를 수 있게" 감싼 것일 뿐입니다.
 
 경계를 지켰더라도, endpoint에 보내는 **페이로드 형식**에서 한 번 더 걸리는 지점이 있습니다.
 
-??? question "오개념 — “프롬프트를 렌더해서 inputs로 직송하면 되지 않나?”"
+??? question "오해 — “프롬프트를 렌더해서 inputs로 직송하면 되지 않나?”"
     안 됩니다. vLLM/SGLang/LMI는 OpenAI 호환 서버라 **chat template을 서버가 적용**합니다. 로컬 토크나이저로 렌더한 raw 문자열을 `{"inputs": ...}`로 보내면 다음 에러가 납니다.
     `Could not find a handler for the request. Expected one of: ['ChatCompletionRequest', 'CompletionRequest']`
     그래서 tool은 `messages`를 그대로 보냅니다. 클라이언트에 tokenizer/transformers 의존이 필요 없습니다.
@@ -174,7 +174,7 @@ SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoi
 | Asynchronous | 큐 기반, 대용량/긴 추론 | 조건부 — 긴 생성·오프라인 배치 |
 | Batch Transform | Job 단위 대량 오프라인 | ❌ 부적합 — 실시간 agentic엔 불가 |
 
-??? question "오개념 — “비용 아끼려고 Serverless에 SLM 올리면 어떨까요?”"
+??? question "오해 — “비용 아끼려고 Serverless에 SLM 올리면 어떨까요?”"
     부적합합니다. 현재 SageMaker Serverless Inference는 **GPU를 제공하지 않아** Gemma 같은 SLM 서빙에 쓸 수 없습니다. agentic loop의 tool은 real-time endpoint를 전제로 합니다.
     Serverless의 GPU 지원 여부는 이 문서에서 가장 빨리 낡을 수 있는 항목이므로 **실행 직전에 재확인**하세요.
 
@@ -238,7 +238,7 @@ SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합�
 | Bedrock Claude만 쓴다 (이 kit 기본) | `strands.models.BedrockModel` — 기본 provider |
 | 여러 프로바이더(OpenAI/Anthropic API/기타)를 갈아끼워야 한다 | [`strands.models.LiteLLMModel`](https://strandsagents.com/docs/user-guide/concepts/model-providers/litellm/) 옵션 (`strands-agents[litellm]`) |
 
-??? question "오개념 — “reasoning 모델을 LiteLLM으로 바꾸면 tool 호출 방식도 바뀌나요?”"
+??? question "오해 — “reasoning 모델을 LiteLLM으로 바꾸면 tool 호출 방식도 바뀌나요?”"
     아닙니다. `@tool extract_structured_json` 내부의 `sagemaker-runtime invoke_endpoint`는 그대로 유지됩니다.
     provider 교체는 **reasoning LLM 백엔드**만 바꿀 뿐, tool은 여전히 SageMaker AI endpoint를 그대로 호출합니다.
 
@@ -262,7 +262,7 @@ LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 �
     - `common/config.py`의 `BEDROCK_CLAUDE_MODEL_ID`(env `BEDROCK_CLAUDE_MODEL_ID`)를 사용합니다. 호출 리전은 `BEDROCK_REGION`(기본값 `AWS_REGION`)입니다.
     - `agentcore/app.py`는 `os.environ["BEDROCK_CLAUDE_MODEL_ID"]`로 반드시 주입받고(미설정이면 즉시 실패), `agentcore/templates/load.py`는 env가 없을 때만 kit 기본값으로 폴백합니다.
 
-??? question "오개념 — “모델 ID에 왜 `us.`가 붙나요? 그냥 `anthropic.claude-...`면 안 되나요?”"
+??? question "오해 — “모델 ID에 왜 `us.`가 붙나요? 그냥 `anthropic.claude-...`면 안 되나요?”"
     안 될 수 있습니다. 최신 Claude는 대부분 **cross-region inference profile**을 통해 호출하며, 그때 지역 prefix(`us.`/`eu.`/`apac.`/`global.`)가 필요합니다.
     prefix 없는 순수 모델 ID로는 호출이 거부될 수 있습니다. 어떤 형식이 유효한지는 리전·모델별로 다르니 **실행 전 재확인**하세요.
 
@@ -332,12 +332,12 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
     - 호출은 `bedrock-agentcore`의 `invoke_agent_runtime(agentRuntimeArn=..., runtimeSessionId=<33자 이상>, payload=..., qualifier="DEFAULT")`입니다.
     - 파라미터 스키마가 바뀔 수 있으니 최신 boto3 레퍼런스에서 확인하세요.
 
-??? question "오개념 — “x86 이미지로 빌드하면 안 되나요?”"
+??? question "오해 — “x86 이미지로 빌드하면 안 되나요?”"
     안 됩니다. AgentCore Runtime은 **ARM64**를 요구합니다. `docker buildx build --platform linux/arm64`로 빌드해야 하며, x86 이미지는 거부될 수 있습니다.
 
 규약의 나머지 절반인 헬스체크도 자주 오해를 받습니다.
 
-??? question "오개념 — “`/ping`은 왜 필요한가요?”"
+??? question "오해 — “`/ping`은 왜 필요한가요?”"
     런타임이 컨테이너의 헬스를 체크하는 엔드포인트입니다. `BedrockAgentCoreApp.run()`이 `/invocations`와 함께 자동으로 제공하므로 직접 구현할 필요는 없습니다.
 
 자세한 배포 절차는 노트북 **`06_agentcore_deploy`** 와 `agentcore/app.py`·`agentcore/Dockerfile`을 참고하세요.
@@ -346,17 +346,17 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
 아래 두 항목은 앞 절에서 다루지 않은, 서비스 계층을 헷갈릴 때 생기는 착각입니다.
 
-??? question "오개념 — “SageMaker AI deployment guardrail(blue/green·canary·rolling)을 이 agentic 배포에 쓴다”"
+??? question "오해 — “SageMaker AI deployment guardrail(blue/green·canary·rolling)을 이 agentic 배포에 쓴다”"
     그렇지 않습니다. 이 배포 가드레일은 **SageMaker AI endpoint 업데이트** 기능이지 AgentCore Runtime이나 Strands의 기능이 아닙니다.
     SLM endpoint를 무중단 갱신할 때는 쓸 수 있지만, 에이전트 컨테이너 배포와는 무관합니다.
 
 프레임워크와 게이트웨이를 같은 층으로 보는 착각도 같은 유형입니다.
 
-??? question "오개념 — “Strands = LiteLLM”"
+??? question "오해 — “Strands = LiteLLM”"
     아닙니다. Strands는 agent framework이고 LiteLLM은 모델 게이트웨이입니다.
     Strands의 provider 중 하나로 `LiteLLMModel`을 **쓸 수 있는** 관계일 뿐입니다([provider 선택](#provider-선택--bedrockmodel과-litellmmodel)).
 

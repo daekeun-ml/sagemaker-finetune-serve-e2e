@@ -355,11 +355,11 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 
 이 표는 십여 개 축을 나란히 놓았지만, 실제로 티어를 고를 때 사람들이 보는 축은 **시간당 단가** 하나뿐입니다. 그 비교에서 관리형이 지는 것은 사실이고, 동시에 그것이 총 소유비용의 한 칸일 뿐이라는 것도 사실입니다. 나머지 두 칸(운영·규정 준수)을 세는 방법은 [인프라 비용은 TCO의 한 칸일 뿐입니다](00_overview.md#인프라-비용은-tco의-한-칸일-뿐입니다)에 그림과 표로 있습니다.
 
-### 티어를 헷갈리게 만드는 오개념
+### 티어를 헷갈리게 만드는 오해
 
 앞의 표에서 특히 자주 틀리는 지점을 따로 정리합니다.
 
-??? question "오개념 — “HyperPod의 차별점은 노드 자동 교체다”"
+??? question "오해 — “HyperPod의 차별점은 노드 자동 교체다”"
     **그것만으로는 차별점이 아닙니다.** AWS ParallelCluster도 `clustermgtd`로 불건전 노드를 감지해 교체합니다(CloudWatch 대시보드에 `Unhealthy Instance Errors` 지표가 있고, static 노드에는 `node_replacement_timeout`이 있습니다).
     HyperPod의 실제 차별점은 세 가지입니다.
 
@@ -371,20 +371,20 @@ Training Job에 경로 규약이 있듯이 Endpoint에도 규약이 있고, 학�
 
 복원력을 정리했으면, 다음으로 헷갈리는 것은 **어떤 배포 기능이 어느 서비스 것인지**입니다.
 
-??? question "오개념 — “HyperPod로 올리면 blue/green이나 canary 배포도 되겠지”"
+??? question "오해 — “HyperPod로 올리면 blue/green이나 canary 배포도 되겠지”"
     **가드레일은 아닙니다.** HyperPod에도 [추론 플랫폼](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment.html)이 있어 프로덕션 트래픽을 받을 수 있습니다. 하지만 blue/green·canary·rolling 배포 가드레일과 production variant A/B는 **SageMaker AI Inference endpoint**의 기능입니다. `CreateEndpoint`/`UpdateEndpoint`의 `EndpointConfig` 교체를 기반으로, CloudWatch 알람으로 baking 기간을 감시하며 자동 롤백까지 하는 메커니즘입니다. 적용 대상은 real-time과 asynchronous이고 serverless는 제외됩니다. [제외 목록](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails-exclusions.html)은 **Marketplace 컨테이너와 Inf1(Inferentia) 인스턴스 endpoint**이며(rolling 배포는 추가로 serverless·multi-variant endpoint 제외), inference component는 제외 대상이 **아닙니다.** 그리고 제외 기능을 쓰는 endpoint라고 해서 가드레일을 아예 못 쓰는 것이 아니라, **"all at once 트래픽 전환 + baking 기간 없음"의 blue/green으로 폴백**됩니다.
     HyperPod EKS에서 같은 목적을 달성하려면 Kubernetes rolling update로 직접 구성해야 합니다. 기능을 찾을 때는 **"어느 서비스의 기능인가"를 먼저 확인**하세요. 다른 서비스 기능으로 착각하는 것이 아키텍처 결정을 가장 크게 망칩니다.
 
 HyperPod 자체를 단일 제품으로 보는 것도 자주 나오는 착각입니다.
 
-??? question "오개념 — “HyperPod는 하나다”"
+??? question "오해 — “HyperPod는 하나다”"
     **오케스트레이터가 두 종류입니다.** **Slurm** 방식은 클러스터 안에 컨트롤러·로그인·워커 노드를 두고 `sbatch`/`srun`으로 제출하며, auto-resume은 `srun --auto-resume=1` 플래그로 켭니다.
     **EKS** 방식은 EKS 컨트롤 플레인과 HyperPod 클러스터(워커 노드)를 1:1로 연결하고, 워크로드는 컨테이너/파드로 제출합니다.
     둘은 제출 방식·팀 스킬셋·관측 스택이 모두 다릅니다. 한쪽 문서를 읽고 다른 쪽 동작을 가정하지 마세요.
 
 마지막은 컨테이너 이미지와 호스트 이미지를 같은 층으로 보는 착각입니다.
 
-??? question "오개념 — “DLC는 SageMaker AI 전용이다”"
+??? question "오해 — “DLC는 SageMaker AI 전용이다”"
     **아닙니다.** DLC(Deep Learning Containers)는 **워크로드 컨테이너 이미지**라서 EC2·ECS·EKS(HyperPod-EKS 포함) 어디서나 실행됩니다.
     비교 대상으로 자주 등장하는 **DLAMI는 노드(호스트) 머신 이미지**이며 층이 다릅니다. "관리형이니까 DLC, 자체 구성이니까 DLAMI"라는 대응은 성립하지 않습니다.
 

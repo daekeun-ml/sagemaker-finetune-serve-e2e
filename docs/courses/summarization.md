@@ -113,7 +113,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 | `06_agentcore_deploy` | AgentCore Runtime 배포 |
 | `99_cleanup` | endpoint → endpoint-config → model 삭제, 로컬 모델 정리 |
 
-??? question "오개념 — “GRPO 노트북이 빠진 건 미완성이라서인가요?”"
+??? question "오해 — “GRPO 노트북이 빠진 건 미완성이라서인가요?”"
     아닙니다. 의도적으로 없습니다. GRPO에는 **프로그램으로 채점되는 reward**가 필요하고 `scripts/train_grpo.py --reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐입니다. "좋은 요약"은 규칙으로 채점할 수 없어서 이 코스의 `TrackSpec`은 `grpo_reward_kind`가 비어 있고, 그러면 빌더가 `02a`를 생성하지 않습니다.
     LLM-judge를 reward로 쓸 수는 있지만 rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞입니다. 판단 근거는 [왜 추출·분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출분류-코스에만-grpo가-있나)에 있습니다.
 

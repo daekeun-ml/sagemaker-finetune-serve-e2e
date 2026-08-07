@@ -51,7 +51,7 @@ label_text: card_arrival
 
 정답은 라벨 문자열 한 줄뿐입니다. `data/train.jsonl` 500건을 Gemma 4 E4B 토크나이저로 재면 **정답이 median 5토큰 / max 16토큰**입니다. 이 코스의 모든 길이 설정값이 다른 코스보다 작은 이유가 여기 있습니다.
 
-??? question "오개념 — “분류인데 왜 생성 모델을 쓰나요?”"
+??? question "오해 — “분류인데 왜 생성 모델을 쓰나요?”"
     이 kit은 JumpStart의 분류 전용 헤드를 쓰지 않고 DLC + 커스텀 `train.py`(TRL `SFTTrainer`)로 학습합니다([왜 커스텀 train.py 경로인가](../03_finetuning.md#왜-커스텀-trainpy-경로인가)). 그래서 라벨을 **텍스트로 생성**시키고, 평가 시점에 `common/eval_utils.normalize_label`이 자유 텍스트 출력을 닫힌 라벨셋에 다시 매핑합니다(정확 일치 → substring → rapidfuzz 유사도 순).
     이 방식의 이점은 같은 파이프라인·같은 서빙 컨테이너를 다른 네 코스와 그대로 공유한다는 점입니다. 대신 모델이 라벨셋 밖의 문자열을 낼 수 있으므로 정규화 단계가 필수입니다.
 

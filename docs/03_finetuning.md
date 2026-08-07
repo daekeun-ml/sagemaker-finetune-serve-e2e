@@ -120,7 +120,7 @@ Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 �
 2. **학습 로직 투명성** — Gemma는 손대야 할 관용구가 많습니다([Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)). `train.py`는 이 결정들을 코드로 명시하고 있어 리뷰·재현·이식이 쉽습니다. 특히 멀티모달 base를 텍스트로 서빙하려면 저장 단계에 손을 대야 하는데, 관리형 레시피에서는 불가능한 개입입니다.
 3. **이식성(로컬↔SageMaker AI 단일 소스)** — SageMaker AI는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU에서 검증한 바로 그 파일이 클라우드에서 그대로 돕니다.
 
-??? question "오개념 — “JumpStart가 더 production-ready 아닌가요?”"
+??? question "오해 — “JumpStart가 더 production-ready 아닌가요?”"
     그렇지 않습니다. production 여부는 경로가 아니라 운영(체크포인트·모니터링·재현성)이 결정합니다.
     커스텀 스크립트 경로도 managed spot·checkpoint·CloudWatch로 충분히 production-ready합니다. 선택 기준은 성숙도가 아니라 "레시피 제어가 필요한가"입니다.
 
@@ -152,7 +152,7 @@ Python SDK가 감싸 주지 않는 조회·삭제 API가 필요하면 한 층 �
     템플릿이 실제로 뱉는 `<start_of_turn>`/`<end_of_turn>` 마커 구조는 [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/core/prompt-structure)가 원본입니다.
     conversational 포맷을 `SFTTrainer`가 자동 처리한다는 규칙은 [TRL의 dataset formats 문서](https://huggingface.co/docs/trl/en/dataset_formats)에 있습니다.
 
-??? question "오개념 — “system 프롬프트를 messages에 그냥 넣으면 되지 않나요?”"
+??? question "오해 — “system 프롬프트를 messages에 그냥 넣으면 되지 않나요?”"
     될 때도 있고 안 될 때도 있고, **실패하면 kit이 대신 고쳐 주지 않습니다.** 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 에러가 납니다.
     `common/gemma_format.py`의 `build_messages`는 system을 그대로 담아 주고, `render_prompt`는 `apply_chat_template`을 바로 호출합니다(자동 재시도 없음). `fold_system_into_user`는 **직접 불러야 하는** 폴백 함수입니다.
     학습 데이터는 처음부터 fold된 형태로 만들어 두세요.
@@ -289,7 +289,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 
     **KV-shared 복원** — 소실 규모는 E4B 실측으로 42층 중 shared 18층 → 레이어 24~41 × 3개 = **정확히 54개**입니다. vLLM 초기화 실패는 [vLLM issue #44788](https://github.com/vllm-project/vllm/issues/44788)에 보고된 증상과 같습니다. 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 성공)이고, 생성 결과도 transformers와 일치했습니다.
 
-??? question "오개념 — “train.py에서 왜 common/config.py를 import 하지 않나요?”"
+??? question "오해 — “train.py에서 왜 common/config.py를 import 하지 않나요?”"
     SageMaker AI는 `source_dir`(=`scripts/`)만 컨테이너에 올리기 때문입니다. `common/`을 참조하면 클라우드에서 ImportError가 납니다.
     그래서 `train.py`는 **의도적으로 self-contained**하며, 설정은 노트북이 hyperparameters/environment로 주입합니다.
 
@@ -336,7 +336,7 @@ python train.py --dry_run              trainer.train(input_data_config=[InputDat
 - `--dry_run`에서는 시간 낭비를 막기 위해 머지를 건너뜁니다(어댑터만 루트에 저장).
 - 어댑터만 저장하고 런타임에 얹는 방식도 가능합니다. 머지하면 저장·배포 단계에서 "작은 어댑터"의 이점은 사라집니다. 다만 LoRA의 본래 이점은 **학습 효율**(적은 파라미터 업데이트)에 있고 머지는 **서빙 편의**를 위한 별개 선택입니다. 여러 어댑터를 스왑해야 한다면 머지하지 말고 어댑터를 그대로 보관하세요.
 
-??? question "오개념 — “QLoRA가 항상 낫지 않나요?”"
+??? question "오해 — “QLoRA가 항상 낫지 않나요?”"
     그렇지 않습니다. QLoRA는 **메모리 절약** 기법이지 품질 향상 기법이 아닙니다.
     메모리가 충분하다면 LoRA가 더 단순하고 빠를 수 있습니다. 태스크·GPU 상황에 맞춰 조건부로 고르세요.
 
@@ -395,7 +395,7 @@ trainer = ModelTrainer(
 `/opt/ml/model` **전체가** `model.tar.gz`로 올라가므로, epoch마다 쌓인 체크포인트가 업로드 시간을 늘립니다(= 한도를 잡아먹습니다).
 서빙은 머지된 루트만 읽으므로 `SFTConfig(save_total_limit=1)`로 1개만 남깁니다(체크포인트 3개 = 0.7GB, 전부 서빙에 불필요).
 
-??? question "오개념 — “핸즈온인데 MAX_RUNTIME_HOURS=4면 4시간 과금되나요?”"
+??? question "오해 — “핸즈온인데 MAX_RUNTIME_HOURS=4면 4시간 과금되나요?”"
     아닙니다. 한도는 **강제 종료 시점**일 뿐이고 실제 과금은 Job이 실행된 시간만큼입니다.
     노트북 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2`)이면 20~25분 안에 끝납니다(`ml.g6.2xlarge` 실측).
 
@@ -430,7 +430,7 @@ trainer = ModelTrainer(
 
 `PolyAI/banking77` 원본은 스크립트 기반이라 `datasets>=5.0.0`에서 로드되지 않아 parquet 미러로 바꿨습니다.
 
-??? question "오개념 — “gemma-4가 ungated니까 큰 걸 쓰면 되지 않나요?”"
+??? question "오해 — “gemma-4가 ungated니까 큰 걸 쓰면 되지 않나요?”"
     라이선스 관점만 보면 편한 것은 맞습니다. 하지만 크기·비용·품질 요구가 서로 다릅니다.
     기본은 단일 GPU 친화적인 `E4B`(effective 4.5B)이고, 용량이 더 필요할 때 `12B`나 `26B-A4B`로 조건부 승급하세요. 12B는 `transformers>=5.10.0`이 필요하고 머지 단계의 호스트 RAM 요구도 커집니다.
 
@@ -506,43 +506,43 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 요약·QA는 LLM-judge를 reward로 쓸 수는 있지만, rollout마다 judge를 호출해야 해 비용·시간이 급증하고 judge 편향이 학습에 섞이므로 이 kit에서는 제외했습니다.
 
-??? question "오개념 — “SFT 없이 base에서 바로 GRPO 하면 안 되나요?”"
+??? question "오해 — “SFT 없이 base에서 바로 GRPO 하면 안 되나요?”"
     됩니다. `train_grpo.py`는 `model` 채널이 없으면 HF base로 폴백합니다.
     다만 형식조차 안 잡힌 상태에서는 rollout이 전부 낮은 점수라 역시 편차가 작고 수렴이 불안정합니다. **SFT → GRPO**가 정석인 이유입니다.
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
 아래 항목들은 앞 절에서 다루지 않은, 학습 방식 자체와 컨테이너 계층을 헷갈릴 때 생기는 착각입니다.
 
-??? question "오개념 — “파인튜닝은 전체 가중치를 학습하는 것 아닌가요?”"
+??? question "오해 — “파인튜닝은 전체 가중치를 학습하는 것 아닌가요?”"
     이 kit은 그렇지 않습니다. **PEFT LoRA/QLoRA**로 어댑터만 학습하며 full fine-tune이 아닙니다.
     그래서 단일 GPU에서도 SLM을 돌릴 수 있습니다. 다만 텍스트 전용 base에서는 `modules_to_save`로 `lm_head`/`embed_tokens`를 full-train 대상에 포함시킵니다.
 
 환경 차이를 과소평가하는 착각도 같은 유형입니다.
 
-??? question "오개념 — “로컬에서 됐으니 SageMaker AI에서도 그대로 되겠지”"
+??? question "오해 — “로컬에서 됐으니 SageMaker AI에서도 그대로 되겠지”"
     같은 `train.py`를 쓰므로 대체로 맞습니다. 다만 세 가지가 다릅니다.
     (1) boolean 하이퍼는 `--key value`로 들어옵니다([str2bool](#boolean-하이퍼파라미터--str2bool)), (2) 데이터는 `SM_CHANNEL_TRAIN`으로 들어옵니다, (3) 컨테이너의 `transformers` 버전은 로컬과 다를 수 있습니다(`requirements.txt`가 조정).
     이 세 가지는 dry-run으로 미리 Job을 수 있습니다.
 
 컨테이너 이미지를 고를 때 나오는 혼동은 다음과 같습니다.
 
-??? question "오개념 — “DLC 이미지 태그는 최신으로 아무거나 넣으면 되지 않나요?”"
+??? question "오해 — “DLC 이미지 태그는 최신으로 아무거나 넣으면 되지 않나요?”"
     그렇지 않습니다. DLC 태그는 **AWS가 게시한 조합만** 유효합니다.
     `common/dlc.py`는 `DLC_IMAGE_URI`(완전 URI) → `DLC_REPOSITORY`+`DLC_TAG` → SDK `image_uris.retrieve` 순으로 해석합니다. ECR 계정은 `763104351884`(대부분의 리전 공용), 패턴은 `763104351884.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>`이며 현행 태그는 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/) 페이지에서 확인하세요. 태그는 자주 갱신되므로 **실행 직전에 다시 확인**해야 합니다.
     학습 이미지는 **리전별 private ECR만** 허용됩니다. `public.ecr.aws/...` URI를 주면 실패하고, 리전을 옮길 때는 `AWS_REGION`과 URI의 리전을 함께 바꿔야 합니다.
 
 이미지 종류를 혼동하는 경우도 흔합니다.
 
-??? question "오개념 — “DLC(컨테이너)와 DLAMI(AMI)는 같은 것 아닌가요?”"
+??? question "오해 — “DLC(컨테이너)와 DLAMI(AMI)는 같은 것 아닌가요?”"
     다릅니다. DLC는 **워크로드 컨테이너 이미지**(학습/추론)이고 DLAMI는 **노드 호스트 이미지(AMI)** 입니다.
     이 kit은 SageMaker AI 학습 컨테이너로 DLC를 씁니다. 이미지에 무엇이 들어 있는지는 [AWS Deep Learning Containers 저장소](https://github.com/aws/deep-learning-containers)의 Dockerfile로 직접 확인할 수 있습니다.
 
 마지막은 단계 경계에 대한 착각입니다.
 
-??? question "오개념 — “학습이 곧 배포 아닌가요?”"
+??? question "오해 — “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.
     SageMaker AI 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 kit은 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가--추론-4옵션-비교)를 보세요.
 

@@ -391,7 +391,7 @@ serve_env   = dlc.serving_env(ENGINE, max_model_len=4096,      # 엔진별 키�
 실행 전에 [LMI 구성 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-configuration.html)에서
 현행 키를 확인하세요(`OPTION_*` · `serving.properties`).
 
-??? question "오개념 — “transformers(HF Inference DLC) 경로는 왜 없나요?”"
+??? question "오해 — “transformers(HF Inference DLC) 경로는 왜 없나요?”"
     **의도적으로 제외했습니다.** `code/inference.py` 핸들러로 서빙하면 **단건 처리**라 연속 배칭이 없고, [SageMaker HuggingFace Inference Toolkit](https://github.com/aws/sagemaker-huggingface-inference-toolkit)이 응답을 완성본으로 버퍼링해 **토큰 스트리밍도 불가**합니다([응답 스트리밍](#응답-스트리밍--vllm-경로에서의-지원-여부)).
     E4B가 vLLM으로 못 뜬다고 알려졌을 때의 우회로였는데, 그 원인이 체크포인트였음이 밝혀져([KV-shared 복원](#e계열-kv-shared-dead-weight-복원)) 더는 필요하지 않습니다.
     `resolve_hf_inference_image()`는 `common/dlc.py`에 남아 있으니 직접 쓸 수는 있습니다.
@@ -441,7 +441,7 @@ SDK v3 `ModelBuilder`는 **같은 코드**를 3단계 대상에 배포할 수 �
 
 import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니다(SDK 3.16.0 실측으로 `sagemaker.serve`에 직접 `Mode`가 없습니다).
 
-??? question "오개념 — “IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?”"
+??? question "오해 — “IN_PROCESS로 gemma를 초경량 검증하면 되지 않나?”"
     **안 됩니다(생성형 LLM 미지원).** IN_PROCESS 서버는 `model=<HF id>`를 받으면 내부적으로 **`transformers.pipeline` 또는 `SentenceTransformer`(임베딩)로만** 로드를 시도합니다(SDK 3.16.0 소스 실측: `sagemaker/serve/model_server/in_process_model_server/app.py`). 즉 분류·임베딩 같은 경량 모델 전용입니다.
     gemma-4는 멀티모달(오디오 포함)이라 pipeline이 `AnyToAnyPipeline`으로 잡혀 `librosa` 등을 요구하고, 임베딩 모델도 아니라 `SentenceTransformer` 폴백도 실패합니다(`UnboundLocalError`).
     LLM을 IN_PROCESS로 띄우려면 `InferenceSpec`(load/invoke)을 직접 구현해야 하는데, 이는 vLLM 엔진을 손으로 재구현하는 셈이라 실익이 없습니다.
@@ -556,7 +556,7 @@ flashinfer가 `torch.empty_like`로 사본을 하나 더 만들므로 실제로�
 - **텍스트 코스도 안전지대가 아닙니다**: KV 여유가 0.47 GiB뿐이었습니다. 멀티모달은 vision tower로 가중치가 ~1 GiB 크고, 그 차이가 그대로 실패로 이어졌습니다.
 - vLLM 자신도 로그에서 `--kv-cache-memory=3.76 GiB`를 권고합니다 → **KV를 4.69로 과대 배정한 것**입니다.
 
-??? question "오개념 — “GPU 타입을 바꿔야 하나?”"
+??? question "오해 — “GPU 타입을 바꿔야 하나?”"
     **아닙니다.** 로컬 L40S를 `gpu_memory_utilization=0.441`로 제한해 **L4와 같은 절대 예산(20.2 GiB)** 을 만든 뒤 실측한 결과입니다.
 
     | 설정 | 결과 |
@@ -840,42 +840,42 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
 앞 절에서 다루지 않은, 컨테이너 선택 단계에서 자주 나오는 착각들입니다. 가장 흔한 것은 엔진과 컨테이너를 경쟁 관계로 보는 것입니다.
 
-??? question "오개념 — “LMI는 vLLM과 경쟁하는 것 아닌가요?”"
+??? question "오해 — “LMI는 vLLM과 경쟁하는 것 아닌가요?”"
     **아닙니다. LMI는 vLLM을 감싸는 컨테이너입니다.** `OPTION_ROLLING_BATCH=vllm`으로 지정하면 LMI 안에서 vLLM 엔진이 돕니다.
     둘은 레이어가 다릅니다(엔진 vs 컨테이너). 자세히는 [왜 레이어가 다른가](#왜-레이어가-다른가--엔진--서빙-컨테이너)를 보세요.
     "vLLM을 쓰고 싶다"의 답이 종종 "LMI로 쓴다"가 되는 이유가 여기에 있습니다.
 
 레이어가 정리되면 다음 걱정은 "그럼 처음 고른 것에 갇히는가"입니다.
 
-??? question "오개념 — “한 번 고르면 영원히 그 컨테이너에 묶이는 것 아닌가요?”"
+??? question "오해 — “한 번 고르면 영원히 그 컨테이너에 묶이는 것 아닌가요?”"
     **아닙니다.** 이 kit은 이미지 URI를 env(`SERVING_ENGINE` + `*_IMAGE_URI`)로 해석하고, 호출은 `sagemaker-runtime`으로 통일해 두었습니다.
     따라서 vLLM DLC, SGLang, LMI, BYOC 사이의 전환은 **이미지 URI와 env, payload 스키마를 조정하는** 문제일 뿐 처음부터 다시 작성하는 일이 아닙니다.
 
 전환이 자유롭다면 남는 질문은 "그래서 가장 빠른 것을 고르면 되는가"입니다.
 
-??? question "오개념 — “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
+??? question "오해 — “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
     **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지·SageMaker AI 규약·보안 패치를 **직접** 책임져야 합니다.
     관리 마찰을 줄이고 싶다면 AWS가 굽는 vLLM DLC나 LMI(내부 vLLM 백엔드)가 대체로 낫습니다. 같은 엔진을 관리형으로 쓰는 셈이기 때문입니다.
 
 비용을 줄이려는 시도는 종종 엉뚱한 tier로 향합니다.
 
-??? question "오개념 — “Serverless로 싸게 LLM을 서빙하면 되지 않나요?”"
+??? question "오해 — “Serverless로 싸게 LLM을 서빙하면 되지 않나요?”"
     **아닙니다.** 현시점의 SageMaker Serverless Inference에는 **GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이 kit의 기본은 real-time(GPU)입니다.
     GPU 미지원은 정책성 항목이라 언젠가 바뀔 수 있으니 **실행 전 재확인**하세요.
 
 이미지의 종류 자체를 혼동하는 경우도 흔합니다.
 
-??? question "오개념 — “DLC는 관리형 Job 전용 아닌가요? DLAMI와 같은 것 아닌가요?”"
+??? question "오해 — “DLC는 관리형 Job 전용 아닌가요? DLAMI와 같은 것 아닌가요?”"
     **아닙니다.** DLC는 **워크로드 컨테이너**로 EC2/ECS/EKS 등 어디서나 실행되며, 관리형 Job 전용이 아닙니다.
     또한 **DLAMI**(노드 호스트 이미지)와도 다른 레이어입니다. 본 문서의 vLLM DLC·LMI·TGI는 모두 DLC로 배포되는 컨테이너입니다.
 
 마지막은 컨테이너 선택과 롤아웃 방식을 같은 층으로 보는 착각입니다.
 
-??? question "오개념 — “SageMaker AI 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
+??? question "오해 — “SageMaker AI 배포 가드레일(blue/green·canary·rolling)이 컨테이너 기능 아닌가요?”"
     **아닙니다.** 그 배포 가드레일은 **SageMaker AI endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).
     컨테이너는 "무엇을 서빙하는가"의 문제이고, 가드레일은 "어떻게 롤아웃하는가"의 문제입니다.
 

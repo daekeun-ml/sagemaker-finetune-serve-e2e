@@ -55,7 +55,7 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 - **값은 전부 문자열이고 빈 문자열이 흔합니다.** 리포에 커밋된 정답을 보면 `{"name": "J.STB PROMO", "count": "", "price": "17500"}`처럼 `cnt`가 없는 항목이 그대로 `count: ""`가 됩니다. 가격도 `"17500"`과 `"13,000"`이 섞여 있어(콤마 유무) 정규화는 하지 않습니다. 원본 표기를 그대로 재현하도록 학습합니다.
 - **지시문은 system role이 아니라 첫 user 턴 텍스트입니다.** Gemma chat template이 system role을 거부하므로 `INSTRUCTION`을 user 텍스트에 접어 넣습니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
 
-??? question "오개념 — “이미지는 messages content 안에 넣는 거 아닌가요?”"
+??? question "오해 — “이미지는 messages content 안에 넣는 거 아닌가요?”"
     추론에서는 그렇습니다(`{"type":"image_url", ...}` + `{"type":"text", ...}`). 하지만 **학습에서는 아닙니다.** TRL의 VLM collator는 이미지를 별도 `images` 컬럼으로 받고 `messages`에는 텍스트만 두며, 이미지 자리표시자를 collator가 직접 주입합니다. `messages` content에 `{"type":"image"}`를 직접 넣으면 이미지 개수와 자리표시자 개수가 어긋나 에러가 납니다(실측 확인). `to_example()`이 이 규약을 지키는 형태를 만들어 줍니다.
 
 ---

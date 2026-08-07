@@ -11,7 +11,7 @@
       배포·서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
       [실행 runbook](../RUN_E2E.md)
     - **다른 코스**: 긴 문서 요약은 [요약](summarization.md).
-      검색기를 붙이는 RAG는 이 코스 위에 얹는 별도 작업입니다(아래 오개념 참고)
+      검색기를 붙이는 RAG는 이 코스 위에 얹는 별도 작업입니다(아래 "오해" 노트 참고)
 
 이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`·`track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
@@ -64,7 +64,7 @@ output: Tope
 
 학습 시점에는 `to_messages()`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다. Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
 
-??? question "오개념 — “context가 있으니 RAG 코스 아닌가요?”"
+??? question "오해 — “context가 있으니 RAG 코스 아닌가요?”"
     아닙니다. 이 코스는 **검색 단계가 없습니다.** context는 데이터셋이 이미 붙여 준 문단이고, 모델이 배우는 것은 "주어진 문단에 근거해 답하기"입니다. 검색기를 붙이는 것은 이 코스 위에 얹는 별도 작업이며, 이 kit의 노트북에는 포함되지 않았습니다.
 
 ---

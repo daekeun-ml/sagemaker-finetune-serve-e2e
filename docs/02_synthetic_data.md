@@ -74,7 +74,7 @@
 2. **2축 critique 게이트** — 생성물마다 `groundedness`(seed 도메인 일치)와 `relevance`(task 적합)를 0~1로 재채점합니다. `min_groundedness`/`min_relevance`(기본 0.6)에 미달하면 폐기합니다. 판정용 시스템 프롬프트(`CRITIQUE_SYSTEM`)는 생성용(`GEN_SYSTEM`)과 완전히 분리되어 있습니다.
 3. **채택분만 accumulate** — 목표치 `n_total`에 도달할 때까지 라운드를 반복합니다. PII/중복 필터를 통과하고 critique를 넘긴 예시만 `SynthExample`로 쌓입니다. 진전이 없는 라운드가 3회 연속이면(`MAX_STALE = 3`) 무한루프를 피해 중단하고 수율 저조 경고를 남깁니다.
 
-??? question "오개념 — “critique도 결국 같은 LLM이 하는데 의미가 있나?”"
+??? question "오해 — “critique도 결국 같은 LLM이 하는데 의미가 있나?”"
     한계는 있지만 유효합니다. 같은 모델이라도 **역할·프롬프트·컨텍스트를 분리**합니다. 생성은 `GEN_SYSTEM`으로 seed chunk 전체를 받아 다양성을 만들고, critique는 `CRITIQUE_SYSTEM`("strict data-quality judge")으로 seed 상위 5건만 받아 후보 1건을 점수화합니다.
     완벽한 진리 검증은 아니지만 seed 도메인 이탈이나 라벨공간 위반 같은 **명백한 drift를 걸러내는 저비용 게이트**입니다.
     최종 품질 판정은 [held-out 평가](#held-out-규율--합성으로-평가-금지)가 담당합니다.
@@ -132,7 +132,7 @@ synth = bs.generate_grounded(
 )
 ```
 
-- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker AI endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다. [자주 나오는 오개념](#자주-나오는-오개념)에서 자세히 다룹니다.
+- **저수준 호출은 `common/aws_utils.bedrock_converse()`가 담당합니다.** boto3 `bedrock-runtime` 클라이언트의 [`converse()`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html)를 씁니다. 이는 SageMaker AI endpoint 호출(`sagemaker-runtime`의 `invoke_endpoint`)과 **별개 서비스**입니다. [자주 나오는 오해](#자주-나오는-오해)에서 자세히 다룹니다.
 - **출력은 `{"messages":[...]}` JSONL입니다.** `gemma_format.build_messages`로 만든 표준 messages이므로 [TRL `SFTTrainer`](https://huggingface.co/docs/trl/en/sft_trainer)의 conversational 포맷에 바로 들어갑니다(학습 경로는 `tracks/*/scripts/train.py`).
 - **병렬 호출이 많으면 Bedrock throttling(429)이 납니다.** boto3 클라이언트는 `mode="adaptive"` 재시도로 구성되어 있고, 시도 횟수는 `BEDROCK_MAX_ATTEMPTS`(기본 8)로 조정합니다. 그래도 429가 계속되면 `SYNTH_MAX_WORKERS`를 낮추세요.
 
@@ -154,7 +154,7 @@ synth = bs.generate_grounded(
 
 그래서 `gen_instruction` 인자가 따로 있습니다. **생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 제약을 `gen_instruction`에 넣고 `task_instruction`은 seed 도메인 그대로 유지**하세요.
 
-??? question "오개념 — “PII 정규식이 순수 숫자열도 지우지 않나?”"
+??? question "오해 — “PII 정규식이 순수 숫자열도 지우지 않나?”"
     그렇지 않습니다. phone/card 패턴은 **구분자(공백/`-`/괄호)를 요구**하도록 좁혀 두었습니다.
     따라서 function-call JSON에 흔한 타임스탬프·금액·id 같은 순수 긴 숫자열은 PII로 오탐하지 않습니다. 오탐 때문에 유효한 합성이 폐기되는 것을 막기 위한 설계입니다.
 
@@ -170,7 +170,7 @@ synth = bs.generate_grounded(
 - **언제 줄이나요**: Bedrock 비용이 부담될 때, 또는 seed가 좁아 다양성이 금방 포화될 때(중복 필터가 많이 걸립니다) 줄이세요.
 - dry-run(`DRY_RUN=1`)은 파이프라인 검증용입니다. 노트북이 seed 8건 / 합성 6건 / `max_batches=3`으로 낮춰 잡으므로 실제 값과는 별개입니다.
 
-??? question "오개념 — “합성을 많이 만들수록 항상 좋은가요?”"
+??? question "오해 — “합성을 많이 만들수록 항상 좋은가요?”"
     그렇지 않습니다. seed 다양성이 한계에 다다르면 추가 생성은 **중복·near-duplicate**만 늘리고(중복 필터가 폐기합니다) 비용만 증가시킵니다.
     양보다는 [held-out 지표](#held-out-규율--합성으로-평가-금지)로 검증한 유효 증가분을 기준으로 조정하세요.
 
@@ -205,7 +205,7 @@ seed 전체
 
 시드가 학습 구간보다 작으면 assert가 먼저 실패합니다. 그때는 `NUM_SEED_SAMPLES`를 줄이거나 더 큰 시드 데이터셋을 쓰세요.
 
-??? question "오개념 — “합성 데이터의 groundedness 점수가 높으면 평가에 써도 되나요?”"
+??? question "오해 — “합성 데이터의 groundedness 점수가 높으면 평가에 써도 되나요?”"
     안 됩니다. groundedness는 "seed 도메인에 맞는가"를 나타낼 뿐 "정답인가"를 뜻하지 않습니다.
     게다가 합성은 정의상 teacher의 출력이므로, 이를 채점 기준으로 쓰면 **평가 순환 오류**가 그대로 남습니다. held-out은 반드시 실제 seed(증강 이전)에서만 뽑아야 합니다.
 
@@ -237,21 +237,21 @@ seed 전체
     | NVIDIA NeMo Curator | 활발하지만 Bedrock 소비 커넥터가 없음 (자체 NIM/vLLM 엔드포인트 호스팅용) |
     | DataDreamer / fabricator | 정체 상태 |
 
-??? question "오개념 — “유명한 distilabel을 왜 안 쓰나요?”"
+??? question "오해 — “유명한 distilabel을 왜 안 쓰나요?”"
     유명세와 유지보수는 별개입니다. **2026년 릴리스가 0건**(마지막 2025-01)이라 프로덕션 의존성으로는 부적합합니다.
     이 kit은 "노후화 리스크 0"을 기본 원칙으로 삼습니다. repo 활동 상태는 변할 수 있으니 채택 전에 다시 확인하세요.
 
 ---
 
-## 자주 나오는 오개념
+## 자주 나오는 오해
 
-??? question "오개념 — “합성 데이터 생성이 곧 SageMaker AI endpoint 호출 아닌가요?”"
+??? question "오해 — “합성 데이터 생성이 곧 SageMaker AI endpoint 호출 아닌가요?”"
     아닙니다. 합성 생성은 **Bedrock**(`bedrock-runtime`의 `converse`)으로 teacher LLM(Claude)을 부르는 것이고, 학습된 SLM 서빙은 **SageMaker AI**([`sagemaker-runtime`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime.html)의 `invoke_endpoint`, 스트리밍은 `invoke_endpoint_with_response_stream`)로 처리합니다.
     둘은 서로 다른 서비스이고, IAM 권한도 요금 체계도 따로입니다.
 
 같은 서비스 혼동이 "대량 생성" 쪽에서 한 번 더 나타납니다.
 
-??? question "오개념 — “Bedrock Converse가 곧 SageMaker Batch Transform인가요?”"
+??? question "오해 — “Bedrock Converse가 곧 SageMaker Batch Transform인가요?”"
     아닙니다. 합성 대량 생성은 Bedrock API를 반복 호출하는 작업입니다.
     [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다).
     GPU가 기능 제외 목록에 있다는 근거는 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)입니다. 정책성 항목이라 바뀔 수 있으니 설계 확정 전에 그 페이지에서 현행 스펙을 다시 보세요.
@@ -259,13 +259,13 @@ seed 전체
 
 서비스 경계를 정리했다면, 다음은 grounded라는 말 자체에 대한 오해입니다.
 
-??? question "오개념 — “grounded면 seed를 그대로 복사하는 것 아닌가요?”"
+??? question "오해 — “grounded면 seed를 그대로 복사하는 것 아닌가요?”"
     아닙니다. 생성 프롬프트가 "verbatim 복사 금지, 같은 도메인/스타일/라벨공간의 **새** 예시"를 명시적으로 요구하고, 중복 필터(sha256, 공백 정규화 + 소문자화)가 동일하거나 사실상 같은 복제를 걸러냅니다.
     seed는 어디까지나 근거일 뿐, 정답을 복사할 대상이 아닙니다.
 
 필터 쪽에서도 기본값을 상수로 오해하는 일이 있습니다.
 
-??? question "오개념 — “critique 임계값 0.6은 고정값인가요?”"
+??? question "오해 — “critique 임계값 0.6은 고정값인가요?”"
     아닙니다. `min_groundedness`/`min_relevance` 인자로 코스별 조정이 가능합니다.
     정밀한 라벨 태스크는 임계값을 올리고, 다양성이 중요한 QA는 낮출 수 있습니다. 다만 올릴수록 수율이 떨어져 같은 `n_total`을 채우는 데 호출이 늘어납니다.
 
