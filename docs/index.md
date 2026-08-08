@@ -63,9 +63,7 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 
 ## 파이프라인
 
-```
-데이터 준비 → 학습(SFT/GRPO) → 배포(endpoint) → 평가(held-out) → agentic loop → 정리
-```
+**데이터 준비** → **학습**(SFT/GRPO) → **배포**(endpoint) → **평가**(held-out) → **agentic loop** → **정리**
 
 | 단계 | 내용 |
 |---|---|

@@ -153,36 +153,9 @@
     각 단계가 노트북 하나에 대응합니다. 아래는 텍스트 코스(01~04) 기준이고,
     멀티모달 코스 05는 더 짧은 별도 파이프라인입니다.
 
-```
- task 정의
-   │
-   ▼
- [00_setup]      env, role, bucket, 의존성 확인 (DRY_RUN 권장)
-   │
-   ▼
- [01_data_and_synthetic]  오픈 시드 로드 + grounded 합성(Bedrock Converse + critique/refine)
-   │                       └ common/synth/bedrock_synth.py  →  messages JSONL
-   ▼
- [02_train_sft_sagemaker]     PyTorch DLC + TRL SFTTrainer(LoRA/QLoRA)  ← JumpStart 아님
-   │                       └ tracks/*/scripts/train.py (로컬 dry-run ↔ SageMaker AI .fit() 겸용)
-   │
-   ├┈┈▶ (선택) [02a_train_grpo_sagemaker]  SFT→GRPO 정련(RLHF)  ← 추출, 분류 코스만
-   ├┈┈▶ (선택) [02b_local_serve]           배포 전 로컬 vLLM 프리플라이트
-   ▼
- [03_deploy_endpoint]     real-time endpoint (vLLM DLC 기본, SGLang/DJL LMI 선택)
-   │                       └ 호출: sagemaker-runtime.invoke_endpoint (별개: Bedrock)
-   ▼
- [04_evaluate]            held-out 세트로 성공기준 수치화 (로컬, 빠름, 저렴)
-   │                       └ common/eval_utils.py
-   ▼
- [05_agentic_strands]     Strands Agent (reasoning=Bedrock Claude, tool=call_slm→endpoint)
-   │
-   ▼
- [06_agentcore_deploy]    AgentCore Runtime (ARM64, /invocations + /ping :8080)
-   │                       └ agentcore/app.py
-   ▼
- [99_cleanup]             endpoint, 리소스 삭제 (과금 중단)
-```
+![텍스트 코스의 노트북 파이프라인. task 정의에서 시작해 00_setup이 env, role, bucket, 의존성을 확인합니다. 01_data_and_synthetic이 오픈 시드를 로드하고 Bedrock Converse로 grounded 합성을 하며 common/synth/bedrock_synth.py가 messages JSONL을 만듭니다. 02_train_sft_sagemaker가 PyTorch DLC와 TRL SFTTrainer로 LoRA 또는 QLoRA 학습을 하고 JumpStart는 쓰지 않으며, scripts/train.py가 로컬 dry-run과 SageMaker AI 학습 Job 양쪽에서 같은 파일로 돕니다. 여기서 선택 분기 두 개가 갈라집니다. 02a는 SFT 결과를 GRPO로 정련하고 추출과 분류 코스에만 있으며, 02b는 배포 전 로컬 vLLM 프리플라이트입니다. 이어서 03_deploy_endpoint가 real-time endpoint를 띄우고 여기서부터 시간당 과금이 시작됩니다. 04_evaluate가 held-out 세트로 성공 기준을 수치화하고, 05_agentic_strands가 Strands Agent를 만들며, 06_agentcore_deploy가 AgentCore Runtime에 배포합니다. 마지막으로 99_cleanup이 endpoint와 리소스를 삭제해 과금을 멈춥니다](images/notebook_pipeline.svg)
+
+*파란 박스가 필수 단계, 점선 박스가 코스에 따라 있고 없는 선택 단계입니다. 주황색 두 칸(`03`, `99`)이 과금이 시작되고 끝나는 지점이라, 이 둘은 짝으로 기억하세요.*
 
 - **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`).
 - **(선택) `02b_local_serve`**: SageMaker AI 배포 전 로컬 vLLM으로 프리플라이트합니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).

@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 598" width="100%" role="img"
+     aria-label="텍스트 코스의 노트북 파이프라인. task 정의에서 시작해 00_setup이 env, role, bucket, 의존성을 확인합니다. 01_data_and_synthetic이 오픈 시드를 로드하고 Bedrock Converse로 grounded 합성을 하며 common/synth/bedrock_synth.py가 messages JSONL을 만듭니다. 02_train_sft_sagemaker가 PyTorch DLC와 TRL SFTTrainer로 LoRA 또는 QLoRA 학습을 하고, JumpStart는 쓰지 않으며, tracks의 scripts/train.py가 로컬 dry-run과 SageMaker AI 학습 Job 양쪽에서 같은 파일로 돕니다. 여기서 선택 분기 두 개가 갈라집니다. 02a_train_grpo_sagemaker는 SFT 결과를 GRPO로 정련하고 추출과 분류 코스에만 있습니다. 02b_local_serve는 배포 전 로컬 vLLM 프리플라이트입니다. 이어서 03_deploy_endpoint가 real-time endpoint를 띄우고 vLLM DLC가 기본이며 SGLang과 DJL LMI를 고를 수 있고, 호출은 sagemaker-runtime의 invoke_endpoint로 Bedrock과 별개입니다. 04_evaluate가 held-out 세트로 성공 기준을 수치화하고 로컬에서 돌아 빠르고 저렴합니다. 05_agentic_strands가 Strands Agent를 만들며 reasoning은 Bedrock Claude, tool은 endpoint 호출입니다. 06_agentcore_deploy가 AgentCore Runtime에 ARM64로 배포합니다. 마지막으로 99_cleanup이 endpoint와 리소스를 삭제해 과금을 멈춥니다.">
+  <title>텍스트 코스의 노트북 파이프라인</title>
+
+  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
+       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
+       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <style>
+    :root {
+      --fg: #202124; --line: #868e96;
+      --step-stroke: #4c6ef5; --step-fill: #dbe4ff;
+      --opt-stroke: #868e96;  --opt-fill: #f1f3f5;
+      --bill-stroke: #e8590c; --bill-fill: #ffe8cc;
+      --io-stroke: #868e96;   --io-fill: #f8f9fa;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3; --line: #868e96;
+        --step-stroke: #91a7ff; --step-fill: #364fc7;
+        --opt-stroke: #868e96;  --opt-fill: #2b3035;
+        --bill-stroke: #ffa94d; --bill-fill: #7f4f24;
+        --io-stroke: #868e96;   --io-fill: #212529;
+      }
+    }
+    .t  { font-size: 12px; fill: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .s  { font-size: 10px; fill: var(--fg); opacity: .72;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .nb { font-size: 11.5px; fill: var(--fg); font-weight: 600;
+          font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .mono-s { font-size: 9.5px; fill: var(--fg); opacity: .68;
+              font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .b  { font-weight: 600; }
+    .step { fill: var(--step-fill); fill-opacity: .55; stroke: var(--step-stroke); stroke-width: 1.3; }
+    .opt  { fill: var(--opt-fill);  stroke: var(--opt-stroke); stroke-width: 1.1; stroke-dasharray: 4 2; }
+    .bill { fill: var(--bill-fill); fill-opacity: .5; stroke: var(--bill-stroke); stroke-width: 1.5; }
+    .io   { fill: var(--io-fill);   stroke: var(--io-stroke); stroke-width: 1.1; }
+    .ln   { fill: none; stroke: var(--line); stroke-width: 1.2; }
+    .br   { fill: none; stroke: var(--line); stroke-width: 1.1; stroke-dasharray: 4 3; }
+    .ah   { fill: var(--line); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <!-- ── task 정의 ────────────────────────────────────────────── -->
+  <rect class="io" x="14" y="8" width="120" height="26" rx="13"/>
+  <text class="t" x="74" y="26" text-anchor="middle">task 정의</text>
+  <path class="ln" d="M74,34 V54" marker-end="url(#a)"/>
+
+  <!-- ── 00_setup ─────────────────────────────────────────────── -->
+  <rect class="step" x="14" y="58" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="80">00_setup</text>
+  <text class="s"  x="224" y="80">env, role, bucket, 의존성 확인 (DRY_RUN 권장)</text>
+  <path class="ln" d="M74,92 V112" marker-end="url(#a)"/>
+
+  <!-- ── 01_data_and_synthetic ────────────────────────────────── -->
+  <rect class="step" x="14" y="116" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="138">01_data_and_synthetic</text>
+  <text class="s"      x="224" y="132">오픈 시드 + grounded 합성 (Bedrock Converse + critique)</text>
+  <text class="mono-s" x="224" y="147">common/synth/bedrock_synth.py → messages JSONL</text>
+  <path class="ln" d="M74,150 V170" marker-end="url(#a)"/>
+
+  <!-- ── 02_train_sft_sagemaker ───────────────────────────────── -->
+  <rect class="step" x="14" y="174" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="196">02_train_sft_sagemaker</text>
+  <text class="s"      x="224" y="190">PyTorch DLC + TRL SFTTrainer (LoRA/QLoRA), JumpStart 아님</text>
+  <text class="mono-s" x="224" y="205">scripts/train.py: 로컬 dry-run과 학습 Job 겸용</text>
+
+  <!-- 선택 분기 두 개 -->
+  <path class="br" d="M74,208 V228 H150" marker-end="url(#a)"/>
+  <path class="br" d="M74,208 V266 H150" marker-end="url(#a)"/>
+
+  <rect class="opt" x="154" y="214" width="180" height="28" rx="4"/>
+  <text class="nb" x="164" y="232">02a_train_grpo</text>
+  <text class="s"  x="344" y="232">(선택) SFT→GRPO 정련. 추출, 분류 코스만</text>
+
+  <rect class="opt" x="154" y="252" width="180" height="28" rx="4"/>
+  <text class="nb" x="164" y="270">02b_local_serve</text>
+  <text class="s"  x="344" y="270">(선택) 배포 전 로컬 vLLM 프리플라이트</text>
+
+  <path class="ln" d="M74,208 V300" marker-end="url(#a)"/>
+
+  <!-- ── 03_deploy_endpoint ───────────────────────────────────── -->
+  <rect class="bill" x="14" y="304" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="326">03_deploy_endpoint</text>
+  <text class="s"      x="224" y="320">real-time endpoint (vLLM DLC 기본, SGLang/LMI 선택)</text>
+  <text class="mono-s" x="224" y="335">sagemaker-runtime.invoke_endpoint (Bedrock과 별개)</text>
+  <text class="s" x="14" y="356">여기부터 시간당 과금</text>
+  <path class="ln" d="M74,338 V376" marker-end="url(#a)"/>
+
+  <!-- ── 04_evaluate ──────────────────────────────────────────── -->
+  <rect class="step" x="14" y="380" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="402">04_evaluate</text>
+  <text class="s"      x="224" y="396">held-out 세트로 성공 기준 수치화 (로컬, 빠름, 저렴)</text>
+  <text class="mono-s" x="224" y="411">common/eval_utils.py</text>
+  <path class="ln" d="M74,414 V434" marker-end="url(#a)"/>
+
+  <!-- ── 05_agentic_strands ───────────────────────────────────── -->
+  <rect class="step" x="14" y="438" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="460">05_agentic_strands</text>
+  <text class="s" x="224" y="460">Strands Agent (reasoning=Claude, tool=endpoint 호출)</text>
+  <path class="ln" d="M74,472 V492" marker-end="url(#a)"/>
+
+  <!-- ── 06_agentcore_deploy ──────────────────────────────────── -->
+  <rect class="step" x="14" y="496" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="518">06_agentcore_deploy</text>
+  <text class="s"      x="224" y="512">AgentCore Runtime (ARM64, /invocations + /ping :8080)</text>
+  <text class="mono-s" x="224" y="527">agentcore/app.py</text>
+  <path class="ln" d="M74,530 V550" marker-end="url(#a)"/>
+
+  <!-- ── 99_cleanup ───────────────────────────────────────────── -->
+  <rect class="bill" x="14" y="554" width="200" height="34" rx="4"/>
+  <text class="nb" x="26" y="576">99_cleanup</text>
+  <text class="s"  x="224" y="570">endpoint, 리소스 삭제 (과금 중단)</text>
+  <text class="s"  x="224" y="585">반드시 실행. 안 지우면 계속 과금됩니다</text>
+</svg>
