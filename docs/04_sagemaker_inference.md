@@ -142,22 +142,9 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
     **EndpointConfig** = "그 Model을 + 어떤 인스턴스로 + 몇 대(variant)로 + 트래픽 비율은 어떻게" 담은 설계도.
     **Endpoint** = 그 설계도로 실제로 떠 있는 **상시 서버**이며, 곧 과금이 시작되는 지점.
 
-```
-[S3: model_data tar.gz]      [ECR: 서빙 DLC 이미지]
-   (파인튜닝 merged 가중치)        (763104351884.dkr.ecr...)
-            \                       /
-             v                     v
-        ┌──────────── Model ────────────┐   ← "무엇을 어떤 컨테이너로"
-        └───────────────┬───────────────┘
-                        v
-        ┌──────── EndpointConfig ────────┐   ← "어떤 인스턴스, 몇 대, variant 트래픽"
-        └───────────────┬───────────────┘
-                        v
-        ┌────────────  Endpoint  ────────┐   ← 상시 서버 = 과금 시작
-        └───────────────┬───────────────┘
-                        v
-   client.invoke_endpoint(EndpointName=..., Body=...)   ← sagemaker-runtime
-```
+![배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정하고, 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정하며, 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다](images/deploy_three_steps.svg)
+
+*Model과 EndpointConfig까지는 무료 API라, 배포 가능 여부를 과금 없이 미리 확인할 수 있습니다. 과금은 Endpoint가 뜨는 순간부터입니다.*
 
 **왜 3층으로 나뉘어 있을까요?** 이렇게 분리되어 있는 덕분에 **무중단 배포**(새 EndpointConfig로 교체), **A/B 테스트(production variant)**, **오토스케일**이 가능해집니다.
 

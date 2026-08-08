@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" width="100%" role="img"
+     aria-label="Agentic loop의 왕복 흐름. 사용자 입력이 Bedrock Claude(reasoning)로 들어가고, Claude는 bedrock-runtime의 converse로 호출됩니다. Claude가 이건 추출 작업이라 판단하면 tool-use 요청을 냅니다. 그 요청이 extract_structured_json 도구로 가고, 이 도구는 sagemaker-runtime의 invoke_endpoint로 파인튜닝된 Gemma SLM endpoint를 호출합니다. 결과 JSON이 Claude로 돌아가고 Claude가 검증과 설명을 붙여 최종 응답을 만듭니다. 두 호출은 별개 서비스이고 별개 클라이언트입니다.">
+  <title>Agentic loop: Claude가 판단하고 SLM이 추출합니다</title>
+
+  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
+       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
+       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <style>
+    :root {
+      --fg: #202124; --line: #868e96;
+      --brain-stroke: #7048e8; --brain-fill: #d0bfff;
+      --tool-stroke: #1971c2;  --tool-fill: #a5d8ff;
+      --io-stroke: #868e96;    --io-fill: #f1f3f5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3; --line: #868e96;
+        --brain-stroke: #b197fc; --brain-fill: #5f3dc4;
+        --tool-stroke: #74c0fc;  --tool-fill: #1864ab;
+        --io-stroke: #868e96;    --io-fill: #2b3035;
+      }
+    }
+    .t  { font-size: 12.5px; fill: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .s  { font-size: 10.5px; fill: var(--fg); opacity: .72;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .mono { font-size: 11px; fill: var(--fg); opacity: .85;
+            font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .mono-s { font-size: 10px; fill: var(--fg); opacity: .72;
+              font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .b  { font-weight: 600; }
+    .brain { fill: var(--brain-fill); fill-opacity: .55; stroke: var(--brain-stroke); stroke-width: 1.5; }
+    .tool  { fill: var(--tool-fill);  fill-opacity: .55; stroke: var(--tool-stroke);  stroke-width: 1.5; }
+    .io    { fill: var(--io-fill);    stroke: var(--io-stroke); stroke-width: 1.2; }
+    .ln  { fill: none; stroke: var(--line); stroke-width: 1.2; }
+    .back{ fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .ah  { fill: var(--line); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <!-- ── 사용자 입력 ──────────────────────────────────────────── -->
+  <rect class="io" x="20" y="14" width="150" height="30" rx="15"/>
+  <text class="t" x="95" y="34" text-anchor="middle">사용자 입력</text>
+  <path class="ln" d="M95,44 V66" marker-end="url(#a)"/>
+
+  <!-- ── Claude (reasoning) ───────────────────────────────────── -->
+  <rect class="brain" x="20" y="70" width="300" height="58" rx="4"/>
+  <text class="t b" x="34" y="92">Bedrock Claude (reasoning)</text>
+  <text class="s"   x="34" y="110">"이건 추출 작업이니 도구를 부르자"</text>
+  <text class="mono-s" x="330" y="94">bedrock-runtime</text>
+  <text class="mono-s" x="330" y="110">.converse()</text>
+
+  <!-- Claude -> tool -->
+  <path class="ln" d="M170,128 V178" marker-end="url(#a)"/>
+  <text class="s" x="182" y="150">tool-use 요청</text>
+  <text class="mono-s" x="182" y="166">name=extract_structured_json</text>
+
+  <!-- ── tool (SLM endpoint) ──────────────────────────────────── -->
+  <rect class="tool" x="20" y="182" width="300" height="58" rx="4"/>
+  <text class="mono" x="34" y="204">@tool extract_structured_json</text>
+  <text class="s"    x="34" y="222">파인튜닝한 Gemma SLM endpoint</text>
+  <text class="mono-s" x="330" y="206">sagemaker-runtime</text>
+  <text class="mono-s" x="330" y="222">.invoke_endpoint()</text>
+
+  <!-- tool -> Claude 로 결과 반환 (점선, 왼쪽으로 돌아감) -->
+  <path class="back" d="M20,211 H8 V99 H20" marker-end="url(#a)"/>
+  <text class="s" x="14" y="260">결과 JSON이 Claude로 돌아갑니다</text>
+
+  <!-- ── 최종 응답 ────────────────────────────────────────────── -->
+  <path class="ln" d="M170,240 V276" marker-end="url(#a)"/>
+  <rect class="io" x="20" y="280" width="340" height="30" rx="15"/>
+  <text class="t" x="190" y="300" text-anchor="middle">Claude가 결과를 검증하고 설명해 최종 응답</text>
+
+  <!-- ── 오해 방지 노트 ───────────────────────────────────────── -->
+  <text class="s" x="20" y="332">두 호출은 별개 서비스, 별개 클라이언트입니다. endpoint를 Bedrock API로 부르지 않습니다.</text>
+</svg>

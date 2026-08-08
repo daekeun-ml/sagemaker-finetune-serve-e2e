@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" width="100%" role="img"
+     aria-label="배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정합니다. 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정합니다. 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다. Model과 EndpointConfig 생성은 무료 API입니다.">
+  <title>배포 3단계: Model에서 Endpoint까지</title>
+
+  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
+       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
+       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <style>
+    :root {
+      --fg: #202124; --line: #868e96;
+      --src-stroke: #868e96; --src-fill: #f1f3f5;
+      --free-stroke: #4c6ef5; --free-fill: #dbe4ff;
+      --bill-stroke: #e8590c; --bill-fill: #ffe8cc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3; --line: #868e96;
+        --src-stroke: #868e96; --src-fill: #2b3035;
+        --free-stroke: #91a7ff; --free-fill: #364fc7;
+        --bill-stroke: #ffa94d; --bill-fill: #7f4f24;
+      }
+    }
+    .t  { font-size: 12.5px; fill: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .s  { font-size: 10.5px; fill: var(--fg); opacity: .72;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .mono { font-size: 11px; fill: var(--fg); opacity: .85;
+            font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .mono-s { font-size: 9.5px; fill: var(--fg); opacity: .7;
+              font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .b  { font-weight: 600; }
+    .badge { font-size: 9.5px; fill: var(--fg); opacity: .6; font-weight: 600;
+             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                          "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .src  { fill: var(--src-fill);  stroke: var(--src-stroke);  stroke-width: 1.2; }
+    .free { fill: var(--free-fill); fill-opacity: .55; stroke: var(--free-stroke); stroke-width: 1.3; }
+    .bill { fill: var(--bill-fill); fill-opacity: .5;  stroke: var(--bill-stroke); stroke-width: 1.6; }
+    .ln  { fill: none; stroke: var(--line); stroke-width: 1.2; }
+    .ah  { fill: var(--line); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <!-- ── 입력 두 개 ────────────────────────────────────────────── -->
+  <rect class="src" x="40" y="8" width="212" height="42" rx="4"/>
+  <text class="mono" x="52" y="26">S3: model_data tar.gz</text>
+  <text class="s"    x="52" y="42">파인튜닝으로 머지된 가중치</text>
+
+  <rect class="src" x="292" y="8" width="212" height="42" rx="4"/>
+  <text class="mono" x="304" y="26">ECR: 서빙 DLC 이미지</text>
+  <text class="mono-s" x="304" y="42">763104351884.dkr.ecr...</text>
+
+  <!-- 두 입력이 Model 로 합류 -->
+  <path class="ln" d="M146,50 V70 H272 V82" marker-end="url(#a)"/>
+  <path class="ln" d="M398,50 V70 H272 V82" marker-end="url(#a)"/>
+
+  <!-- ── 1) Model ─────────────────────────────────────────────── -->
+  <rect class="free" x="152" y="86" width="240" height="42" rx="4"/>
+  <text class="t b" x="272" y="104" text-anchor="middle">Model</text>
+  <text class="s"   x="272" y="120" text-anchor="middle">무엇을 어떤 컨테이너로</text>
+  <text class="badge" x="404" y="104">무료 API</text>
+
+  <path class="ln" d="M272,128 V150" marker-end="url(#a)"/>
+
+  <!-- ── 2) EndpointConfig ────────────────────────────────────── -->
+  <rect class="free" x="152" y="154" width="240" height="42" rx="4"/>
+  <text class="t b" x="272" y="172" text-anchor="middle">EndpointConfig</text>
+  <text class="s"   x="272" y="188" text-anchor="middle">어떤 인스턴스, 몇 대, variant 트래픽</text>
+  <text class="badge" x="404" y="172">무료 API</text>
+
+  <path class="ln" d="M272,196 V218" marker-end="url(#a)"/>
+
+  <!-- ── 3) Endpoint (과금 시작) ──────────────────────────────── -->
+  <rect class="bill" x="152" y="222" width="240" height="42" rx="4"/>
+  <text class="t b" x="272" y="240" text-anchor="middle">Endpoint</text>
+  <text class="s"   x="272" y="256" text-anchor="middle">상시 서버</text>
+  <text class="badge" x="404" y="240">여기부터 시간당 과금</text>
+
+  <path class="ln" d="M272,264 V288" marker-end="url(#a)"/>
+
+  <!-- ── 호출 ─────────────────────────────────────────────────── -->
+  <text class="mono" x="272" y="306" text-anchor="middle">client.invoke_endpoint(EndpointName=..., Body=...)</text>
+  <text class="s"    x="272" y="324" text-anchor="middle">sagemaker-runtime (Bedrock이 아닙니다)</text>
+</svg>

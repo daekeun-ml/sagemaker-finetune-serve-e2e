@@ -227,16 +227,9 @@ def _str2bool(v) -> bool:
 
 **파일 하나가 두 무대에서 똑같이 공연합니다.** 리허설(로컬 GPU 소량)과 본공연(SageMaker AI 학습 Job)이 같은 대본을 씁니다.
 
-```
-로컬 개발 GPU                          SageMaker AI 학습 Job
-─────────────                          ────────────────────
-python train.py --dry_run              trainer.train(input_data_config=[InputData(...)])
-  --train_file ./sample.jsonl              │  source_dir='scripts' 업로드
-  --output_dir ./out                       │  (train.py + requirements.txt)
-       │                                    ▼
-       └── epochs=1, seq<=512, 32행     hyperparameters → --key value
-           파이프라인만 검증                  SM_CHANNEL_TRAIN / SM_MODEL_DIR
-```
+![같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고 epochs 1, 시퀀스 512 이하, 앞 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고 source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다](images/local_vs_sagemaker.svg)
+
+*같은 파일이 양쪽에서 그대로 돕니다. 바뀌는 것은 인자가 들어오는 경로뿐입니다: 로컬은 내가 CLI로 넘기고, SageMaker AI는 `hyperparameters`와 `SM_*` 환경변수로 주입합니다.*
 
 오른쪽 열의 `trainer.train(...)` 한 줄이 실제로 무엇을 세우는지는, 그 호출이 만들어 내는 인프라를 보면 분명해집니다.
 

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 290" width="100%" role="img"
+     aria-label="같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고, epochs는 1, 시퀀스 길이는 512 이하, 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고, source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 커맨드라인 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다. 가운데 축은 같은 파일이 양쪽에서 그대로 돈다는 점입니다.">
+  <title>같은 train.py, 두 실행 환경</title>
+
+  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
+       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
+       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <style>
+    :root {
+      --fg: #202124; --line: #868e96;
+      --local-stroke: #868e96; --local-fill: #f1f3f5;
+      --cloud-stroke: #4c6ef5; --cloud-fill: #dbe4ff;
+      --same-stroke: #7048e8;  --same-fill: #d0bfff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3; --line: #868e96;
+        --local-stroke: #868e96; --local-fill: #2b3035;
+        --cloud-stroke: #91a7ff; --cloud-fill: #364fc7;
+        --same-stroke: #b197fc;  --same-fill: #5f3dc4;
+      }
+    }
+    .t  { font-size: 12.5px; fill: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .s  { font-size: 10.5px; fill: var(--fg); opacity: .72;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .mono { font-size: 10.5px; fill: var(--fg); opacity: .85;
+            font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .mono-s { font-size: 9.5px; fill: var(--fg); opacity: .7;
+              font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .b  { font-weight: 600; }
+    .local { fill: var(--local-fill); stroke: var(--local-stroke); stroke-width: 1.2; }
+    .cloud { fill: var(--cloud-fill); fill-opacity: .55; stroke: var(--cloud-stroke); stroke-width: 1.3; }
+    .same  { fill: var(--same-fill);  fill-opacity: .55; stroke: var(--same-stroke);  stroke-width: 1.4; }
+    .ln  { fill: none; stroke: var(--line); stroke-width: 1.2; }
+    .ah  { fill: var(--line); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <!-- ── 가운데: 같은 파일 ────────────────────────────────────── -->
+  <rect class="same" x="256" y="8" width="188" height="34" rx="4"/>
+  <text class="mono" x="350" y="24" text-anchor="middle">scripts/train.py</text>
+  <text class="s"    x="350" y="37" text-anchor="middle">양쪽에서 같은 파일이 돕니다</text>
+
+  <path class="ln" d="M256,25 H180 V70" marker-end="url(#a)"/>
+  <path class="ln" d="M444,25 H520 V70" marker-end="url(#a)"/>
+
+  <!-- ── 왼쪽: 로컬 GPU ──────────────────────────────────────── -->
+  <rect class="local" x="20" y="74" width="320" height="150" rx="4"/>
+  <text class="t b" x="34" y="96">로컬 개발 GPU</text>
+  <text class="s"   x="34" y="112">클라우드 제출 전 파이프라인 검증</text>
+
+  <text class="mono"   x="34" y="138">python train.py --dry_run \</text>
+  <text class="mono"   x="46" y="154">  --train_file ./sample.jsonl \</text>
+  <text class="mono"   x="46" y="170">  --output_dir ./out</text>
+
+  <text class="s" x="34" y="196">epochs=1, seq &lt;= 512, 앞 32행만</text>
+  <text class="s" x="34" y="212">인자를 내가 직접 넘깁니다</text>
+
+  <!-- ── 오른쪽: SageMaker AI 학습 Job ───────────────────────── -->
+  <rect class="cloud" x="360" y="74" width="320" height="150" rx="4"/>
+  <text class="t b" x="374" y="96">SageMaker AI 학습 Job</text>
+  <text class="s"   x="374" y="112">실제 학습. 끝나면 리소스 반납</text>
+
+  <text class="mono"   x="374" y="138">trainer.train(</text>
+  <text class="mono"   x="386" y="154">  input_data_config=[InputData(...)])</text>
+  <text class="mono-s" x="374" y="172">source_dir='scripts' 를 업로드</text>
+  <text class="mono-s" x="386" y="186">(train.py + requirements.txt)</text>
+
+  <text class="s"    x="374" y="208">같은 인자가 다른 경로로 들어옵니다</text>
+
+  <!-- ── 아래: 인자 전달 방식의 차이 ─────────────────────────── -->
+  <path class="ln" d="M180,224 V248" marker-end="url(#a)"/>
+  <path class="ln" d="M520,224 V248" marker-end="url(#a)"/>
+
+  <text class="mono-s" x="180" y="264" text-anchor="middle">CLI 인자 그대로</text>
+  <text class="s"      x="180" y="280" text-anchor="middle">./out 에 저장</text>
+
+  <text class="mono-s" x="520" y="264" text-anchor="middle">hyperparameters → --key value</text>
+  <text class="mono-s" x="520" y="280" text-anchor="middle">SM_CHANNEL_TRAIN / SM_MODEL_DIR</text>
+</svg>

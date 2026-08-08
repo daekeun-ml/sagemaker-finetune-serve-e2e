@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="100%" role="img"
+     aria-label="서빙 스택의 세 레이어. 가장 바깥은 SageMaker AI real-time endpoint로 오토스케일, IAM, CloudWatch를 담당하는 인프라 레이어입니다. 그 안에 서빙 컨테이너 레이어가 있고 HTTP와 ping과 invocations 규약, 연속 배칭을 맡습니다. 컨테이너 자리에는 DJL LMI(AWS 관리), HF TGI(HF 관리), vLLM DLC 또는 BYOC 세 가지가 들어갈 수 있고, 각 컨테이너 안의 엔진 레이어에는 각각 vLLM 또는 TensorRT-LLM, 자체 백엔드, vLLM이 들어갑니다. 세 선택지 모두 endpoint 레이어는 같고 컨테이너와 엔진만 갈아끼우는 문제입니다.">
+  <title>서빙 스택의 세 레이어</title>
+
+  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
+       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
+       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <style>
+    :root {
+      --fg: #202124; --line: #868e96;
+      --infra-stroke: #868e96; --infra-fill: #f8f9fa;
+      --ctr-stroke: #868e96;   --ctr-fill: #f1f3f5;
+      --pick-stroke: #4c6ef5;  --pick-fill: #dbe4ff;
+      --eng-stroke: #7048e8;   --eng-fill: #d0bfff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3; --line: #868e96;
+        --infra-stroke: #868e96; --infra-fill: #212529;
+        --ctr-stroke: #868e96;   --ctr-fill: #2b3035;
+        --pick-stroke: #91a7ff;  --pick-fill: #364fc7;
+        --eng-stroke: #b197fc;   --eng-fill: #5f3dc4;
+      }
+    }
+    .t  { font-size: 12.5px; fill: var(--fg);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .s  { font-size: 10.5px; fill: var(--fg); opacity: .72;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .mono { font-size: 11px; fill: var(--fg); opacity: .85;
+            font-family: SFMono-Regular, Consolas, Menlo, monospace; }
+    .b  { font-weight: 600; }
+    .lbl { font-size: 10.5px; fill: var(--fg); opacity: .6; font-weight: 600;
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                        "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Helvetica, Arial, sans-serif; }
+    .infra { fill: var(--infra-fill); stroke: var(--infra-stroke); stroke-width: 1.3; }
+    .ctr   { fill: var(--ctr-fill);   stroke: var(--ctr-stroke);   stroke-width: 1.2; }
+    .pick  { fill: var(--pick-fill);  fill-opacity: .55; stroke: var(--pick-stroke); stroke-width: 1.3; }
+    .eng   { fill: var(--eng-fill);   fill-opacity: .55; stroke: var(--eng-stroke);  stroke-width: 1.2; }
+    .ln  { fill: none; stroke: var(--line); stroke-width: 1.1; }
+  </style>
+
+  <!-- ── 레이어 1: 인프라 (SageMaker AI endpoint) ───────────────── -->
+  <rect class="infra" x="8" y="26" width="562" height="230" rx="5"/>
+  <text class="t b" x="24" y="48">SageMaker AI real-time endpoint</text>
+  <text class="s"   x="24" y="64">오토스케일, IAM, CloudWatch</text>
+  <path class="ln" d="M572,40 H592"/>
+  <text class="lbl" x="598" y="44">인프라 레이어</text>
+
+  <!-- ── 레이어 2: 서빙 컨테이너 ───────────────────────────────── -->
+  <rect class="ctr" x="24" y="76" width="530" height="164" rx="4"/>
+  <text class="t b" x="38" y="97">서빙 컨테이너</text>
+  <text class="s"   x="38" y="112">HTTP + /ping + /invocations + 연속 배칭</text>
+  <path class="ln" d="M554,94 H592"/>
+  <text class="lbl" x="598" y="98">컨테이너 레이어</text>
+
+  <!-- ── 레이어 3: 컨테이너 선택지 3개 ─────────────────────────── -->
+  <!-- (1) DJL LMI -->
+  <rect class="pick" x="38" y="124" width="160" height="104" rx="4"/>
+  <text class="t b"  x="50" y="144">DJL LMI</text>
+  <text class="s"    x="50" y="158">AWS 관리</text>
+  <rect class="eng"  x="50" y="170" width="136" height="44" rx="3"/>
+  <text class="mono" x="118" y="188" text-anchor="middle">vLLM /</text>
+  <text class="mono" x="118" y="203" text-anchor="middle">TRT-LLM</text>
+
+  <!-- (2) HF TGI -->
+  <rect class="pick" x="212" y="124" width="160" height="104" rx="4"/>
+  <text class="t b"  x="224" y="144">HF TGI</text>
+  <text class="s"    x="224" y="158">HF 관리</text>
+  <rect class="eng"  x="224" y="170" width="136" height="44" rx="3"/>
+  <text class="t"    x="292" y="188" text-anchor="middle">자체 백엔드</text>
+  <text class="s"    x="292" y="203" text-anchor="middle">교체 불가</text>
+
+  <!-- (3) vLLM DLC / BYOC -->
+  <rect class="pick" x="386" y="124" width="156" height="104" rx="4"/>
+  <text class="t b"  x="398" y="144">vLLM DLC / BYOC</text>
+  <text class="s"    x="398" y="158">이 kit의 기본</text>
+  <rect class="eng"  x="398" y="170" width="132" height="44" rx="3"/>
+  <text class="mono" x="464" y="188" text-anchor="middle">vLLM</text>
+  <text class="s"    x="464" y="203" text-anchor="middle">직접 버전 고정</text>
+
+  <path class="ln" d="M542,192 H592"/>
+  <text class="lbl" x="598" y="196">엔진 레이어</text>
+
+  <!-- ── 결론 한 줄 ────────────────────────────────────────────── -->
+  <text class="s" x="8" y="282">세 선택지 모두 endpoint 레이어는 같습니다. 컨테이너와 엔진만 갈아끼우는 문제입니다.</text>
+</svg>

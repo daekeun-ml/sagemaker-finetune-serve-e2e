@@ -117,24 +117,9 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 
 ### tool-use 왕복 흐름
 
-```
-사용자 입력
-   │
-   ▼
-┌──────────────────────────────────┐
-│  Bedrock Claude (reasoning)      │  bedrock-runtime.converse()
-│  "이건 추출 작업 → 도구 호출"    │
-└────────────────┬─────────────────┘
-                 │ tool-use 요청 (name=extract_structured_json, args=...)
-                 ▼
-┌──────────────────────────────────┐
-│  @tool extract_structured_json   │  sagemaker-runtime.invoke_endpoint()
-│  파인튜닝 Gemma SLM endpoint     │
-└────────────────┬─────────────────┘
-                 │ 결과(JSON 등)
-                 ▼
-   Claude가 결과 검증, 설명 → 최종 응답
-```
+![Agentic loop의 왕복 흐름. 사용자 입력이 Bedrock Claude(reasoning)로 들어가고, Claude는 bedrock-runtime의 converse로 호출됩니다. Claude가 추출 작업이라 판단하면 tool-use 요청을 내고, 그 요청이 extract_structured_json 도구로 갑니다. 이 도구는 sagemaker-runtime의 invoke_endpoint로 파인튜닝된 Gemma SLM endpoint를 호출합니다. 결과 JSON이 Claude로 돌아가고 Claude가 검증과 설명을 붙여 최종 응답을 만듭니다](images/agentic_loop.svg)
+
+*왼쪽으로 돌아가는 점선이 이 구조의 핵심입니다. SLM은 한 번 불려 값을 돌려줄 뿐이고, 그 결과를 판단하는 것은 다시 Claude입니다.*
 
 - **endpoint 쪽**은 boto3 `sagemaker-runtime` 직접 호출입니다. 배포된 모델을 코드에서 부르는 경로 전체는 [SageMaker 모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에 정리되어 있습니다.
 - **호출 스키마는 서빙 컨테이너를 따릅니다.** 이 kit의 기본 엔진은 vLLM(대안 SGLang, DJL LMI)이고 셋 다 **OpenAI 호환**입니다.
