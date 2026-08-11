@@ -9,7 +9,7 @@
     - **여기서 다루는 것**: grounded 생성, critique 게이트, held-out 규율, 라이브러리 대안
     - **여기서 다루지 않는 것**: 학습 자체는 [파인튜닝](03_finetuning.md)
 
-이 문서와 관련된 리포지토리 파일:
+이 문서와 관련된 파일:
 
 - `common/synth/bedrock_synth.py`: grounded 생성 + critique/refine 본체(`generate_grounded`), PII/중복 필터
 - `common/synth/README.md`: 기본 경로와 오픈 라이브러리 대안의 선택 근거
@@ -23,7 +23,7 @@
 
 !!! warning "빠르게 바뀌는 값"
     Bedrock 모델 ID, inference-profile prefix, sampling 파라미터 지원 여부와 토큰 단가와 boto3/SDK 버전과 리전, 그리고 대안 라이브러리의 버전, 라이선스, 유지보수 상태는 **실행 직전에 다시 확인**하세요.
-    특히 Claude 세대가 바뀌면 `temperature` 같은 파라미터가 조용히 deprecated 됩니다(아래 실측 참고).
+    Claude 세대가 바뀌면 `temperature` 같은 파라미터가 deprecated될 수 있습니다(아래 측정 결과 참고).
     시크릿과 계정 ID, 절대경로는 문서와 코드 어디에도 하드코딩하지 마세요.
 
 ---
@@ -43,9 +43,9 @@
 ## 기존 문제
 
 - 라벨 데이터가 수백 건뿐이라 파인튜닝이 과소적합되거나 불안정합니다.
-- "LLM한테 그냥 예시 만들어달라고 하면 되지 않나?" 싶지만, 자유 생성은 seed 분포를 벗어난 예시를 만들어 **teacher 모델의 편향과 환각을 그대로 학습**시킵니다(distribution drift).
+- LLM에 제약 없이 예시를 생성하게 하면 seed 분포를 벗어난 데이터가 만들어질 수 있습니다. 이 데이터를 사용하면 **teacher 모델의 편향과 환각도 함께 학습**하게 됩니다(distribution drift).
 - 합성으로 성능을 평가하면 **과대평가**로 이어집니다. teacher를 모방한 데이터로 student를 채점하는 순환 오류이기 때문입니다.
-- SDG 라이브러리를 붙였더니 **1년째 릴리스가 없어** 의존성이 썩는 경우도 있습니다(예: distilabel).
+- SDG 라이브러리의 릴리스가 중단되어 dependency가 오래된 상태로 남을 수도 있습니다(예: distilabel).
 - 합성 스크립트를 돌렸는데 결과가 0건이고, 로그는 `skipped ('text')` 한 줄뿐이라 원인을 알 수 없습니다.
 
 이 문서는 grounded 생성, critique 게이트, held-out 분리로 데이터 품질 문제를 줄입니다. 기본 경로는 외부 SDG 라이브러리 없이 동작하고, 로그에는 예외 종류를 남겨 실패 원인을 찾을 수 있게 합니다.
@@ -54,7 +54,7 @@
 
 ## 왜 자유 생성이 아니라 grounded인가
 
-!!! abstract "쉽게 말하면"
+!!! abstract "grounded 생성 방식"
     "백지에 상상해서 써봐"(자유 생성)라고 시키는 대신, **"이 실제 샘플들과 같은 도메인, 스타일, 라벨공간 안에서, 겹치지 않는 새 예시를 만들어"**(grounded)라고 지시합니다.
     그리고 만들어진 결과를 **다시 채점자 LLM에게 검수시켜** 합격한 것만 남깁니다.
 
@@ -83,7 +83,7 @@
 
 ## 기본 경로: 무의존성 bedrock_synth
 
-!!! abstract "쉽게 말하면"
+!!! abstract "구현 방식"
     boto3로 [Bedrock Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)를 호출해 데이터를 생성하고, Claude로 검수한 뒤, 정규식으로 PII와 중복을 걸러 JSONL로 저장합니다.
     외부 합성 라이브러리는 **일부러 사용하지 않습니다**. 노후화 리스크가 없고, IAM/VPC/Guardrails 같은 AWS native 거버넌스를 그대로 쓸 수 있기 때문입니다.
 
@@ -138,13 +138,13 @@ synth = bs.generate_grounded(
 
 ### max_tokens 실측값과 sampling 파라미터
 
-두 가지 기본값은 Bedrock 호출을 실제로 돌려 보고 정해졌습니다.
+두 기본값은 Bedrock 호출 결과를 바탕으로 정했습니다.
 
 - **`max_tokens`를 넉넉히 잡아야 합니다.** 생성은 `max(4096, 900 × batch_size)`, critique는 2048을 씁니다. `batch_size=5`면 생성 상한은 4,500 토큰입니다.
 
     Claude Sonnet 5는 응답 전에 `reasoningContent`(추론 블록)에 토큰을 먼저 씁니다. 2048이면 추론만 하다 `stopReason=max_tokens`로 잘려 text 블록이 비거나 JSON이 중간에 끊깁니다("응답에 text 블록이 없습니다" / 파싱 실패).
 
-- **sampling 파라미터는 아예 보내지 않습니다.** 기본은 `maxTokens`만 보냅니다. 필요하면 `temperature` 또는 `top_p` 중 하나만 명시하세요(지정 시에도 `top_p` 우선, deprecated로 거부되면 조용히 제거 후 재시도).
+- **sampling 파라미터는 기본 요청에 포함하지 않습니다.** 기본은 `maxTokens`만 보냅니다. 필요하면 `temperature` 또는 `top_p` 중 하나만 명시하세요. 요청이 deprecated 파라미터로 거부되면 해당 값을 제거하고 다시 시도합니다.
 
     Claude 4.x는 `temperature`/`top_p` 동시 지정이 불가하고, Claude 5+는 `temperature` 자체가 deprecated입니다. 지정하면 매 호출이 거부 후 fallback 재시도를 타 **호출 수가 2배**가 됩니다. 세대가 바뀌면 이 제약도 바뀌므로 재확인 대상입니다.
 
@@ -178,7 +178,7 @@ synth = bs.generate_grounded(
 
 ## held-out 규율: 합성으로 평가 금지
 
-!!! abstract "쉽게 말하면"
+!!! abstract "평가 데이터 분리"
     채점 시험지(held-out)를 **증강하기 전에 미리 떼어놓고**, 나머지만 합성으로 부풀립니다.
     합성 데이터는 teacher(Claude)를 모방한 것이므로, 합성으로 채점하면 "teacher를 얼마나 잘 베꼈나"만 재게 됩니다.
 
@@ -197,7 +197,7 @@ seed 전체
 | 요약 | ROUGE-L | LLM-judge (groundedness/coverage) |
 | 도메인 QA | LLM-judge (correctness/helpfulness/groundedness 1~5) | ROUGE-L proxy |
 
-!!! danger "합성/학습셋으로 평가하면 점수가 조용히 부풀려집니다"
+!!! danger "합성 데이터와 학습 데이터는 평가에 사용하지 마세요"
     넉넉히 로드해서 뒤쪽 N건을 쓰는 방식(`pool[-N_EVAL:]`)은 위험합니다. `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간(0~299) **안쪽**에 통째로 들어갑니다.
     그래서 `04_evaluate`는 `01_data_and_synthetic`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명시적으로 건너뛰고** 그 뒤 `N_EVAL`건(기본 50)을 씁니다.
 
@@ -218,12 +218,12 @@ seed 전체
 | 도구 | Bedrock 연동 | 상태 (GitHub 커밋, PyPI 릴리스 실측) | 라이선스 | 쓸 때 |
 |---|---|---|---|---|
 | **`bedrock_synth.py` (이 프로젝트)** | boto3 native | 프로젝트 코드 | 프로젝트 코드 | 기본값. 의존성 0, AWS 거버넌스 |
-| **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원: native (`ModelProviderName.amazon_bedrock`) | v1.0.4, 2026-07-16 확인 | 확인 필요: core library MIT, repository root custom license | GUI와 orchestration이 필요할 때 |
+| **[Kiln](https://github.com/Kiln-AI/Kiln)** (`kiln-ai`) | ✅ 지원: native (`ModelProviderName.amazon_bedrock`) | v1.0.4, 2026-07-16 확인 | 확인 필요: core library MIT, repository root는 custom license | GUI와 orchestration이 필요할 때 |
 | **[Bespoke Curator](https://github.com/bespokelabsai/curator)** | LiteLLM 경유 (`bedrock/...`) | 0.1.29, 2026-07-13 확인 | Apache-2.0 | code-first 대량 처리, 구조화, caching |
 | [distilabel](https://github.com/argilla-io/distilabel) | 해당 없음 | ❌ 정체 (마지막 v1.5.3 @ 2025-01-28, 2026 릴리스 0건) | 해당 없음 | ❌ 배제: 사용 금지 |
 
 - **Kiln**: native Bedrock 연동을 코드 수준에서 확인한 유일한 도구입니다. repository는 `github.com/Kiln-AI/Kiln`이며 `pip install kiln-ai`로 설치합니다.
-    - **repository root와 core library의 라이선스가 다르므로** 재배포 전에 반드시 확인하세요.
+    - **repository root와 core library의 license가 다르므로** 재배포 전에 반드시 확인하세요.
 - **Bespoke Curator**: native connector는 아니고 LiteLLM을 경유합니다(`bedrock/<model>` + AWS 자격증명). repository는 `github.com/bespokelabsai/curator`입니다.
     - 이 프로젝트의 `common/llm_gateway.py`(LiteLLM)와 [Bedrock 라우팅 규약](https://docs.litellm.ai/docs/providers/bedrock)이 일치하므로 연결이 자연스럽습니다.
 - 대안을 쓰더라도 **grounded + critique 원칙은 동일하게 적용**하고, 출력은 이 프로젝트의 `messages` JSONL로 변환해 `train.py`에 넣으세요.

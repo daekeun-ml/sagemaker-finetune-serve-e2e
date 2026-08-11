@@ -8,12 +8,12 @@
       (`00_setup`이 확인). SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
-      [실행 runbook](../RUN_E2E.md)
+      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 전체 실행 절차는
+      [E2E 실행 가이드](../RUN_E2E.md)
     - **다른 코스**: 이미지 입력(영수증 등)은 [멀티모달 추출](multimodal.md),
       라벨 하나만 고르는 문제는 [분류](classification.md)
 
-이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 파일입니다. 디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 초기 이름을 유지합니다.
 
 - `tracks/01_extraction_to_json/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/01_extraction_to_json/scripts/train.py`, `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
@@ -26,7 +26,7 @@
 
 ## 이 코스가 푸는 문제
 
-!!! abstract "쉽게 말하면"
+!!! abstract "입력과 출력"
     "사용자가 한 말"과 "쓸 수 있는 함수 목록(JSON 스키마)"을 함께 주면, 모델이 **어느 함수를 어떤 인자로 부를지**를 JSON 한 덩어리로만 답하게 만듭니다.
     설명 문장은 쓰지 않습니다. 코드가 그대로 `json.loads()` 할 수 있는 출력이 목표입니다.
 
@@ -84,7 +84,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     이 시드는 `{"arguments": {}}`처럼 **인자가 비어 있는 호출**이 많습니다. `common/grpo_data.py`가 쓰는 glaive 뒷부분 구간에서 94%입니다. SFT에는 문제가 없지만, GRPO에서는 채점이 사실상 "함수명 맞았나"로 축소되어 rollout이 전부 만점이 되고 학습 신호가 사라집니다.
     그래서 `02a`의 기본 prompt 소스(`synth`)는 생성 프롬프트에 난이도 제약을 걸어 **인자 2개 이상**을 강제합니다(제약 적용 후 실측: 인자 없음 0건 / 평균 인자 2.1개). 자세한 근거는 [RL prompt 소스 3가지](../03_finetuning.md#rl-prompt-소스-3가지)에 있습니다.
 
-시드는 앞의 300건(`config.NUM_SEED_SAMPLES`)만 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, repository에 포함된 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧은 약 475자라 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값) 참고).
+시드는 앞의 300건(`config.NUM_SEED_SAMPLES`)만 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, 저장소의 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧은 약 475자라 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값) 참고).
 
 ---
 
@@ -99,7 +99,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 | **`arg_f1`** | `(키, 정규화된 값)` 쌍 집합의 micro precision/recall F1 | **주 지표**(단 아래 경고 참고) |
 | `exact_match` | 함수명 + 인자 집합이 완전히 일치 | 가장 엄격한 참고치 |
 
-**왜 `arg_f1`이 이 태스크에 맞나.** 인자가 3개인 호출에서 2개를 맞혔다면 그것은 완전 실패가 아닙니다. `exact_match`만 보면 이 차이가 지워지고, `valid_json_rate`만 보면 "JSON 형식은 맞지만 값이 다 틀린" 모델이 만점을 받습니다. `arg_f1`은 인자 단위 부분 점수를 주면서, 없는 인자를 만들어내면 precision으로, 빠뜨리면 recall로 벌점을 줍니다. 값 비교 전에 `_norm_val()`이 dict/list를 정렬 직렬화하고 `1.0`을 `1`로 맞추므로 표현 차이 때문에 틀리지 않습니다.
+**왜 `arg_f1`을 사용하는가.** 인자가 3개인 호출에서 2개를 맞혔다면 일부 정보는 올바르게 추출한 것입니다. `exact_match`는 이 차이를 반영하지 못하고, `valid_json_rate`만 사용하면 JSON 형식만 맞고 값은 틀린 모델도 높은 점수를 받습니다. `arg_f1`은 인자 단위로 점수를 계산하며, 불필요한 인자는 precision에, 누락한 인자는 recall에 반영합니다. 값 비교 전에는 `_norm_val()`이 dict와 list를 정렬해 직렬화하고 `1.0`을 `1`로 맞추므로 표현 차이는 오답으로 처리하지 않습니다.
 
 파싱이 실패하면 `eval_extraction()`은 예측 인자 집합을 공집합으로 두므로, **정답에 인자가 있는 건에서는** 그 인자 전부가 false negative가 되어 `arg_f1`이 떨어집니다.
 
@@ -112,7 +112,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     {'n': 50, 'valid_json_rate': 0.08, 'name_accuracy': 0.08, 'arg_f1': 1.0, 'exact_match': 0.08}
     ```
 
-    92%가 망가진 모델이 `arg_f1` 만점을 받습니다. 즉 이 held-out에서 `arg_f1`은 실질적으로 **50건 중 4건으로만 계산**됩니다.
+    출력의 92%가 잘못되어도 `arg_f1` 만점을 받을 수 있습니다. 즉 이 held-out에서 `arg_f1`은 실질적으로 **50건 중 4건으로만 계산**됩니다.
 
     그래서 판단 순서는 **`valid_json_rate` → `name_accuracy` → `arg_f1`**입니다. 앞의 두 지표가 형식과 함수 선택의 게이트 역할을 하고, `arg_f1`은 그 게이트를 통과한 뒤 인자 채우기 품질을 보는 값으로 읽으세요. 인자 단위 성능을 제대로 재려면 `02a`의 `synth` prompt처럼 **인자 2개 이상**을 강제한 held-out을 따로 만들어야 합니다.
 
@@ -131,7 +131,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 | `02_train_sft_sagemaker` | SageMaker AI 학습 Job(TRL SFT + QLoRA) → 머지된 모델 artifact, `%store md_extraction` |
 | `02a_train_grpo_sagemaker` | **(선택)** SFT artifact를 base로 GRPO 정련 → 새 artifact |
 | `02b_local_serve` | **(선택)** 로컬 GPU vLLM preflight: 배포 전 30초 안에 같은 오류를 재현 |
-| `03_deploy_endpoint` | `gemma-extraction-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
+| `03_deploy_endpoint` | `gemma-extraction-vllm-<timestamp>` real-time endpoint + invoke smoke test |
 | `04_evaluate` | held-out `valid_json_rate`, `name_accuracy`, `arg_f1` |
 | `05_agentic_strands` | `extract_structured_json` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
 | `06_agentcore_deploy` | AgentCore Runtime 배포(로컬 dev → 클라우드) |
@@ -139,10 +139,10 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 `02a`가 있는 이유는 **reward를 프로그램으로 채점할 수 있기 때문**입니다. `scripts/train_grpo.py`의 `reward_extraction`은 유효 JSON에 0.3, 함수명 일치에 0.3, 인자 F1에 0.4를 배분합니다. 요약과 도메인 QA에는 이런 채점 함수가 없어 GRPO 노트북이 아예 생성되지 않습니다. 판단 근거는 [왜 추출과 분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출과-분류-코스에만-grpo가-있나).
 
-`02b`가 있는 이유는 배포 실패 원인이 대개 모델 파일 문제인데 endpoint는 한 번 띄우는 데 5~15분이 걸리기 때문입니다. 클라우드와 같은 엔진(vLLM)으로 로컬에서 먼저 확인하면 이 왕복이 사라집니다. 로컬 GPU가 없으면 건너뛰어도 됩니다(`has_local_serve=True`인 텍스트 코스 공통, 멀티모달 05에는 없습니다). 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`입니다.
+`02b`는 모델 파일과 vLLM의 호환성을 endpoint 배포 전에 확인하는 단계입니다. endpoint 준비에는 5~15분이 걸리므로 로컬에서 먼저 확인하면 배포 실패 후 다시 시도하는 시간을 줄일 수 있습니다. 로컬 GPU가 없으면 건너뛰어도 됩니다(`has_local_serve=True`인 텍스트 코스 공통, 멀티모달 05에는 없습니다). 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`입니다.
 
-!!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
-    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md)에 정리돼 있습니다.
+!!! tip "먼저 DRY_RUN=1로 데이터 흐름을 확인하세요"
+    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어듭니다. SageMaker AI Training Job의 규모는 자동으로 줄지 않으므로 `MAX_TRAIN_SAMPLES`와 `EPOCHS`도 직접 조정하세요. 단계별 핸드오프와 비용은 [E2E 실행 가이드](../RUN_E2E.md)에 정리돼 있습니다.
 
 ---
 
@@ -180,7 +180,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 - [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 re-export
 - [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
+- [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 안내, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.

@@ -1,11 +1,11 @@
 # 시작하기
 
-이 프로젝트를 처음 접한다면 **이 문서 하나만 위에서 아래로** 따라 하면 됩니다.
+이 프로젝트를 처음 접한다면 이 문서의 순서대로 진행하세요.
 "노트북은 어디에 있나?", "dry-run은 어떻게 하나?", "Amazon SageMaker AI에서는 어떻게 실행하나?"에 순서대로 답합니다.
 
 !!! info "이 문서의 범위"
     설치부터 첫 학습까지를 다룹니다. 프로젝트 전체 구조는 [전체 지도](00_overview.md),
-    파이프라인 완주 runbook은 [실행 runbook](RUN_E2E.md)을 보세요.
+    전체 실행 절차는 [E2E 실행 가이드](RUN_E2E.md)를 보세요.
 
 ---
 
@@ -13,14 +13,14 @@
 
 | 방식 | 무엇 | GPU/AWS 필요? | 언제 |
 |---|---|---|---|
-| **A. 스모크 테스트** | 순수 로직 검증(데이터 어댑터, 포맷터, 메트릭) | ❌ 아무것도 불필요 | 코드가 멀쩡한지 5초 확인 |
+| **A. smoke test** | 순수 로직 검증(데이터 어댑터, 포맷터, 메트릭) | 불필요 | 기본 로직이 정상인지 빠르게 확인 |
 | **B. 로컬 GPU dry-run** | `train.py`를 내 GPU에서 소량, 짧게 실제 학습 | ✅ 필요: GPU만 (AWS 불필요) | 학습 파이프라인이 도는지 확인 |
-| **C. SageMaker AI E2E** | 태스크별 실습 코스(노트북 한 세트)로 클라우드 학습→배포→agentic 완주 | ✅ 필요: AWS 계정 + 과금 | 진짜 파인튜닝, 서빙 |
+| **C. SageMaker AI E2E** | 태스크별 실습 코스로 SageMaker AI 학습, 배포, agentic 단계 실행 | ✅ 필요: AWS 계정, 사용량에 따른 비용 | SageMaker AI에서 전체 과정 실행 |
 
-**초심자 추천 순서: A → B → C**
+**처음 실행할 때 권장하는 순서: A → B → C**
 
-!!! tip "전체를 완주할 거라면"
-    단계별 핸드오프, 비용, 체크리스트, 문제해결은 [실행 runbook](RUN_E2E.md)에 정리돼 있습니다.
+!!! tip "전체 과정을 실행한다면"
+    단계별 핸드오프, 비용, 체크리스트, 문제 해결은 [E2E 실행 가이드](RUN_E2E.md)에 정리돼 있습니다.
 
 ---
 
@@ -46,7 +46,7 @@ uv pip install -r pyproject.toml # 코어 설치 (sagemaker/boto3/transformers/t
 
 ---
 
-## 방식 A: 스모크 테스트
+## 방식 A: smoke test
 
 먼저 코드의 순수 로직을 확인합니다. **모델 다운로드도, AWS도 필요 없습니다.**
 
@@ -60,8 +60,8 @@ python tests/test_smoke.py
 
 ## 방식 B: 로컬 GPU dry-run
 
-`scripts/train.py`는 self-contained라 로컬과 SageMaker AI에서
-같은 파일이 돕니다. `--dry_run`이면 소량(≤32행), 1 epoch, 짧은 시퀀스로 파이프라인만 검증합니다.
+`scripts/train.py`는 로컬과 SageMaker AI에서 같은 파일을 사용합니다.
+`--dry_run`이면 최대 32행, 1 epoch, 짧은 시퀀스로 학습 흐름만 검증합니다.
 
 ### HF 캐시 위치 지정 (선택)
 모델 가중치(~24GB)를 기본 캐시가 아닌 별도 폴더에 저장하려면:
@@ -97,8 +97,8 @@ python tracks/01_extraction_to_json/scripts/train.py \
 
 ## 방식 C: SageMaker AI E2E
 
-프로젝트에는 태스크 하나를 데이터 준비부터 학습, 배포, 평가, 정리까지
-끝내는 **Jupyter 실습 코스가 5개** 있습니다. 각 텍스트 코스 폴더에는
+프로젝트에는 태스크 하나의 데이터 준비, 학습, 배포, 평가, 정리를 다루는
+**Jupyter 실습 코스가 5개** 있습니다. 각 텍스트 코스 폴더에는
 `00`~`06`,`99` 노트북이 (+ 선택 `02a`/`02b`), 멀티모달 코스에는 별도의 짧은 세트가 있습니다. 번호 순서대로 실행하면 됩니다.
 폴더 이름과 코드 식별자는 초기 이름인 `track`을 그대로 씁니다(`tracks/`, `track_data.py`). 본문의 "코스"와 같은 대상을 가리킵니다.
 
@@ -148,9 +148,9 @@ export AWS_REGION=us-west-2         # config 기본값. .env의 DLC 이미지 UR
 export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
 export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID는 콘솔에서 확인
 # export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만
-export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라우드 학습 시 0
+export DRY_RUN=1                  # 데이터 준비와 평가 규모를 줄여 먼저 검증
 ```
-`DRY_RUN=1`이면 노트북이 소량과 저비용으로 파이프라인만 확인합니다. 확인 후 `0`으로 바꿔 실제 실행하세요.
+`DRY_RUN=1`은 데이터 준비, 평가, 로컬 dry-run 규모를 줄입니다. SageMaker AI Training Job의 `MAX_TRAIN_SAMPLES`와 `EPOCHS`, endpoint 비용은 자동으로 줄이지 않습니다. 자세한 범위는 [DRY_RUN으로 먼저 검증하는 이유](RUN_E2E.md#dry_run으로-먼저-검증하는-이유)를 확인하세요.
 
 ??? tip "HF 토큰을 한 번만 저장하기 (gated 모델을 쓸 때)"
     `config.get_hf_token()`은 **env(`HF_TOKEN`) → `hf auth login` 저장 토큰** 순으로 조회하므로
@@ -189,13 +189,13 @@ export DRY_RUN=1                  # 먼저 파이프라인 검증, 실제 클라
 - [SageMaker AI 추론](04_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
 - [서빙 컨테이너](05_serving_containers.md): 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
 - [Agentic loop](06_agentic.md): 활용. Strands + Bedrock Claude, AgentCore 배포
-- [실행 runbook](RUN_E2E.md): E2E 완주 runbook. 단계별 핸드오프와 비용 가드
+- [E2E 실행 가이드](RUN_E2E.md): 단계별 핸드오프, 비용, 완료 조건
 
 ---
 
-## 자주 막히는 곳
+## 자주 묻는 항목
 - **"어느 노트북부터?"** → `tracks/01_extraction_to_json/00_setup.ipynb`.
-- **"GPU에서 그냥 돌려보고 싶다"** → 위 [방식 B](#방식-b-로컬-gpu-dry-run)(dry-run), AWS 불필요.
-- **"AWS 없이 코드만 확인"** → 위 [방식 A](#방식-a-스모크-테스트)(스모크 테스트).
+- **"로컬 GPU에서 먼저 실행하고 싶다"** → 위 [방식 B](#방식-b-로컬-gpu-dry-run), AWS 불필요.
+- **"AWS 없이 코드만 확인하고 싶다"** → 위 [방식 A](#방식-a-smoke-test).
 - **"gated 모델 접근 오류"** → gemma-3은 HF 약관 수락 + `HF_TOKEN` 필요. 또는 ungated `gemma-4-12B-it` 사용.
-- **"과금이 무섭다"** → `DRY_RUN=1`로 시작, 끝나면 `99_cleanup.ipynb` 필수.
+- **"비용을 줄이고 싶다"** → `DRY_RUN=1`로 데이터 규모를 줄이고 Training Job 파라미터도 직접 낮추세요. endpoint 확인 후 `99_cleanup.ipynb`를 실행합니다.

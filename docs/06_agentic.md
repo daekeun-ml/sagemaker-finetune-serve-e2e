@@ -19,7 +19,7 @@
 - **코스**는 이 프로젝트의 **태스크별 실습 코스**입니다. 하나의 태스크를 데이터 준비부터 학습, 배포, 평가, 정리까지 완주하는 실습 단위이고, 모두 다섯 개입니다.
 - 디렉터리는 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`, `--track` 같은 코드 식별자도 바뀌지 않았습니다.
 
-이 문서와 관련된 리포지토리 파일:
+이 문서와 관련된 파일:
 
 - `agentcore/app.py`: AgentCore Runtime entry point scaffold(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
 - `agentcore/templates/main.py`: CLI scaffolding의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
@@ -73,7 +73,7 @@
 
 ## 왜 SLM은 도구, Claude는 두뇌인가
 
-!!! abstract "쉽게 말하면"
+!!! abstract "모델과 framework의 역할"
     - **Claude(reasoning LLM)** 는 전체 문제를 이해하고 필요한 tool을 선택합니다.
     - **fine-tuning한 Gemma SLM(tool)** 은 텍스트→JSON 추출 같은 단일 작업을 빠르게 처리합니다.
     - **agent framework(Strands)** 는 tool 호출과 결과 전달을 관리합니다.
@@ -171,7 +171,7 @@ SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoi
 
 ## Strands로 묶는 agentic loop
 
-!!! abstract "쉽게 말하면"
+!!! abstract "Strands tool 연결"
     - 파이썬 함수에 `@tool` 데코레이터만 붙이면 그것이 "도구"가 됩니다.
     - `Agent(model=..., tools=[...])`에 넘기면 Claude가 필요할 때 알아서 호출합니다.
     - tool의 docstring이 "언제 이 도구를 쓸지"를 Claude에게 알려 주는 유일한 근거입니다.
@@ -245,7 +245,7 @@ LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 �
     - `common/config.py`의 `BEDROCK_CLAUDE_MODEL_ID`(env `BEDROCK_CLAUDE_MODEL_ID`)를 사용합니다. 호출 리전은 `BEDROCK_REGION`(기본값 `AWS_REGION`)입니다.
     - `agentcore/app.py`는 `os.environ["BEDROCK_CLAUDE_MODEL_ID"]`로 반드시 주입받고(미설정이면 즉시 실패), `agentcore/templates/load.py`는 env가 없을 때만 프로젝트 기본값으로 fallback합니다.
 
-??? question "오해: “모델 ID에 왜 `us.`가 붙나요? 그냥 `anthropic.claude-...`면 안 되나요?”"
+??? question "오해: “모델 ID에 `us.` 같은 prefix가 필요한가요?”"
     안 될 수 있습니다. 최신 Claude는 대부분 **cross-region inference profile**을 통해 호출하며, 그때 지역 prefix(`us.`/`eu.`/`apac.`/`global.`)가 필요합니다.
     prefix 없는 순수 모델 ID로는 호출이 거부될 수 있습니다. 어떤 형식이 유효한지는 리전과 모델별로 다르니 **실행 전 재확인**하세요.
 
@@ -253,7 +253,7 @@ LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 �
 
 ## production 배포: AgentCore Runtime
 
-!!! abstract "쉽게 말하면"
+!!! abstract "AgentCore Runtime 동작"
     - 로컬에서 `python app.py`로 잘 도는 에이전트를 AWS 관리형 런타임에 컨테이너로 올립니다.
     - 런타임은 정해진 **HTTP 규약**으로만 에이전트를 호출합니다.
     - 규약을 지키는 서버 코드는 SDK가 대신 만들어 주므로, 우리가 쓸 것은 진입점 함수 하나입니다.
@@ -310,7 +310,7 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
     - agent-path flag(`--framework`)와 harness-only flag(`--model-id`)를 **섞을 수 없습니다.** 그래서 모델 ID는 생성된 `model/load.py`에서 env로 받게 이식합니다.
     - 프로젝트 이름은 영숫자만 허용하고 **23자 이하**여야 합니다.
 - `verify_local.sh`는 dev 서버를 `setsid`로 띄우면서 stdin을 `/dev/null`로 분리합니다(터미널 점유와 stdin 문제 회피).
-    - 종료는 `kill <pid>`로 정밀하게 합니다. `pkill -f 'agentcore dev'`는 실행 중인 셸까지 죽입니다.
+    - 종료할 때는 `kill <pid>`로 해당 프로세스만 지정합니다. `pkill -f 'agentcore dev'`는 실행 중인 shell까지 종료할 수 있습니다.
 - **CLI를 쓰지 않는 경로**는 ARM64 이미지를 ECR에 푸시한 뒤 `bedrock-agentcore-control`의 `create_agent_runtime`을 직접 호출하는 것입니다.
     - 호출은 `bedrock-agentcore`의 `invoke_agent_runtime(agentRuntimeArn=..., runtimeSessionId=<33자 이상>, payload=..., qualifier="DEFAULT")`입니다.
     - 파라미터 스키마가 바뀔 수 있으니 최신 boto3 레퍼런스에서 확인하세요.
@@ -331,13 +331,13 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 
 ## 자주 나오는 오해
 
-아래 두 항목은 앞 절에서 다루지 않은, 서비스 계층을 헷갈릴 때 생기는 착각입니다.
+앞 절에서 다루지 않은 서비스와 framework 관련 오해를 정리합니다.
 
 ??? question "오해: “SageMaker AI deployment guardrail(blue/green, canary, rolling)을 이 agentic 배포에 쓴다”"
     그렇지 않습니다. 이 배포 가드레일은 **SageMaker AI endpoint 업데이트** 기능이지 AgentCore Runtime이나 Strands의 기능이 아닙니다.
     SLM endpoint를 무중단 갱신할 때는 쓸 수 있지만, 에이전트 컨테이너 배포와는 무관합니다.
 
-프레임워크와 게이트웨이를 같은 층으로 보는 착각도 같은 유형입니다.
+framework와 model gateway의 역할도 구분해야 합니다.
 
 ??? question "오해: “Strands = LiteLLM”"
     아닙니다. Strands는 agent framework이고 LiteLLM은 모델 게이트웨이입니다.
@@ -350,7 +350,7 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 agentic loop는 과금 소스가 **둘 이상**입니다.
 
 !!! danger "비용과 cleanup"
-    endpoint를 켜둔 채 잊어버리는 것이 이 프로젝트에서 가장 흔한 비용 사고입니다. GPU 인스턴스는 **삭제할 때까지 시간당 과금**되며, AgentCore Runtime은 그와 **별개로** 과금됩니다.
+    endpoint는 **삭제할 때까지 시간당 과금**되며, AgentCore Runtime 비용은 별도로 발생합니다.
     실습이 끝나면 반드시 `99_cleanup`을 실행하고, AgentCore를 배포했다면 `cleanup_agent.sh --aws`까지 실행하세요. `sm.list_endpoints()`로 남은 endpoint가 없는지 확인하세요.
 
 | 소스 | 과금 방식 | 정리 방법 |
@@ -363,5 +363,5 @@ agentic loop는 과금 소스가 **둘 이상**입니다.
 - `agentcore destroy`가 실패하면 두 단계로 내려갑니다.
     1. 생성된 프로젝트 안의 `agentcore/cdk`(예: `agentcore/gemmaextraction/agentcore/cdk`)에서 `npx cdk destroy`.
     2. 그것도 안 되면 콘솔에서 Runtime, ECR, CloudFormation 스택을 직접 삭제.
-- 프로젝트 폴더를 남겨 두려면 `KEEP_PROJECT=1`을 붙이세요. dev 서버 종료도 `kill <pid>` 방식이라 실행 중인 셸을 죽이지 않습니다.
+- 프로젝트 폴더를 남겨 두려면 `KEEP_PROJECT=1`을 지정하세요. dev server도 `kill <pid>`로 해당 프로세스만 종료합니다.
 - 상태와 비용은 `common/aws_utils.py`의 `print_cost_warning()`과 `cw_links()`로 확인할 수 있습니다.

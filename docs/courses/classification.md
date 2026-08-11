@@ -10,11 +10,11 @@
       SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
-      [실행 runbook](../RUN_E2E.md)
+      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 전체 실행 절차는
+      [E2E 실행 가이드](../RUN_E2E.md)
     - **다른 코스**: 스키마가 있는 JSON은 [추출](extraction.md), 자유서술은 [도메인 QA](domain_qa.md)
 
-이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 파일입니다. 디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 초기 이름을 유지합니다.
 
 - `tracks/02_classification/track_data.py`: 시드 로드와 셔플, `{input, output}` 어댑터, `SYSTEM_PROMPT`, 라벨 목록 조회
 - `tracks/02_classification/scripts/train.py`, `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
@@ -27,7 +27,7 @@
 
 ## 이 코스가 푸는 문제
 
-!!! abstract "쉽게 말하면"
+!!! abstract "입력과 출력"
     "카드가 아직 안 왔어요" 같은 은행 고객 메시지를 읽고, **미리 정해진 77개 intent 중 정확히 하나**를 snake_case 문자열로 출력하는 모델을 만듭니다.
     분류 헤드(softmax 레이어)를 붙이는 게 아니라, **라벨 이름을 텍스트로 생성**하게 학습합니다.
 
@@ -69,7 +69,7 @@ label_text: card_arrival
     그래서 `04_evaluate`도 `load_dataset('PolyAI/banking77').features['label'].names`를 직접 부르지 않고 `track_data.load_label_names()`를 씁니다. 미러가 또 바뀌어도 고칠 곳이 한 군데입니다.
 
 !!! danger "셔플 없이 앞에서부터 뽑으면 평가가 무너집니다"
-    banking77의 train 스플릿은 **라벨 정렬 순서**입니다. 셔플을 빼고 앞에서부터 300건을 그냥 뽑으면 학습 구간에 클래스가 3개뿐이고(실측: `card_arrival` 153 / `card_linking` 139 / `exchange_rate` 8), `04_evaluate`가 쓰는 held-out 구간인 행 300~349는 **50건 전부 `exchange_rate` 단일 라벨**이 됩니다. 77클래스 macro-F1이 아무 의미도 갖지 못하는 상태입니다.
+    banking77의 train 스플릿은 **라벨 순서로 정렬**되어 있습니다. 셔플하지 않고 앞의 300건을 선택하면 학습 구간에 클래스가 3개뿐이고(실측: `card_arrival` 153 / `card_linking` 139 / `exchange_rate` 8), `04_evaluate`가 쓰는 300~349행은 **50건 모두 `exchange_rate`**가 됩니다. 이 상태에서는 77클래스 macro-F1이 유효한 평가 지표가 되지 못합니다.
     그래서 `load_seed_examples()`는 `ds.shuffle(seed=42)`를 먼저 적용합니다. 셔플 후 실측: 앞 300건에 **73개 클래스**, held-out으로 쓰는 300~349번 50건에 **35개 클래스**가 들어옵니다. 시드를 42로 고정하므로 학습과 평가가 같은 인덱스를 부르면 항상 같은 결과가 나옵니다(재현성).
 
 합성 데이터 단계에서는 `seed_texts_for_synth()`가 시드를 `MESSAGE: ...\nINTENT: ...` 형태로 직렬화해 Bedrock에 grounding으로 넘깁니다. 평가용 held-out에는 합성이 한 건도 섞이지 않습니다([held-out 규율](../02_synthetic_data.md#held-out-규율-합성으로-평가-금지)).
@@ -109,7 +109,7 @@ accuracy만 보면 안 되는 이유가 이 코스에서 특히 분명합니다.
 | `02_train_sft_sagemaker` | SFT LoRA 학습 Job → 머지된 모델 artifact(S3), `%store md_classification` |
 | `02a_train_grpo_sagemaker` | **(선택)** SFT artifact를 base로 GRPO 정련 → 새 artifact |
 | `02b_local_serve` | **(선택)** 로컬 GPU `vllm serve`로 배포 전 검증 + `vllm bench` 측정값 |
-| `03_deploy_endpoint` | `gemma-classification-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
+| `03_deploy_endpoint` | `gemma-classification-vllm-<timestamp>` real-time endpoint + invoke smoke test |
 | `04_evaluate` | held-out accuracy, macro-F1, weighted-F1 |
 | `05_agentic_strands` | `classify_intent` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
 | `06_agentcore_deploy` | AgentCore Runtime 배포 절차 |
@@ -139,7 +139,7 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 
 !!! tip "짧은 시퀀스가 이 코스를 가장 저렴하게 만듭니다"
     `02_train_sft_sagemaker`는 step 시간을 시퀀스 길이로 추정하는데, ml.g6.2xlarge 실측이 **seq 512에서 약 7초/step, seq 2048에서 약 17초/step**입니다. hands-on 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2` → 약 50 step)이면 학습이 10분 안쪽입니다.
-    다섯 코스 중 하나만 완주해 볼 생각이라면 이 코스가 가장 빠르고, GRPO까지 곁들여 볼 수 있는 코스이기도 합니다.
+    다섯 코스 중 하나만 실행한다면 이 코스의 학습 시간이 가장 짧습니다. 선택 단계로 GRPO도 실행할 수 있습니다.
 
 !!! warning "서빙 파라미터는 GPU를 바꾸면 함께 조정하세요"
     `max_num_seqs=32` / `gpu_memory_utilization=0.90`은 24GB GPU에서 CUDA OOM을 피하려고 낮춰 둔 값입니다. 더 큰 GPU로 옮기면 함께 올리세요([24GB GPU CUDA OOM](../05_serving_containers.md#24gb-gpu-cuda-oom-max_num_seqs-기본값)).
@@ -153,7 +153,7 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 - [03 파인튜닝](../03_finetuning.md#lora-vs-qlora와-인스턴스-사이징): LoRA/QLoRA, Gemma 관용구, 인스턴스 선택
 - [04 SageMaker AI 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조와 호출 스키마
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
+- [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 안내, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.

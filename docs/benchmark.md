@@ -39,7 +39,7 @@ LLM 서빙에서 하나 더 필요한 것이 스트리밍 안쪽입니다. 응�
     달라지는 것은 TTFT입니다. HTTP로 직접 붙는 대신 SageMaker Runtime을 한 번 더 거치므로 그만큼이
     붙습니다. 실측 대조는 아래 [vLLM과 나란히 놓고 대조](#vllm과-나란히-놓고-대조)에 있습니다.
 
-## 어떻게 돌리나
+## 실행 방법
 
 endpoint를 지정하는 방법이 두 가지입니다. 코스를 주면 배포가 상태 파일에 남긴 이름을 쓰고,
 이름을 직접 주면 이 프로젝트 밖에서 만든 endpoint도 잽니다. `--course`는 코스를 실행하는 것이 아니라
@@ -63,7 +63,7 @@ python pipelines/run_benchmark.py --course classification --print-command
     real-time endpoint는 요청이 없어도 삭제 전까지 시간당 과금됩니다. 측정이 끝나면
     `python pipelines/run_<course>.py --stages cleanup`을 실행하세요.
 
-## 무엇을 재나
+## 측정 지표
 
 [![스트리밍 응답의 네 가지 지연 지표를 요청 처리 파이프라인 위에 표시한 다이어그램. 위쪽에 네 지표의 정의가 나열된다: Time to First Token(TTFT)은 요청을 보낸 후 첫 토큰을 생성하는 데 걸리는 시간, Inter-Token Latency(ITL)는 연속된 두 토큰 사이의 실제 시간 간격, Time per Output Token(TPOT)은 각 후속 토큰(보통 첫 토큰은 제외)을 생성하는 평균 시간 간격, End-to-End Latency(E2EL)는 요청을 보낸 시점부터 사용자 측에서 최종 토큰을 받을 때까지의 시간이다. 가운데 파이프라인은 입력 프롬프트에서 시작해 토큰화 → Prefill → Decode(T0, T1, T2, T3 네 토큰) → 디토큰화 → 최종 출력 토큰으로 이어지고, E2EL 화살표가 전체를 덮으며 TTFT 화살표는 토큰화와 Prefill 구간까지만 뻗어 첫 토큰 앞에서 끝난다. ITL 화살표는 Decode 안의 인접한 토큰 쌍 사이를 각각 가리킨다. 아래쪽 타임라인은 벤치마크 전체를 나타내며 T_start(벤치마크 시작)와 T_end(종료) 사이에 T_x(최초 요청 타임스탬프)와 T_y(마지막 요청의 마지막 응답 타임스탬프)가 있고, 그 사이에 요청별 E2EL 구간 L_1, L_2, …, L_n이 시차를 두고 겹쳐 놓여 있다. 각주: 단일 요청에서는 ITL=TPOT이지만, 여러 요청에 걸쳐서는 평균을 내는 방식이 다르다](images/latency.png)](images/latency.png)
 
@@ -85,7 +85,7 @@ TPOT p99가 39.93ms인 이유입니다.
 네 지표 모두 mean, median과 함께 `benchmark.percentiles`(기본 `"50,95,99"`)를 냅니다.
 평균만 보면 꼬리 지연을 놓칩니다. 평균이 좋아도 p99가 나쁘면 일부 사용자는 늘 느립니다.
 
-## 실제로 재 보면
+## 측정 결과
 
 이 프로젝트의 분류 코스 endpoint를 측정한 값입니다.
 
@@ -124,14 +124,14 @@ TPOT 39.9ms는 초당 25토큰입니다. L4 한 장에서 E4B를 bf16으로 서�
 
 출력 20건 전부가 `finish_reason=length`로 잘립니다. random 데이터셋에서는 `ignore_eos`가 강제로
 켜져 항상 `output_len`까지 생성하기 때문이며, 이것이 정상입니다. 요청마다 출력 길이가 달라지면
-TPOT이 "모델이 얼마나 빨리 쓰나"가 아니라 "얼마나 짧게 답했나"를 재게 됩니다.
+TPOT이 모델의 생성 속도보다 응답 길이의 영향을 더 크게 받게 됩니다.
 
 ## vLLM과 나란히 놓고 대조
 
 측정은 [sm-endpoint-bmt](https://github.com/daekeun-ml/sm-endpoint-bmt)가 합니다. `vllm bench serve`를
 참조해 지표 공식과 필드명, 출력 표까지 맞춘 도구입니다.
 
-맞췄다는 말만으로는 근거가 되지 않으니 실제로 확인했습니다. 로컬 L40S에서 `google/gemma-4-E4B-it`을 vLLM
+두 도구의 지표 정의가 같은지 직접 확인했습니다. 로컬 L40S에서 `google/gemma-4-E4B-it`을 vLLM
 0.26.0으로 띄우고, **같은 서버 프로세스에** 같은 부하(20건, rate 4, 동시 8, 입력 256 → 출력 128)를
 두 도구로 각각 흘렸습니다.
 
@@ -152,10 +152,10 @@ ITL도 같이 벌어져야 하는데 각각 1.6%와 0.0%이므로, 정의는 일
 설명이 됩니다.
 
 전송 계층이 다르므로(위 참고) 대조에는 프록시가 필요했습니다. vLLM의 SSE를 AWS event stream으로
-다시 포장하면서 `PayloadPart`를 **7바이트마다 일부러 쪼갰습니다.** 토큰 수가 정확히 일치하는 것이
-이 검증의 핵심입니다. part를 각각 파싱하는 구현이라면 여기서 토큰이 사라집니다.
+다시 포장하면서 `PayloadPart`를 **7바이트 단위로 나눴습니다.** 두 도구의 토큰 수가 일치하는지 확인하기 위한 조건입니다.
+각 part를 독립적으로 파싱하는 구현에서는 이 과정에서 토큰이 누락될 수 있습니다.
 
-!!! info "왜 kit 안에서 다시 구현하지 않았나"
+!!! info "프로젝트에서 직접 구현하지 않은 이유"
     같은 지표를 두 곳에서 구현하면, 숫자가 갈리는 순간 어느 쪽이 맞는지 판단할 근거가 없어집니다.
     `run_benchmark.py`가 하는 일은 셋뿐입니다: endpoint 이름을 찾고, `config.yaml`의 `benchmark`
     섹션을 그 도구의 CLI 인자로 옮기고, 호출합니다. `--print-command`로 두 번째 단계의 결과를
@@ -213,12 +213,12 @@ ShareGPT, HuggingFace 데이터셋으로 바꾸거나 CloudWatch `ModelLatency`�
 ## 결과를 파일로 남기기
 
 `save_results: true`(기본)면 요청별 값까지 JSON으로 남깁니다. 저장 위치는 `--course`를 주면 그
-코스의 `data/`, 없으면 repository root의 `bench_results/`입니다. 파일명에 endpoint 이름이 들어가서 둘 다
+코스의 `data/`, 없으면 저장소 root의 `bench_results/`입니다. 파일명에 endpoint 이름이 들어가서 둘 다
 gitignore 대상입니다.
 
 키 이름은 vLLM의 `--save-result` 출력과 맞췄습니다(`mean_ttft_ms`, `p99_ttft_ms` 등).
 
-## 이 숫자를 믿어도 되나
+## 결과를 해석할 때 확인할 항목
 
 출력 맨 아래에 `SageMaker Specifics`가 붙습니다. 지표 자체가 아니라 **위의 지표를 그대로 인용해도
 되는지** 판단하게 해 주는 항목들입니다.

@@ -1,19 +1,19 @@
 # SageMaker AI Fine-tuning & Serving E2E
 
-Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 hands-on 가이드입니다.
-**태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
+Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 연결하는 한국어 hands-on 가이드입니다.
+5개의 **태스크별 실습 코스**가 각각 독립된 E2E로 구성되어 있어, 필요한 코스 하나만 선택해 실행할 수 있습니다.
 
 !!! tip "어디서부터 읽을까"
     - **설치부터 첫 학습까지** → [시작하기](getting_started.md)
     - **SageMaker AI가 처음이라면** → [SageMaker AI 기초](01_sagemaker_basics.md)를 먼저 읽으세요. Training Job과 Endpoint의 수명과 과금 차이를 알아 두면 나머지 가이드를 이해하기 쉽습니다.
-    - **전체를 완주한다면** → [실행 runbook](RUN_E2E.md)에 단계별 핸드오프와 비용이 있습니다.
+    - **전체 과정을 실행한다면** → [E2E 실행 가이드](RUN_E2E.md)에 단계별 핸드오프와 비용이 있습니다.
     - **구조부터 보고 싶다면** → [전체 지도](00_overview.md)에 문서와 노트북 매핑이 있습니다.
     - **어느 코스를 고를지 정해야 한다면** → 아래 [코스](#코스) 표에서 고르세요.
     - **특정 주제만** 필요하면 아래 가이드에서 골라 보세요.
 
 ## 왜 이 프로젝트인가
 
-**"SageMaker AI가 Gemma 4를 지원하지 않나?"** 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
+SageMaker AI는 Gemma 4를 지원하지만 학습 방식에 따라 지원 범위가 다릅니다.
 
 **JumpStart로는 gemma-4를 파인튜닝할 수 없습니다.** 5종 전부 `training_supported=False`이고 배포만 됩니다. 관리형 파인튜닝 경로도 지원 모델, 기법, 리전 목록이 정해져 있어 원하는 조합이 빠져 있으면 목록에 오를 때까지 기다려야 합니다.
 
@@ -26,17 +26,17 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 
 컨테이너를 직접 관리하면 AWS가 처리하던 문제도 직접 해결해야 합니다. 이 문서들은 그 과정에서 실제로 확인한 문제를 다룹니다.
 
-!!! abstract "쉽게 말하면"
+!!! abstract "경로 선택 기준"
     지원 목록에 있는 조합이면 운영 부담이 적으므로 관리형이 낫습니다.
     **목록에 없거나**, 학습 코드를 열어 고쳐야 하거나, 최신 모델을 바로 써야 할 때 이 경로를 택합니다.
 
-??? question "오해: “관리형이 안 되면 그냥 직접 하면 되는 거 아닌가요?”"
-    가능합니다. 다만 관리형이 처리하던 작업도 직접 맡아야 합니다. 아래는 이 프로젝트에서 실제로 확인하고 수정한 문제입니다.
+??? question "오해: “관리형에서 지원하지 않으면 직접 구현하면 되나요?”"
+    가능합니다. 다만 관리형이 처리하던 작업을 직접 구현하고 운영해야 합니다. 아래는 이 프로젝트에서 확인하고 수정한 문제입니다.
 
     - **`save_pretrained`로 저장한 gemma-4 E2B/E4B는 vLLM, SGLang, LMI에서 로드가 실패합니다.** KV-sharing 레이어의 텐서가 저장 과정에서 빠지기 때문입니다 → [서빙 컨테이너](05_serving_containers.md)
     - **학습을 마친 Job이 merge 도중 종료됩니다.** SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 이 제한은 merge와 upload까지 포함합니다 → [파인튜닝](03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)
-    - **24GB GPU에서 서빙이 OOM으로 뜨지 않습니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과합니다 → [서빙 컨테이너](05_serving_containers.md)
-    - **응답이 조용히 잘립니다.** 예외도 없고 HTTP 200이라, `finish_reason`을 봐야 압니다 → [SageMaker AI 추론](04_sagemaker_inference.md)
+    - **24GB GPU에서 서빙이 CUDA OOM으로 실패할 수 있습니다.** vLLM 기본 `max_num_seqs=256`이 실습 규모에 과합니다 → [서빙 컨테이너](05_serving_containers.md)
+    - **응답이 길이 제한에 걸려도 HTTP 200으로 반환됩니다.** `finish_reason`을 확인해야 잘림 여부를 알 수 있습니다 → [SageMaker AI 추론](04_sagemaker_inference.md)
 
     각 문서에 증상 → 원인 → 대응 순으로 정리해 두었습니다.
 
@@ -58,7 +58,7 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 | 배포 | [04 SageMaker AI 추론](04_sagemaker_inference.md), [05 서빙 컨테이너](05_serving_containers.md) |
 | 활용 | [06 Agentic loop](06_agentic.md) |
 | 측정 | [속도 측정](benchmark.md): TTFT/TPOT/ITL. SageMaker AI Endpoint에는 `vllm bench serve`가 없습니다 |
-| 완주 | [실행 runbook](RUN_E2E.md) |
+| 실행 | [E2E 실행 가이드](RUN_E2E.md) |
 | 참조 | [SDK V3](sdk_v3/index.md): V2에서 바뀐 것, [학습](sdk_v3/training.md), [배포](sdk_v3/serving.md) |
 
 ## 파이프라인
@@ -87,13 +87,13 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 
 코스 이름을 누르면 해당 코스 페이지로 갑니다. 각 페이지에 그 코스가 푸는 문제, 시드 데이터의 변환 전후, 성공 기준 지표, 노트북 순서, 코스별 설정값이 있습니다.
 
-노트북과 학습 스크립트는 [GitHub 리포지토리](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치와 실행 방법은 [시작하기](getting_started.md)와 [실행 runbook](RUN_E2E.md)에 있습니다.
+노트북과 학습 스크립트는 [GitHub 저장소](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치와 실행 방법은 [시작하기](getting_started.md)와 [E2E 실행 가이드](RUN_E2E.md)에 있습니다.
 
 !!! warning "비용"
     real-time endpoint는 **삭제할 때까지 시간당 과금**됩니다. 실습을 마치면 각 코스의 `99_cleanup.ipynb`를 반드시 실행하세요.
 
 !!! warning "빠르게 바뀌는 값"
-    모델 ID, DLC 이미지 태그와 SDK 버전과 리전 가용성과 요금은 빠르게 바뀝니다. 이 문서의 수치는 실측 스냅샷이므로 **실행 직전에 각 소스에서 재확인**하세요. 확인처는 각 문서의 해당 절에 인라인으로 링크되어 있습니다.
+    모델 ID, DLC 이미지 태그, SDK 버전, 리전 가용성, 요금은 빠르게 바뀝니다. 이 문서의 수치는 특정 시점의 측정값이므로 **실행 직전에 연결된 공식 문서에서 다시 확인**하세요.
 
 ## Disclaimer
 

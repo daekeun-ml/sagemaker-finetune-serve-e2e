@@ -15,7 +15,7 @@
 
 본문에 인용한 실측값은 이 프로젝트의 **코스** 5개에서 나왔습니다(코스가 무엇인지는 [전체 지도](00_overview.md)에 있습니다).
 
-리포지토리 디렉터리 이름은 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`, `--track` 같은 코드 식별자도 바뀌지 않았습니다. 본문의 "코스"와 코드의 `track`은 같은 것을 가리킵니다.
+저장소 디렉터리 이름은 초기 이름을 유지해 `tracks/`이고, `track_data`, `--track` 같은 코드 식별자도 그대로입니다. 본문의 "코스"와 코드의 `track`은 같은 대상을 가리킵니다.
 
 !!! warning "빠르게 바뀌는 값"
     모델 ID, DLC 이미지 태그와 SDK 버전, 리전, 서비스 한도(payload/timeout/cold start), GA 상태는 분기마다 바뀝니다.
@@ -38,12 +38,12 @@
 
 ## 기존 문제
 
-파인튜닝까지 끝낸 초심자가 배포 단계에서 실제로 자주 막히는 지점은 다음과 같습니다.
+파인튜닝 후 배포 단계에서는 다음 지점에서 자주 막힙니다.
 
 - "endpoint 종류가 4개나 되는데 **무엇을 골라야 할까요?**": 문서마다 이름만 나열할 뿐, *언제 무엇을* 써야 하는지는 알려주지 않습니다.
-- "Bedrock은 그냥 API로 부르던데, **내 endpoint도 Bedrock으로 부르는 걸까요?**": 아닙니다. 완전히 다른 서비스입니다.
+- "Bedrock API로 **SageMaker endpoint도 호출하나요?**": 아닙니다. 두 서비스는 호출 API와 client가 다릅니다.
 - "**Serverless가 제일 싸 보이는데** 왜 쓰지 않을까요?": GPU가 없어서 LLM이 돌아가지 않기 때문입니다. 이 사실을 모르고 골랐다가 배포에 실패하는 경우가 많습니다.
-- "서빙 컨테이너가 vLLM, SGLang, LMI로 여러 개인데, **어느 것에 model_data를 물려야 할까요?**"
+- "서빙 컨테이너가 vLLM, SGLang, LMI로 여러 개인데, **model_data를 어떻게 연결해야 할까요?**"
 - "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**": 24GB GPU에서 엔진 기본값이 메모리를 넘겼기 때문입니다.
 - "테스트만 했을 뿐인데 **다음 날 청구서가 날아왔어요.**": Real-time endpoint를 지우지 않았기 때문입니다.
 
@@ -53,7 +53,7 @@
 
 ## 왜 Real-time인가: 추론 4옵션 비교
 
-!!! abstract "쉽게 말하면"
+!!! abstract "추론 옵션 선택"
     추론 옵션은 응답 방식과 리소스 수명에 따라 나뉩니다.
     **Real-time**은 상시 endpoint, **Serverless**는 요청 시 기동, **Asynchronous**는 S3 기반 비동기 처리,
     **Batch Transform**은 Job 단위 일괄 처리입니다. GPU는 Real-time, Async, Batch에서만 지원합니다.
@@ -101,8 +101,8 @@ AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.c
 
 **이 60초와 6 MB가 이 프로젝트에 주는 실질적 제약**은 두 가지입니다.
 
-- **60초**: Real-time 호출은 컨테이너가 60초 안에 응답을 끝내야 하므로, 긴 생성(`max_tokens`를 크게 Job은 요약)은 timeout에 걸릴 수 있습니다. 앞서 실측한 요약 코스 완성 대기가 **16.16초**였으니 아직 여유가 있습니다.
-- **6 MB**: 프롬프트 기준으로는 충분히 큽니다(요약 코스 입력이 5,996자). 다만 이미지와 오디오를 base64로 묶어 보내는 멀티모달 호출에서는 실제로 닿을 수 있는 벽입니다.
+- **60초**: Real-time 호출은 컨테이너가 60초 안에 응답을 완료해야 합니다. `max_tokens`가 크거나 입력이 긴 요약 작업은 timeout에 걸릴 수 있습니다. 앞서 측정한 요약 코스의 완료 시간은 **16.16초**였습니다.
+- **6 MB**: 텍스트 프롬프트에는 여유가 있지만(요약 코스 입력 5,996자), 이미지와 오디오를 base64로 전달하는 멀티모달 요청은 이 한도에 도달할 수 있습니다.
 
 **60초를 넘길 수 있는 워크로드는 streaming 대신 [Asynchronous](https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html)를 사용해야 합니다.** [응답 스트리밍](#응답-스트리밍-invoke_endpoint_with_response_stream)은 이 제한을 바꾸지 않습니다.
 
@@ -133,11 +133,11 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 ## Endpoint 3층 구조와 호출
 
-!!! abstract "쉽게 말하면"
+!!! abstract "Endpoint 리소스 구조"
     endpoint는 세 리소스가 차례로 연결되어 만들어집니다.
     **Model** = "어떤 가중치(model_data, S3)를 + 어떤 컨테이너(이미지)로 로드할 것인가".
     **EndpointConfig** = "그 Model을 + 어떤 인스턴스로 + 몇 대(variant)로 + 트래픽 비율은 어떻게" 담은 설계도.
-    **Endpoint** = 그 설계도로 실제로 떠 있는 **상시 서버**이며, 곧 과금이 시작되는 지점.
+    **Endpoint** = EndpointConfig에 따라 생성되어 요청을 받는 리소스. 생성 후 삭제할 때까지 인스턴스 비용이 발생.
 
 ![배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정하고, 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정하며, 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다](images/deploy_three_steps.svg)
 
@@ -153,15 +153,15 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
 
 ### 세 가지 선택 축: 모델, 컨테이너, 인프라
 
-위의 Model/EndpointConfig/Endpoint가 **리소스**를 세 층으로 나눈 것이라면, 그 위에서 실제로 우리가 고르는 **선택**도 세 축으로 나뉩니다.
+Model, EndpointConfig, Endpoint가 리소스 구조를 나타낸다면, 배포 설정은 모델, 컨테이너, 인프라 세 축으로 나눌 수 있습니다.
 
-"모델을 몇 개 배포할지", "어떤 serving container를 사용할지", "어떤 accelerator에서 실행할지"는 서로 **다른 layer의 결정**이므로 하나를 바꿔도 나머지는 유지할 수 있습니다.
+"모델을 몇 개 배포할지", "어떤 serving container를 사용할지", "어떤 accelerator에서 실행할지"는 서로 다른 결정입니다. 한 항목을 바꿔도 나머지 설정은 유지할 수 있습니다.
 
 이 분리의 실질적인 효과는 이 프로젝트가 `SERVING_ENGINE` env 하나로 vLLM ↔ SGLang ↔ LMI를 갈아 끼우면서도 호출 코드는 그대로 둔다는 점입니다.
 
 [![Amazon SageMaker 추론을 모델, 컨테이너, 인프라 세 레이어로 나눈 그림. 왼쪽의 사용자가 Invoke로 호출하고 스트리밍 또는 비스트리밍 응답을 받으며, 모델 레이어는 단일 모델 배포와 멀티 모델 배포와 오토스케일링, 컨테이너 레이어는 단일 컨테이너와 멀티 컨테이너와 vLLM, SGLang, ONNX, PyTorch, HuggingFace, 인프라 레이어는 Inferentia2, Trainium, GPU(P4/G5/G4dn), CPU 노드를 담고 있다](images/sm_inference_stack.png)](images/sm_inference_stack.png)
 
-*선택은 레이어별로 나뉘지만 인프라와 컨테이너는 서로 맞물립니다(CUDA 빌드 ↔ Neuron 빌드). 이 프로젝트의 조합은 "단일 모델 배포 + 단일 컨테이너(vLLM DLC) + GPU 인스턴스"입니다.*
+*설정은 레이어별로 나뉘지만 인프라와 컨테이너는 호환되어야 합니다(CUDA 빌드 ↔ Neuron 빌드). 이 프로젝트의 조합은 "단일 모델 배포 + 단일 컨테이너(vLLM DLC) + GPU 인스턴스"입니다.*
 
 | 레이어 | 고르는 것 | 이 프로젝트의 선택 |
 |---|---|---|
@@ -241,9 +241,9 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 ## 서빙 컨테이너와 DLC 이미지
 
-!!! abstract "쉽게 말하면"
-    endpoint는 "빈 GPU 서버"라서, **서빙 컨테이너(요리사)**를 넣어야 비로소 모델이 돕니다.
-    **vLLM DLC**(이 프로젝트 기본) = AWS가 vLLM을 그대로 담은 컨테이너. 최신 엔진 기능을 바로 씁니다.
+!!! abstract "컨테이너 선택"
+    endpoint는 지정한 인스턴스에서 서빙 컨테이너를 실행하고, 컨테이너가 모델 artifact를 로드해 요청을 처리합니다.
+    **vLLM DLC**(이 프로젝트 기본) = AWS가 제공하는 vLLM 컨테이너. vLLM 기능과 OpenAI 호환 API를 사용합니다.
     **SGLang DLC** = vLLM 대안(RadixAttention: 프리픽스 캐시 재사용에 강함).
     **DJL LMI** = AWS 관리형 추상화. 내부 백엔드로 **vLLM을 감싸며** `OPTION_*` env로 설정합니다.
 
@@ -276,7 +276,7 @@ LMI를 쓸 때는 번들 vLLM이 이 조건을 넘는 최신 태그여야 합니
 
 - 학습(`tracks/*/scripts/train.py`, TRL `SFTTrainer` + PEFT LoRA)이 끝나면 **merged 가중치**를 S3에 올립니다. 이것이 **`model_data`**입니다.
 - 배포할 때 Model이 이 S3 artifact를 컨테이너의 `/opt/ml/model`에 풀어 놓고, 서빙 엔진이 그 경로를 로드합니다(`SM_VLLM_MODEL=/opt/ml/model`). `train.py`가 머지 모델을 artifact 루트에 저장하므로 하위 경로 지정은 필요 없습니다.
-- `03_deploy_endpoint`는 앞 단계에서 `%store`로 저장해 둔 `model_data`를 받아 `ModelBuilder(s3_model_data_url=...)`에 물립니다. SDK v3의 `model_path`는 **로컬 경로**이므로 S3 URI에 쓰면 안 됩니다.
+- `03_deploy_endpoint`는 앞 단계에서 `%store`로 저장한 `model_data`를 `ModelBuilder(s3_model_data_url=...)`에 전달합니다. SDK v3의 `model_path`는 **로컬 경로**이므로 S3 URI에 사용하면 안 됩니다.
 
 Gemma를 서빙할 때 주의할 점은 다음과 같습니다(모두 **실행 전 재확인** 항목이고, 상세는 `tracks/*/scripts/train.py`에 있습니다).
 
@@ -327,7 +327,7 @@ SageMaker AI 서빙/학습 컨테이너(DLC) 이미지는 AWS ECR에 올라가 �
     현행 태그 직접 조회: `aws ecr describe-images --registry-id 763104351884 --repository-name vllm --region <region> --query 'reverse(sort_by(imageDetails,&imagePushedAt))[:5].imageTags'`
     학습 이미지는 **리전별 private ECR만** 허용됩니다. `public.ecr.aws/...`를 주면 `TrainingImageConfig ... VPC` 에러가 납니다.
 
-컨테이너를 하나로 통일하고 싶은 마음이 들 수 있는데, 실제로는 그렇게 되지 않습니다.
+학습과 서빙은 요구사항이 달라 같은 컨테이너를 사용하지 않을 수 있습니다.
 
 ??? question "오해: “서빙 컨테이너 하나면 다 되는 것 아닌가요?”"
     **아닙니다.** 컨테이너마다 지원 모델, payload 스키마, 스트리밍 방식, 내부 백엔드가 다릅니다. 같은 Gemma라도 OpenAI 호환 서버와 TGI generation 스키마는 payload가 서로 다릅니다(`_parse_endpoint_response()`가 응답을 방어적으로 파싱하는 이유입니다).
@@ -389,7 +389,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 **텍스트 vs 멀티모달 서빙**: gemma-4 전 사이즈는 멀티모달 base입니다(apache-2.0, ungated).
 
-- 학습에서 **텍스트 전용으로 re-export**했다면(config `model_type=*_text`) 그냥 텍스트로 서빙됩니다.
+- 학습에서 **텍스트 전용으로 re-export**했다면(config `model_type=*_text`) 텍스트 모델로 서빙됩니다.
 - re-export하지 않은 멀티모달 artifact를 텍스트로만 쓰려면, `SM_VLLM_LIMIT_MM_PER_PROMPT`(LMI는 `OPTION_LIMIT_MM_PER_PROMPT`)로 이미지/오디오를 0으로 두세요.
 
 ### 24GB GPU CUDA OOM: max_num_seqs 기본값
@@ -417,7 +417,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 ## 자주 나오는 오해
 
-앞 절에서 다루지 않은, 배포 단계에서 자주 나오는 착각들입니다. 티어 귀속 오류("blue/green을 HyperPod에서도 쓸 수 있겠지")는 이 문서가 아니라 [티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)에서 제외 목록까지 포함해 다룹니다.
+앞 절에서 다루지 않은 배포 관련 오해를 정리합니다. 서비스별 기능 차이는 [티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)에서 다룹니다.
 
 가장 자주 나오는 것은 스트리밍에 대한 기대치입니다.
 
@@ -430,7 +430,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 ??? question "오해: “호출하지 않으면 endpoint 요금도 안 나오죠?”"
     **아닙니다.** Real-time endpoint는 호출이 0건이어도 **켜져 있는 동안 인스턴스 시간당** 과금됩니다.
-    `endpoint_name`으로 삭제해도 **model은 조용히 남습니다**. `ModelBuilder`가 `model-42c30d1e` 같은 임의 이름을 생성하기 때문입니다.
+    endpoint만 삭제하면 **Model 리소스는 남습니다**. `ModelBuilder`가 `model-42c30d1e` 같은 이름을 별도로 생성하기 때문입니다.
     시간당 과금은 endpoint에서만 발생하지만, config/model이 남으면 계정당 개수 제한에 걸립니다. 정리 순서는 [비용과 cleanup](#비용과-cleanup)을 보세요.
 
 ---
@@ -440,7 +440,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 !!! danger "비용과 cleanup"
     **Real-time endpoint는 삭제하기 전까지 시간당(GPU 인스턴스) 요금이 계속 부과됩니다.** 호출이 전혀 없어도 켜져 있는 한 비용이 발생합니다.
     실습이 끝나면 **반드시 `99_cleanup.ipynb`를 실행**하거나 endpoint를 직접 삭제하세요.
-    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 것만 가리킵니다. 코스 prefix(`gemma-extraction` 등)로 잔여 리소스를 훑어 정리하세요.
+    여러 번 배포했다면 `%store`의 `endpoint_name`은 마지막 값만 가리킵니다. 코스 prefix(`gemma-extraction` 등)로 남은 리소스를 검색해 정리하세요.
     다른 리전에도 띄운 적이 있다면 그 리전의 endpoint 목록도 확인해야 합니다.
 
 `common/aws_utils.COST_WARNING`이 노트북에서 출력하는 내용과 같습니다.
@@ -474,11 +474,11 @@ sm.list_endpoints()   # 이 코스 prefix가 비어 있으면 그 코스 과금�
 
 확인할 때는 prefix로 나눠서 보는 편이 낫습니다. 계정 전체 목록만 보면 다른 코스의 endpoint를 보고 "이 코스가 안 지워졌다"고 오해하게 됩니다.
 
-로컬 vLLM을 종료할 때는 `kill <pid>`로 정밀하게 하세요. `pkill -f vllm`은 실행 중인 셸이나 노트북까지 죽일 수 있습니다.
+로컬 vLLM은 `kill <pid>`로 해당 프로세스만 종료하세요. `pkill -f vllm`은 실행 중인 shell이나 notebook 프로세스까지 종료할 수 있습니다.
 
 ---
 
-## 관련 리포지토리 파일
+## 관련 파일
 
 호출과 관측:
 
@@ -492,4 +492,4 @@ sm.list_endpoints()   # 이 코스 prefix가 비어 있으면 그 코스 과금�
 - `common/config.py`: 엔진 선택(`SERVING_ENGINE`), 인스턴스 타입(`INFER_INSTANCE_TYPE`), Bedrock 모델 ID(`BEDROCK_CLAUDE_MODEL_ID`) 등 프리셋과 환경변수
 - `.env`: 엔진별 완전 이미지 URI와 리전 override
 
-노트북 순서: `02_train_sft_sagemaker`(`model_data` 생성) → `03_deploy_endpoint`(배포와 스모크 호출) → `99_cleanup`(과금 중단)
+노트북 순서: `02_train_sft_sagemaker`(`model_data` 생성) → `03_deploy_endpoint`(배포와 smoke test) → `99_cleanup`(과금 중단)

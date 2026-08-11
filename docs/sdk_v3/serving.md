@@ -70,7 +70,7 @@ V2의 `model.deploy()`는 모델 등록과 endpoint 생성을 한 번에 했습�
 - `build()` → `sagemaker.core.resources.Model` **AWS 리소스**를 만듭니다.
 - `deploy()` → 그 Model로 **Endpoint**를 만듭니다.
 
-그래서 **한 번 build하고 여러 번 deploy**할 수 있고, endpoint를 띄우기 전에 Model 설정을 확인할 수 있습니다.
+따라서 **한 번 build한 Model을 여러 번 deploy**할 수 있고, endpoint를 만들기 전에 Model 설정을 확인할 수 있습니다.
 
 프레임워크별 모델 클래스도 정리됐습니다. V2에는 범용 `Model` 외에 `PyTorchModel`, `TensorFlowModel` 같은 것들이 따로 있었고 각자 생성자 시그니처와 기본 이미지, 각자의 특이점을 가졌습니다. V3의 `ModelBuilder` 하나가 PyTorch, TensorFlow, HuggingFace, Scikit-learn, XGBoost, JumpStart 모델과 커스텀 컨테이너를 모두 받습니다.
 
@@ -80,8 +80,8 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
 
 | | 무엇인가 |
 |---|---|
-| **추론 컨테이너** | Docker 이미지. OS, Python, CUDA 드라이버, 프레임워크 라이브러리, 모델 서버 소프트웨어가 한 이미지에 구워져 있고, Amazon SageMaker AI가 ML 인스턴스에서 실제로 실행하는 것 |
-| **모델 서버** | 그 컨테이너 **안에서 도는 HTTP 애플리케이션**. 포트를 열고 모델을 메모리에 올리고 요청을 받아 추론해 응답 |
+| **추론 컨테이너** | OS, Python, CUDA driver, framework library, model server를 포함한 Docker image. SageMaker AI가 ML instance에서 실행 |
+| **모델 서버** | 컨테이너 안에서 실행되는 HTTP application. 모델을 메모리에 로드하고 요청을 처리 |
 
 같은 프레임워크라도 이미지에 따라 서버가 다릅니다. PyTorch DLC는 TorchServe를 싣고, 같은 PyTorch용 다른 이미지는 DJL Serving이나 Triton을 쓸 수 있습니다.
 
@@ -96,7 +96,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
 | MMS (Multi-Model Server) | 경량, 다중 모델 호스팅 | MXNet/범용 DLC |
 | SMD | 커스텀 orchestrator | SageMaker AI 관리형 DLC |
 
-이 프로젝트는 이 표에 없는 조합을 씁니다: vLLM, SGLang을 **자체 OpenAI 호환 서버**로 띄우는 DLC입니다. 연속 배칭과 스트리밍이 필요해서인데, 그 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
+이 프로젝트는 표에 없는 조합을 사용합니다. vLLM과 SGLang의 **OpenAI 호환 server**를 실행하는 DLC이며, continuous batching과 streaming이 필요한 워크로드를 대상으로 합니다. 선택 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
 
 ## 배포 3모드: 테스트에서 production까지
 
@@ -105,10 +105,10 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
 | 모드 | 쓸 때 | 한계 |
 |---|---|---|
 | **in-process** | 빠른 프로토타이핑, 추론 로직 디버깅, `InferenceSpec` 코드 테스트. Docker 불필요, 수 초에 시작 | 모델 서버도 컨테이너 격리도 없어 **실제 서빙 스택을 검증하지 못합니다.** JumpStart 모델은 불가 |
-| **local container** | SageMaker AI에 올리기 전 **전체 서빙 스택** 검증. 실제 컨테이너 이미지, 모델 서버, 직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 당기고 컨테이너를 띄우므로 in-process보다 느림 |
+| **local container** | SageMaker AI에 배포하기 전 **전체 서빙 스택** 검증. 컨테이너 이미지, 모델 서버, 직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 내려받고 컨테이너를 시작하므로 in-process보다 느림 |
 | **SageMaker AI endpoint** | production과 부하 테스트. 전 추론 유형(real-time, serverless, async, batch), auto scaling, multi-model endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
 
-**이 프로젝트는 local container를 preflight로 씁니다.** 코스별 `02b_local_serve` 노트북이 그 단계이고, endpoint를 띄우기 전에 이미지, 엔진, checkpoint 조합이 실제로 뜨는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 그 절차가 있습니다).
+**이 프로젝트는 local container를 preflight에 사용합니다.** 코스별 `02b_local_serve` 노트북에서 endpoint를 만들기 전에 image, engine, checkpoint 조합이 정상적으로 시작되는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 절차가 있습니다).
 
 ## 추론 호출
 

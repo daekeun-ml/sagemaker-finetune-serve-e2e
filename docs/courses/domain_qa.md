@@ -8,12 +8,12 @@
       SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
-      [실행 runbook](../RUN_E2E.md)
+      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 전체 실행 절차는
+      [E2E 실행 가이드](../RUN_E2E.md)
     - **다른 코스**: 긴 문서 요약은 [요약](summarization.md).
       검색기를 붙이는 RAG는 이 코스 위에 얹는 별도 작업입니다(아래 "오해" 노트 참고)
 
-이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 파일입니다. 디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 초기 이름을 유지합니다.
 
 - `tracks/04_domain_qa/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/04_domain_qa/*.ipynb`: 이 코스의 노트북 9개
@@ -25,7 +25,7 @@
 
 ## 이 코스가 푸는 문제
 
-!!! abstract "쉽게 말하면"
+!!! abstract "입력과 출력"
     "이 문서 읽고 내 질문에 답해 줘"를 잘하는 모델을 만드는 코스입니다. 정답 형태가 JSON도 라벨도 아니고 **자유로운 문장**이라, 채점도 문자열 비교가 아니라 심사(judge)로 합니다.
 
 입력은 **instruction 하나**이고, 참고할 문서가 있으면 그 뒤에 `[Context]` 헤더로 붙습니다. 출력은 답변 텍스트 그대로입니다. `track_data.py`의 `_compose_input()`이 만드는 표면형은 정확히 이렇습니다.
@@ -116,7 +116,7 @@ output: Tope
 | `01_data_and_synthetic` | dolly 시드 300건 + grounded 합성 → `data/train.jsonl`(`messages` 포맷) |
 | `02_train_sft_sagemaker` | `scripts/train.py`를 SageMaker AI 학습 Job으로 실행 → 머지된 모델 artifact(S3), `%store md_domain_qa` |
 | `02b_local_serve` | **(선택)** 로컬 vLLM으로 preflight: 클라우드 배포 전 30초 검증 |
-| `03_deploy_endpoint` | `gemma-domainqa-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_domain_qa` |
+| `03_deploy_endpoint` | `gemma-domainqa-vllm-<timestamp>` real-time endpoint + invoke smoke test. `%store ep_domain_qa` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
 | `05_agentic_strands` | `answer_domain_question` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
 | `06_agentcore_deploy` | AgentCore Runtime 배포 |
@@ -124,8 +124,8 @@ output: Tope
 
 **`02a`(GRPO)가 없는 이유**는 reward를 프로그램으로 계산할 수 없기 때문입니다. `scripts/train_grpo.py`의 `--reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐이고, "좋은 답변"을 규칙으로 채점할 방법이 없습니다. LLM-judge를 reward로 쓰는 것은 가능하지만 rollout마다 judge를 호출해야 해 비용과 시간이 급증하고 judge 편향이 학습에 섞입니다. 판단 근거는 [왜 추출과 분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출과-분류-코스에만-grpo가-있나)에 있습니다.
 
-!!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
-    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md)에 정리돼 있습니다.
+!!! tip "먼저 DRY_RUN=1로 데이터 흐름을 확인하세요"
+    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어듭니다. SageMaker AI Training Job의 규모는 자동으로 줄지 않으므로 `MAX_TRAIN_SAMPLES`와 `EPOCHS`도 직접 조정하세요. 단계별 핸드오프와 비용은 [E2E 실행 가이드](../RUN_E2E.md)에 정리돼 있습니다.
 
 ---
 
@@ -158,7 +158,7 @@ output: Tope
 - [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 re-export
 - [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
+- [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 안내, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.

@@ -1,16 +1,16 @@
 # 파이프라인: 코스를 파이썬으로 한 번에 실행
 
-!!! info "Scope"
+!!! info "문서 범위"
     노트북 대신 **파이썬 스크립트로 코스를 실행하는 방법**을 다룹니다.
 
     - **여기서 다루는 것**: 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현
     - **여기서 다루지 않는 것**: 학습 내용 자체(LoRA, 하이퍼파라미터)는
       [파인튜닝](03_finetuning.md), 서빙 엔진 선택은 [서빙 컨테이너](05_serving_containers.md)
     - **노트북이 맞는 경우**: 처음 배우는 중이거나 중간 결과를 눈으로 보고 싶을 때.
-      두 경로의 선택 기준은 [실행 runbook](RUN_E2E.md#두-가지-실행-방법)
+      두 경로의 선택 기준은 [E2E 실행 가이드](RUN_E2E.md#두-가지-실행-방법)
 
-노트북 대신 **Python 스크립트로** 코스 하나를 끝까지 실행합니다. 노트북과 같은
-`common/` 레이어를 쓰므로 결과는 같고, 진입점만 다릅니다.
+노트북 대신 **Python 스크립트로** 코스 하나를 실행합니다. 노트북과 `common/` 코드를 공유하지만
+상태 전달 방식과 진입점은 다릅니다.
 
 ```bash
 # 전 구간
@@ -76,8 +76,8 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
     "endpoint_name": "gemma-extraction-vllm", "stages": {...} }
 ```
 
-- **코스별로 파일이 따로**입니다. `%store`는 전역이라 요약 코스가 멀티모달 endpoint를
-  호출하는 사고가 있었는데(`maximum context length is 2048`), 파일을 나누면 구조적으로 막힙니다.
+- **코스별로 파일을 분리합니다.** `%store`는 전역이므로 다른 코스의 endpoint 이름을 읽을 수 있습니다.
+  상태 파일을 분리하면 이런 잘못된 호출을 방지할 수 있습니다.
 - 이미 만들어진 artifact가 있으면 stage를 **건너뜁니다**. 다시 하려면 `--force`.
 - `--show-state`로 현재 상태만 볼 수 있습니다.
 - 이 디렉토리는 gitignore 대상입니다(endpoint 이름과 S3 URI가 들어갑니다).
@@ -99,7 +99,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 | endpoint가 `InService` | 그 endpoint를 그대로 사용 |
 | 콘솔에서 지운 리소스 | 없어진 것을 확인하고 새로 만듦 |
 
-진짜로 멈추려면 AWS 쪽에서 멈춰야 합니다.
+실행을 중단하려면 AWS의 해당 리소스를 직접 중지해야 합니다.
 
 ```bash
 aws sagemaker stop-training-job --training-job-name <state의 training_job> --region <리전>
@@ -149,12 +149,11 @@ MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
 
 ## --dry-run이 보장하는 것
 
-과금이 발생하는 것을 **하나도 만들지 않습니다**. 학습 Job, endpoint뿐 아니라
-**Bedrock 호출도 하지 않습니다.** Bedrock은 토큰당 과금이라 합성 100건이면 생성 10회 +
-critique 약 100회가 실제로 청구됩니다. dry-run은 시드를 복제해 형식만 검증하고,
+과금되는 AWS 리소스를 만들거나 API를 호출하지 않습니다. Training Job과 endpoint를 생성하지 않고
+Bedrock도 호출하지 않습니다. dry-run은 시드를 복제해 형식만 검증하고,
 GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 
-그래서 dry-run은 몇 초에 끝나고, AWS 자격증명이 없는 기계에서도 전 경로를 밟습니다.
+따라서 AWS 자격증명이 없는 환경에서도 실행 흐름을 확인할 수 있습니다.
 
 ## 파일
 
@@ -164,11 +163,11 @@ GRPO 프롬프트도 무료 경로(holdout)로 대체합니다.
 | `_common.py` | 스테이지 구현 + 상태 저장 + 실행 드라이버 |
 | `run_*.py` | 코스별 진입점. 코스 특이값만 선언하고 드라이버에 넘깁니다 |
 
-`tracks/*/scripts/`와 혼동하지 마세요. 그쪽은 **Amazon SageMaker AI 컨테이너 안에서** 도는
+`tracks/*/scripts/`와 혼동하지 마세요. 해당 디렉터리에는 **Amazon SageMaker AI 컨테이너 안에서** 실행되는
 `train.py`이고, 여기는 그것을 **제출하는** 쪽입니다.
 
 ## 이어서 볼 문서
 
-- [실행 runbook](RUN_E2E.md): 노트북 경로의 단계별 핸드오프와 비용 가드
+- [E2E 실행 가이드](RUN_E2E.md): 노트북 경로의 단계별 핸드오프와 비용 안내
 - [전체 지도](00_overview.md): 문서와 노트북 대응 관계
 - [파인튜닝](03_finetuning.md), [SageMaker AI 추론](04_sagemaker_inference.md)

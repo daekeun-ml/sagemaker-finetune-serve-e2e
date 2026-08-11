@@ -98,12 +98,12 @@ from sagemaker.train import SFTTrainer, DPOTrainer, RLAIFTrainer, RLVRTrainer
 ```
 
 !!! info "이 프로젝트는 아래 기능을 쓰지 않습니다"
-    특화 trainer, 평가, AI Registry, Batch queue는 **심볼이 존재하는지만 확인**했고, 실제로 학습을 돌려 보지는 않았습니다. 이 프로젝트의 검증된 경로는 `ModelTrainer` + 자체 `train.py`입니다.
+    특화 trainer, 평가, AI Registry, Batch queue는 **symbol과 signature만 확인**했으며 실제 학습은 실행하지 않았습니다. 이 프로젝트에서 실행해 확인한 경로는 `ModelTrainer` + custom `train.py`입니다.
     아래는 "V3에 이런 것이 생겼다"는 지도이니, 쓰실 때는 [SDK 저장소](https://github.com/aws/sagemaker-python-sdk)의 현행 시그니처를 확인하세요.
 
 ## 평가가 SDK 안으로 들어왔습니다
 
-V2에서 파인튜닝 결과를 표준 벤치마크로 재려면 그 인프라를 직접 만들어야 했습니다: 데이터셋을 찾고, 평가 루프를 쓰고, 메트릭을 계산하고, 결과를 기록하는 것 전부입니다. V3는 evaluator 3종을 제공합니다.
+V2에서 파인튜닝 결과를 표준 benchmark로 평가하려면 데이터셋 준비, 평가 loop, metric 계산, 결과 저장을 직접 구현해야 했습니다. V3는 세 종류의 evaluator를 제공합니다.
 
 | evaluator | 무엇을 하나 |
 |---|---|

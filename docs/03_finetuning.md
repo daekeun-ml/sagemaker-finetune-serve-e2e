@@ -14,7 +14,7 @@
     - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker AI 추론](04_sagemaker_inference.md),
       합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)
 
-이 문서와 관련된 리포지토리 파일:
+이 문서와 관련된 파일:
 
 - `common/config.py`: Gemma 프리셋(`GEMMA4_PRESETS`/`DEFAULT_MODEL_ID`), 코스 정의(`TRACKS`: 코드 식별자는 초기 이름을 그대로 유지합니다), HF 토큰 조회
 - `common/dlc.py`: DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → SDK fallback)
@@ -38,7 +38,7 @@
 **이 프로젝트는 SageMaker AI 파인튜닝 두 경로(JumpStart vs 자체 스크립트) 중 DLC 컨테이너 + TRL `SFTTrainer` + PEFT LoRA/QLoRA를 담은 self-contained `scripts/train.py`를 택했습니다. 커스텀 학습 로직과 최신 Gemma를 즉시 쓰기 위해서입니다.**
 
 1. **JumpStart가 아니라 커스텀 스크립트인 이유**: JumpStart는 정해진 모델을 정해진 레시피로 빠르게 돌리는 데 최적입니다. 다만 최신 Gemma 릴리스 반영과 커스텀 SFT 로직(chat template 처리, LoRA 타깃 제한, 텍스트 re-export)의 제어가 어렵습니다. 자세히는 [왜 커스텀 train.py 경로인가](#왜-커스텀-trainpy-경로인가)를 보세요.
-2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker AI 학습 Job을 겸합니다.** 로컬 GPU에서 파이프라인을 검증한 그 파일이 클라우드에서 그대로 돕니다. 자세히는 [train.py: 로컬 dry-run과 SageMaker AI 학습 Job](#trainpy-로컬-dry-run과-sagemaker-ai-학습-job)을 보세요.
+2. **`train.py` 한 파일이 로컬 `--dry_run`과 SageMaker AI Training Job을 모두 지원합니다.** 로컬 GPU에서 검증한 파일을 SageMaker AI Job에서도 사용합니다. 자세히는 [train.py: 로컬 dry-run과 SageMaker AI 학습 Job](#trainpy-로컬-dry-run과-sagemaker-ai-학습-job)을 보세요.
 3. **Gemma 관용구 6종은 반드시 지켜야 합니다**: chat template 위임, 멀티모달 base는 `language_model` 한정 LoRA, bf16(fp16 금지), `eager` attention, flash-attention 아니면 packing off, boolean hyperparameter는 `str2bool`. 자세히는 [Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)를 보세요.
 4. **`stopping_condition`을 생략하면 SDK가 1시간을 넣습니다.** 학습이 100% 끝나도 merge 중 Job이 종료되어 배포할 수 없는 artifact가 남을 수 있습니다. 자세히는 [MaxRuntimeExceeded: 학습 뒤 머지에서 잘리는 함정](#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)을 보세요.
 5. **SFT 데이터를 GRPO에 재사용하면 학습이 아예 안 됩니다.** rollout이 전부 만점이 되어 advantage가 0으로 수렴합니다. 자세히는 [SFT에서 GRPO로: 데이터를 갈아야 하는 이유](#sft에서-grpo로-데이터를-갈아야-하는-이유)를 보세요.
@@ -47,12 +47,12 @@
 
 ## 기존 문제
 
-처음 SageMaker AI에서 Gemma를 파인튜닝할 때 실제로 부딪히는 벽은 다음과 같습니다.
+SageMaker AI에서 Gemma를 처음 파인튜닝할 때는 다음 문제를 확인해야 합니다.
 
-- **"JumpStart 버튼 하나면 되는 거 아니야?"** 싶지만, 막상 돌려보면 최신 Gemma가 목록에 없거나 chat template, 특수토큰, 저장 포맷 같은 세부를 건드릴 수 없어 결과가 이상하게 나옵니다.
+- **JumpStart에서 원하는 Gemma 조합을 지원하지 않을 수 있습니다.** 최신 모델이 목록에 없거나 chat template, 특수 token, 저장 형식을 직접 조정해야 하는 경우에는 custom training script가 필요합니다.
 - 로컬에서 실행되던 학습 스크립트가 SageMaker AI에서는 **`--use_qlora`에서 실패**합니다. `store_true` flag에 `--use_qlora True`가 전달되는 것이 원인이지만 오류 메시지만으로는 찾기 어렵습니다.
 - **fp16으로 돌렸더니 loss가 NaN**이 됩니다. Gemma에서 흔히 겪는 함정입니다.
-- 학습은 됐는데 **출력이 엉망**입니다. chat template을 손으로 조립했거나, packing으로 샘플이 서로 오염된 경우입니다.
+- 학습 후 **출력 형식이 비정상적입니다.** chat template을 직접 조립했거나 packing으로 샘플이 섞인 경우입니다.
 - 학습은 끝났는데 **serving이 실패합니다**. artifact root에 완전한 HF 모델이 없거나(adapter만 있거나), 멀티모달 config가 남아 vLLM이 image processor를 찾다가 종료됩니다.
 - 학습 Job이 `Failed`도 아닌 **`Stopped`로 끝나고 `FailureReason`이 비어 있습니다**. 로그에는 에러가 한 줄도 없습니다.
 
@@ -62,7 +62,7 @@
 
 ## 왜 커스텀 train.py 경로인가
 
-!!! abstract "쉽게 말하면"
+!!! abstract "두 학습 경로"
     SageMaker AI에서 파인튜닝하는 문서화된 길은 두 갈래입니다. 하나는 **JumpStart**로 미리 포장된 모델과 레시피를 SDK 몇 줄로 돌리는 방식이고, 다른 하나는 **직접 학습 스크립트 + DLC 컨테이너**를 써서 `ModelTrainer`에 `entry_script`를 넘기는 방식입니다.
     이 프로젝트는 Gemma 학습 규칙을 직접 제어해야 하므로 두 번째 경로를 선택합니다.
 
@@ -88,11 +88,11 @@
     `pyproject.toml`이 고정하는 것은 `sagemaker>=3.16.0` floor이므로, 설치본은 그보다 높은 버전일 수 있습니다.
 
 지금까지 나온 이름(`JumpStartEstimator`, `ModelTrainer`, `ModelBuilder`, 제거된 `Estimator`)은 전부 **SageMaker Python SDK라는 한 계층 안의 클래스**입니다.
-그 계층이 어디에 앉아 있는지를 보면 위 표의 선택이 실제로 얼마만큼의 범위를 가지는지도 함께 드러납니다.
+이 클래스들이 AWS API와 어떤 관계인지 보면 각 선택의 범위를 이해할 수 있습니다.
 
 [![Training Job을 만드는 세 가지 호출 계층 다이어그램. 왼쪽에는 호출 주체로 Dev desktops, App Servers, Amazon EC2, SageMaker Notebooks, Amazon EMR이 세로로 놓이고 각각에서 가운데의 세 계층으로 화살표가 들어간다. 위쪽 AWS SDKs 박스는 CreateTrainingJob()과 CreateModel()을 노출하며 Java, Node, PHP, .NET, Ruby, Python, Go, C++를 지원하고, 가운데 SageMaker Python SDK 박스는 ModelTrainer.train()과 ModelBuilder.deploy()를, 아래쪽 SageMaker Spark Library 박스는 org.apache.spark.ml.Estimator interface를 노출한다. 세 박스에서 나온 화살표는 모두 오른쪽의 같은 대상인 SageMaker AI Training Job으로 모인다](images/sm_sdks.png)](images/sm_sdks.png)
 
-*세 화살표의 도착지가 하나라는 것이 요점입니다. 어느 계층으로 부르든 AWS가 만드는 리소스는 같은 Training Job입니다.*
+*호출 방식은 달라도 AWS에 생성되는 리소스는 같은 Training Job입니다.*
 
 **이 절의 선택은 계층을 갈아타는 결정이 아니라, 같은 계층 안에서 어느 래퍼를 쓸지의 결정입니다.** 위 표의 대안인 JumpStart도 `JumpStartEstimator`라는 같은 계층의 클래스입니다.
 어느 쪽을 골라도 AWS 쪽에 도착하는 것은 `CreateTrainingJob` 하나입니다. 그래서 Job 상태와 시간 제한과 [경로 규약](01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로) 같은 규칙은 경로 선택과 무관하게 똑같이 적용됩니다.
@@ -104,7 +104,7 @@
 | `ModelTrainer.train()` | `02_train_sft_sagemaker` |
 | `ModelBuilder`(+`deploy()`) | `03_deploy_endpoint` |
 
-맨 위 줄(AWS SDKs)도 이 프로젝트가 실제로 씁니다. **Job을 만드는 것은 Python SDK지만, 만든 뒤 들여다보고 지우는 코드는 boto3입니다.**
+이 프로젝트는 AWS SDK도 함께 사용합니다. **Job 생성은 SageMaker Python SDK로 처리하고, 상태 조회와 삭제는 boto3로 처리합니다.**
 
 - 조회: `common/aws_utils.py`의 `training_job_status()`가 `sagemaker` 클라이언트로 `describe_training_job`을 호출합니다.
 - 삭제: `99_cleanup.ipynb`가 `delete_endpoint`/`delete_endpoint_config`/`delete_model`을 씁니다.
@@ -118,7 +118,7 @@ Python SDK가 감싸 주지 않는 조회와 삭제 API가 필요하면 한 층 
 
 1. **최신 모델 반영**: Gemma는 분기마다 릴리스가 갱신됩니다. 이 경로에서는 `MODEL_SIZE`(E2B/E4B/12B/26B-A4B/31B) 또는 `MODEL_ID` env만 바꾸면 모델을 전환할 수 있습니다(`common/config.py`의 `GEMMA4_PRESETS`, `DEFAULT_MODEL_ID`). JumpStart는 curated model 목록에 오를 때까지 기다려야 할 수 있습니다.
 2. **학습 로직 투명성**: Gemma는 손대야 할 관용구가 많습니다([Gemma 파인튜닝 관용구](#gemma-파인튜닝-관용구)). `train.py`는 이 결정들을 코드로 명시하고 있어 리뷰, 재현, 이식이 쉽습니다. 특히 멀티모달 base를 텍스트로 서빙하려면 저장 단계에 손을 대야 하는데, 관리형 레시피에서는 불가능한 개입입니다.
-3. **이식성(로컬↔SageMaker AI 단일 소스)**: SageMaker AI는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU에서 검증한 바로 그 파일이 클라우드에서 그대로 돕니다.
+3. **이식성(로컬↔SageMaker AI 단일 소스)**: SageMaker AI는 `source_dir`만 컨테이너에 올립니다. 그래서 `train.py`는 `common/`에 **의존하지 않는 self-contained** 파일로 작성했습니다. 로컬 GPU와 SageMaker AI Job에서 같은 파일을 사용합니다.
 
 ??? question "오해: “JumpStart가 더 production-ready 아닌가요?”"
     그렇지 않습니다. production 여부는 경로가 아니라 운영(checkpoint, 모니터링, 재현성)이 결정합니다.
@@ -128,9 +128,9 @@ Python SDK가 감싸 주지 않는 조회와 삭제 API가 필요하면 한 층 
 
 ## Gemma 파인튜닝 관용구
 
-!!! abstract "쉽게 말하면"
-    Gemma는 "그냥 돌리면" 미묘하게 틀립니다. 아래 6가지는 Gemma 모델 카드와 TRL 문서와 이 프로젝트의 실측에 근거한 관용구이며, `train.py`에 이미 반영되어 있습니다.
-    데이터 format부터 저장 format까지 이어져 있어, 하나만 빠뜨려도 학습이나 serving이 실패합니다.
+!!! abstract "Gemma 학습 시 확인할 설정"
+    Gemma는 chat template, dtype, attention 구현, packing, LoRA 대상, hyperparameter parsing을 모델 특성에 맞게 설정해야 합니다. 아래 6개 항목은 Gemma 모델 카드, TRL 문서, 이 프로젝트의 측정 결과를 바탕으로 `train.py`에 반영했습니다.
+    데이터 형식부터 저장 형식까지 연결되므로 하나를 빠뜨리면 학습이나 serving이 실패할 수 있습니다.
 
 ```
   데이터(JSONL)                train.py 처리                      결과
@@ -146,14 +146,14 @@ Python SDK가 감싸 주지 않는 조회와 삭제 API가 필요하면 한 층 
 - **마커를 손으로 조립하지 마세요.** Gemma **-it(instruction-tuned)** 토크나이저에는 chat template이 **내장**되어 있습니다. 데이터가 conversational 포맷(`{"messages":[{"role","content"},...]}`)이면 `SFTTrainer`가 **자동으로 `apply_chat_template`을 적용**합니다. 출력 role은 `assistant`가 아니라 `model`로 렌더링되며, 이 매핑도 템플릿이 처리합니다.
 - **system role은 실행 전 재확인 대상입니다.** Gemma 계열 템플릿에는 전용 system 슬롯이 없는 경우가 많아, `{"role":"system",...}`을 넣으면 **템플릿 적용 시 예외가 납니다**. 정확한 동작은 모델별 `tokenizer_config`에 달려 있습니다.
 - **자동 복구는 없습니다.** `common/gemma_format.py`의 `render_prompt`는 `apply_chat_template`을 그대로 호출할 뿐 try/except 재시도를 하지 않습니다. fallback 함수(`fold_system_into_user`)는 제공되지만 **호출은 사용자 몫**입니다.
-- 따라서 system 지시가 필요하면 **반드시 첫 `user` 턴 맨 앞에 직접 접어 넣거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합해 두세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 예외가 **SageMaker AI 학습 Job 안에서** 터집니다(용량 대기 + DLC pull + GPU 과금을 다 치른 뒤).
+- 따라서 system 지시가 필요하면 **첫 `user` 턴 앞에 직접 포함하거나(fold)**, 데이터 준비 단계(`01_data_and_synthetic`)에서 미리 병합하세요. `{"role":"system"}` 행을 그대로 `data/train.jsonl`에 넣으면 SageMaker AI Training Job 안에서 오류가 발생합니다. 이 시점에는 인스턴스 준비와 DLC pull이 이미 진행됐을 수 있습니다.
 
 ??? info "더 읽을 거리: 템플릿 원본 문서"
     template이 생성하는 `<start_of_turn>`/`<end_of_turn>` marker 구조는 [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/core/prompt-structure)가 원본입니다.
     conversational 포맷을 `SFTTrainer`가 자동 처리한다는 규칙은 [TRL의 dataset formats 문서](https://huggingface.co/docs/trl/en/dataset_formats)에 있습니다.
 
-??? question "오해: “system 프롬프트를 messages에 그냥 넣으면 되지 않나요?”"
-    될 때도 있고 안 될 때도 있고, **실패하면 프로젝트가 대신 고쳐 주지 않습니다.** 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 에러가 납니다.
+??? question "오해: “system 프롬프트를 messages에 넣으면 모든 모델에서 처리되나요?”"
+    모델의 chat template에 따라 다릅니다. 템플릿이 system role을 지원하지 않으면 `apply_chat_template`에서 오류가 발생합니다.
     `common/gemma_format.py`의 `build_messages`는 system을 그대로 담아 주고, `render_prompt`는 `apply_chat_template`을 바로 호출합니다(자동 재시도 없음). `fold_system_into_user`는 **직접 불러야 하는** fallback 함수입니다.
     학습 데이터는 처음부터 fold된 형태로 만들어 두세요.
 
@@ -204,8 +204,8 @@ bf16을 지원하지 않는 GPU라면 QLoRA의 `bnb_4bit_compute_dtype=torch.bfl
 packing은 여러 짧은 샘플을 한 시퀀스로 이어 붙여 throughput을 올려 줍니다. 하지만 attention이 샘플 경계를 마스킹하지 못하면 **샘플끼리 서로 참조하는 cross-contamination(교차 오염)** 이 발생합니다.
 packing throughput이 필요하면 flash-attention을 명시적으로 선택하세요.
 
-!!! danger "조용히 망가지는 학습"
-    fp16 NaN과 packing 교차 오염은 **에러 없이 결과만 망가지는** 두 가지입니다. loss는 그럭저럭 떨어지는데 출력이 엉망이면 이 둘을 먼저 의심하세요.
+!!! danger "오류 없이 품질이 저하될 수 있는 설정"
+    fp16 NaN과 packing 교차 오염은 명시적인 오류 없이 출력 품질을 떨어뜨릴 수 있습니다. loss는 감소하지만 출력이 비정상적이라면 이 두 설정을 먼저 확인하세요.
     `bf16=True`와 packing 자동 차단은 `train.py`의 기본값이므로, 하이퍼파라미터로 억지로 뒤집지 마세요.
 
 ### boolean 하이퍼파라미터: str2bool
@@ -229,7 +229,7 @@ def _str2bool(v) -> bool:
 
 ![같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고 epochs 1, 시퀀스 512 이하, 앞 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고 source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다](images/local_vs_sagemaker.svg)
 
-*같은 파일이 양쪽에서 그대로 돕니다. 바뀌는 것은 인자가 들어오는 경로뿐입니다: 로컬은 내가 CLI로 넘기고, SageMaker AI는 `hyperparameters`와 `SM_*` 환경변수로 주입합니다.*
+*두 환경은 같은 파일을 사용하고 인자 전달 방식만 다릅니다. 로컬에서는 CLI로 넘기고, SageMaker AI에서는 `hyperparameters`와 `SM_*` 환경변수로 주입합니다.*
 
 오른쪽 열의 `trainer.train(...)` 한 줄이 실제로 무엇을 세우는지는, 그 호출이 만들어 내는 인프라를 보면 분명해집니다.
 
@@ -251,7 +251,7 @@ def _str2bool(v) -> bool:
 
 인스턴스 박스 안에 **EBS Volume**이 함께 그려진 것이 [경로 규약](01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로)의 물리적 근거입니다.
 `/opt/ml/*`은 그 볼륨 위에 있고, 볼륨은 클러스터와 함께 사라집니다(`trainer.train()`이 부르는 `CreateTrainingJob`이 클러스터를 만들고, Job이 끝나면 회수합니다).
-그림에서 그 볼륨 밖으로 나가는 화살표가 `SM_MODEL_DIR` 하나뿐이라는 점이 아래 두 규칙의 이유 전부입니다.
+그림에서 볼륨 밖으로 연결되는 경로가 `SM_MODEL_DIR` 하나뿐이므로 다음 두 규칙을 지켜야 합니다.
 
 - **입력 경로 해석**: `--train_file`이 주어지면 그 파일을 쓰고, 없으면 `SM_CHANNEL_TRAIN`(기본 `/opt/ml/input/data/train`)의 첫 `.jsonl`을 사용합니다.
 - **출력**: `--output_dir`의 기본값이 `SM_MODEL_DIR`(SageMaker AI가 `/opt/ml/model`로 설정)이므로, 학습 결과가 자동으로 S3 artifact가 됩니다.
@@ -316,7 +316,7 @@ def _str2bool(v) -> bool:
 
 - 이 프로젝트의 `.env`는 `TRAIN_INSTANCE_TYPE=ml.g6.2xlarge`로 프리셋을 덮어씁니다(`ml.g5.2xlarge`의 용량 대기가 길어서).
 - `InsufficientInstanceCapacity`로 막히면 `AWS_REGION`이나 인스턴스 타입만 바꿔 재시도하세요.
-- **GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 머지와 re-export가 base를 bf16 full로 **CPU에 로드**하므로 RAM이 병목입니다(초기 버전은 여기서 OOM으로 죽었습니다).
+- **GPU뿐 아니라 host RAM도 확인하세요.** QLoRA 학습은 GPU에서 실행되지만, 학습 후 merge와 re-export 과정에서는 base model 전체를 bf16으로 **CPU에 로드**하므로 RAM이 병목이 될 수 있습니다(초기 버전에서는 이 단계에서 OOM이 발생했습니다).
 - `train.py`는 머지 전에 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다. E4B peak RAM은 약 **17.5GB**로 실측됐습니다. `ml.g6.2xlarge`는 L4 24GB GPU + 32GB RAM이라 여유가 있고, 12B/26B는 머지 시 RAM이 더 커 `ml.g6.12xlarge` 급을 권장합니다.
 - 정확한 GPU 메모리와 인스턴스 스펙과 리전 가용성은 **실행 전 SageMaker AI 인스턴스 문서에서 재확인**하세요.
 - 비용을 줄이려면 SDK v3에서는 `Compute(enable_managed_spot_training=True)`를 쓰되, **`StoppingCondition(max_wait_time_in_seconds=...)`와 checkpoint 설정을 반드시 함께** 넘기세요. 빠뜨리면 `CreateTrainingJob`이 `ValidationException`으로 거부합니다.
@@ -431,7 +431,7 @@ trainer = ModelTrainer(
 
 ## SFT에서 GRPO로: 데이터를 갈아야 하는 이유
 
-!!! abstract "쉽게 말하면"
+!!! abstract "SFT와 GRPO의 입력 차이"
     SFT는 (입력, 정답) 쌍으로 정답을 모방하고, GRPO는 **prompt만** 받아 스스로 생성한 뒤 reward로 채점합니다.
     같은 데이터를 쓰면 누출이고, 더 나쁘게는 **학습이 아예 안 됩니다.** `02a_train_grpo_sagemaker`를 실행하기 전에 [advantage ≈ 0 문제](#왜-학습이-안-되는가-advantage--0)와 [RL prompt 소스 3가지](#rl-prompt-소스-3가지)를 읽으세요.
 
@@ -484,7 +484,7 @@ def _to_grpo(example):
     추출 코스 실측에서는 제약 없이 합성하면 8건 전부 인자 0개였습니다(시드 분포가 인자 없는 함수 94%).
     제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고, 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다.
 
-production에서는 하나가 더 있습니다: **실제 트래픽 로그**. 분포가 진짜라서 가장 가치 있지만 공개 데이터로 재현할 수 없어 이 프로젝트에는 넣지 않았습니다.
+production 환경에서는 **실제 트래픽 로그**도 평가 데이터 후보입니다. 실제 요청 분포를 반영하지만 공개 데이터로 재현할 수 없어 이 프로젝트에는 포함하지 않았습니다.
 held-out 분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율-합성으로-평가-금지)을 참고하세요.
 
 ### 왜 추출과 분류 코스에만 GRPO가 있나
@@ -501,19 +501,19 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 ??? question "오해: “SFT 없이 base에서 바로 GRPO 하면 안 되나요?”"
     됩니다. `train_grpo.py`는 `model` 채널이 없으면 HF base로 fallback합니다.
-    다만 형식조차 안 잡힌 상태에서는 rollout이 전부 낮은 점수라 역시 편차가 작고 수렴이 불안정합니다. **SFT → GRPO**가 정석인 이유입니다.
+    다만 출력 형식을 학습하지 않은 base model에서는 rollout 점수가 전반적으로 낮고 편차도 작아 수렴이 불안정할 수 있습니다. 따라서 이 프로젝트는 **SFT 후 GRPO** 순서를 사용합니다.
 
 ---
 
 ## 자주 나오는 오해
 
-아래 항목들은 앞 절에서 다루지 않은, 학습 방식 자체와 컨테이너 계층을 헷갈릴 때 생기는 착각입니다.
+앞 절에서 다루지 않은 학습 방식과 컨테이너 관련 오해를 정리합니다.
 
 ??? question "오해: “파인튜닝은 전체 가중치를 학습하는 것 아닌가요?”"
     이 프로젝트는 그렇지 않습니다. **PEFT LoRA/QLoRA**로 어댑터만 학습하며 full fine-tune이 아닙니다.
     그래서 단일 GPU에서도 SLM을 돌릴 수 있습니다. 다만 텍스트 전용 base에서는 `modules_to_save`로 `lm_head`/`embed_tokens`를 full-train 대상에 포함시킵니다.
 
-환경 차이를 과소평가하는 착각도 같은 유형입니다.
+로컬 환경과 SageMaker AI 컨테이너의 차이도 확인해야 합니다.
 
 ??? question "오해: “로컬에서 됐으니 SageMaker AI에서도 그대로 되겠지”"
     같은 `train.py`를 쓰므로 대체로 맞습니다. 다만 세 가지가 다릅니다.
@@ -533,7 +533,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
     다릅니다. DLC는 **워크로드 컨테이너 이미지**(학습/추론)이고 DLAMI는 **노드 호스트 이미지(AMI)** 입니다.
     이 프로젝트는 SageMaker AI 학습 컨테이너로 DLC를 씁니다. 이미지에 무엇이 들어 있는지는 [AWS Deep Learning Containers 저장소](https://github.com/aws/deep-learning-containers)의 Dockerfile로 직접 확인할 수 있습니다.
 
-마지막은 단계 경계에 대한 착각입니다.
+학습과 배포의 역할도 구분해야 합니다.
 
 ??? question "오해: “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.

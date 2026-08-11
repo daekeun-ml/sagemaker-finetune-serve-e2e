@@ -16,7 +16,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 본문의 실측값은 이 프로젝트의 **요약 코스**와 **멀티모달 코스**에서 나왔습니다.
 
 - **코스**는 하나의 태스크를 데이터 준비부터 학습, 배포, 평가, 정리까지 완주하는 실습 단위이며, 이 프로젝트에는 다섯 개가 있습니다.
-- 리포지토리 디렉터리는 초기 이름을 유지해 `tracks/`이고, `track_data`, `ep_<track_key>` 같은 코드 식별자도 그대로입니다.
+- 저장소 디렉터리는 초기 이름을 유지해 `tracks/`이고, `track_data`, `ep_<track_key>` 같은 코드 식별자도 그대로입니다.
 - 따라서 본문의 "코스"와 코드의 `track`을 같은 것으로 읽으세요.
 
 !!! warning "빠르게 바뀌는 값"
@@ -35,7 +35,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
    LMI를 쓴다고 vLLM을 "쓰지 않는" 것이 아닙니다. 자세히는 [왜 레이어가 다른가](#왜-레이어가-다른가-엔진--서빙-컨테이너)를 보세요.
 2. **기본은 vLLM DLC이고, LMI는 관리형 추상화 옵션입니다.**
    LMI는 `OPTION_ROLLING_BATCH`로 내부 백엔드를 고르고 나머지는 `OPTION_*` env로 튜닝합니다. 자세히는 [이 프로젝트의 배포 경로](#이-프로젝트의-배포-경로-03_deploy_endpoint)를 보세요.
-3. **E2B/E4B도 vLLM으로 뜹니다.**
+3. **E2B/E4B도 vLLM에서 실행할 수 있습니다.**
    단 `save_pretrained`가 KV-shared 레이어의 텐서 54개를 버리므로 학습 스크립트가 저장 직전에 복원해야 합니다. 자세히는 [KV-shared dead weight 복원](#e계열-kv-shared-dead-weight-복원)을 보세요.
 4. **24GB GPU에서 기본값 그대로 배포하면 CUDA OOM으로 endpoint가 `Failed`합니다.**
    원인은 모델 크기가 아니라 `max_num_seqs=256`입니다. 자세히는 [24GB GPU CUDA OOM](#24gb-gpu-cuda-oom-max_num_seqs-기본값)을 보세요.
@@ -60,7 +60,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 
 ## 왜 레이어가 다른가: 엔진 ≠ 서빙 컨테이너
 
-!!! abstract "쉽게 말하면"
+!!! abstract "엔진과 컨테이너의 차이"
     **엔진**(`vLLM`, `TensorRT-LLM`)은 PagedAttention과 continuous batching처럼 토큰 생성을 최적화하는 핵심 로직입니다.
     **서빙 컨테이너**(`vLLM DLC`, `DJL LMI`, `TGI`)는 엔진에 HTTP 서버, 모델 로딩, batching, `/ping`, `/invocations`를 더한 실행 환경입니다.
     **Amazon SageMaker AI endpoint**는 컨테이너를 실행하고 auto scaling, IAM, CloudWatch, 인스턴스를 관리합니다.
@@ -91,7 +91,7 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 
 이 프로젝트의 `dlc.serving_env('lmi', ...)`가 내보내는 env가 정확히 이 규칙을 따릅니다.
 
-스니펫에 보이는 `option.tensor_parallel_degree`를 포함해, 다음 세 키의 **기본값**은 실습에서 특히 자주 물립니다.
+스니펫의 `option.tensor_parallel_degree`를 포함한 다음 세 기본값은 실습 환경에서 자주 문제를 일으킵니다.
 뒤의 두 키는 그림에 없지만 같은 `option.*` 규칙을 따릅니다([LMI 구성 문서](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/deployment_guide/configurations.html)).
 
 | 키(env) | 기본값 | 이 프로젝트의 값과 이유 |
@@ -142,7 +142,7 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
     각 컨테이너가 지원하는 정확한 엔진, 옵션, streaming 방식은 버전마다 바뀝니다. 이 표는 선택 성향을 비교합니다.
     실행 전에 각 프로젝트 문서(위 표의 컨테이너 이름 링크)에서 현행 지원 매트릭스를 재확인하세요.
 
-이 프로젝트가 실제로 노출하는 서빙 엔진은 **vLLM DLC(기본), [SGLang](https://github.com/sgl-project/sglang) DLC, DJL LMI 셋**입니다(`common/dlc.py`의 `SERVING_ENGINES`).
+이 프로젝트에서 선택할 수 있는 서빙 엔진은 **vLLM DLC(기본), [SGLang](https://github.com/sgl-project/sglang) DLC, DJL LMI**입니다(`common/dlc.py`의 `SERVING_ENGINES`).
 HF TGI는 대조 대상으로만 다룹니다.
 
 ### 기술적 차이 3가지
@@ -185,9 +185,9 @@ HF TGI는 대조 대상으로만 다룹니다.
 
 **첫째, 시작 유예 시간(기본 8분)과 `/ping` 2초 제한입니다.** `did not pass the ping health check`로 끝나는 실패는 원인이 두 가지이며 대응 방법도 다릅니다.
 
-| 진짜 원인 | 처방 |
+| 원인 | 대응 |
 |---|---|
-| 엔진이 **OOM으로 죽음** | 유예를 늘려도 200은 안 나옵니다. 엔진 설정(`max_num_seqs` 등)을 고치세요: [24GB GPU CUDA OOM](#24gb-gpu-cuda-oom-max_num_seqs-기본값) |
+| 엔진이 **OOM으로 종료됨** | 시작 유예 시간을 늘려도 해결되지 않습니다. 엔진 설정(`max_num_seqs` 등)을 조정하세요: [24GB GPU CUDA OOM](#24gb-gpu-cuda-oom-max_num_seqs-기본값) |
 | **가중치 로드가 8분보다 오래 걸림** | `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`를 올립니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 함께: [배포 3단계](01_sagemaker_basics.md#컨테이너-규약-모델-artifact와-ping-health-check)) |
 
 어느 쪽인지는 CloudWatch 로그에서만 구분됩니다(위 그림의 stdout/stderr 경로).
@@ -202,7 +202,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 
 반대로 `max_tokens`를 크게 올리거나 프롬프트를 길게 키워 60초를 넘길 수 있는 워크로드는 real-time이 아니라 Asynchronous 쪽 후보입니다.
 
-그림의 「컨테이너 예약 경로」 패널에 적힌 `/opt/ml` → `|---/model`은 도해용 장식이 아니라 이 프로젝트가 실제로 넘기는 값입니다.
+그림의 「컨테이너 예약 경로」에 표시된 `/opt/ml/model`은 이 프로젝트가 서빙 엔진에 전달하는 경로입니다.
 
 - `dlc.serving_env(..., model_path='/opt/ml/model')`이 그 경로를 엔진별 키(`SM_VLLM_MODEL` / `SM_SGLANG_MODEL_PATH` / `HF_MODEL_ID`)로 넣어 줍니다.
 - 학습 스크립트는 머지 모델을 `SM_MODEL_DIR=/opt/ml/model` 루트에 저장하므로, 엔진이 그 루트의 `config.json`으로 모델을 감지합니다.
@@ -454,7 +454,7 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
 
 ## E계열 KV-shared dead weight 복원
 
-**"E4B는 vLLM으로 못 띄운다"는 말은 사실이 아닙니다**(로컬 실측). 원본 `google/gemma-4-E4B-it`은 vLLM에서 그대로 뜹니다. 못 뜨는 것은 **transformers `save_pretrained`를 거친 checkpoint**입니다.
+원본 `google/gemma-4-E4B-it`은 vLLM에서 로드할 수 있습니다(로컬 측정). 문제가 발생하는 대상은 **transformers `save_pretrained`를 거친 checkpoint**입니다.
 
 **무엇이 없어지나.** gemma-4 E계열은 뒤쪽 `num_kv_shared_layers`개 레이어가 앞 레이어의 KV를 재사용합니다
 (E4B: 42층 중 24~41의 18층). transformers는 그 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 **아예 만들지 않습니다**
@@ -462,7 +462,7 @@ import 경로는 `from sagemaker.serve.mode.function_pointers import Mode`입니
 `save_pretrained`로 저장하면 원본에 있던 그 텐서가 **소실**됩니다. 실측으로 정확히 **54개**입니다
 (18층 × `k_norm`/`k_proj`/`v_proj`).
 
-**왜 vLLM만 죽나.** vLLM `Gemma4Attention`은 `k_norm`을 **전 레이어에 등록**합니다(사용은 `if not
+**vLLM에서 로드가 실패하는 이유.** vLLM `Gemma4Attention`은 `k_norm`을 **전 레이어에 등록**합니다(사용은 `if not
 self.is_kv_shared_layer`로 건너뛰지만 등록은 무조건). 등록된 파라미터가 checkpoint에 없으면 weight 검증이
 `ValueError: Following weights were not initialized from checkpoint: ...layers.24~41...k_norm`으로 실패합니다.
 transformers는 자기가 안 만든 모듈이니 아무 문제가 없습니다. **엔진 간 기대치 차이**입니다.
@@ -506,7 +506,7 @@ FailureReason: The primary container for production variant AllTraffic
                did not pass the ping health check.
 ```
 
-진짜 원인은 **CloudWatch endpoint 로그 안에만** 있습니다.
+자세한 원인은 **CloudWatch endpoint 로그**에서 확인할 수 있습니다.
 
 ```
 Available KV cache memory: 4.69 GiB
@@ -565,7 +565,7 @@ flashinfer가 `torch.empty_like`로 사본을 하나 더 만들므로 실제로�
 | LMI | `OPTION_MAX_ROLLING_BATCH_SIZE=32` | `OPTION_GPU_MEMORY_UTILIZATION=0.90` |
 
 **키 이름을 직접 쓰지 마세요. `dlc.serving_env()`가 한 곳에서 관리합니다.**
-노트북마다 dict를 손으로 쓰면 값을 하나 바꿀 때 한 엔진을 빼먹습니다(실제로 이 프로젝트에서 `max_num_seqs`를 vLLM 분기에만 넣고 LMI 분기를 놓쳐 OOM이 재발할 뻔했습니다).
+노트북마다 dict를 직접 작성하면 한 엔진의 설정이 누락될 수 있습니다. 이 프로젝트에서도 `max_num_seqs`가 vLLM 분기에만 적용되고 LMI 분기에서 누락된 적이 있습니다.
 그래서 "의미 → 엔진별 키" 매핑을 `common/dlc.py` 한 곳에 두고, 노트북은 의미만 넘깁니다.
 
 ```python
@@ -634,9 +634,9 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 ---
 
-## 노트북에서 드러난 실측 함정
+## 노트북 실행 중 확인한 문제
 
-아래 네 가지는 모두 이 프로젝트에서 실제로 발생한 문제이고, 지금은 코드로 막아 두었습니다.
+아래 네 문제는 이 프로젝트에서 재현했으며 현재 코드에 대응 로직을 반영했습니다.
 
 ### max_tokens 절단과 finish_reason
 
@@ -650,8 +650,8 @@ for piece in aws_utils.stream_sagemaker_chat(endpoint_name, msgs, region=REGION)
 
 256으로는 요약이 **문장 중간에서 끊겼고**, 에러도 경고도 나지 않았습니다. 512부터 모델이 스스로 종료합니다. 놓치기 쉬운 이유는 세 가지입니다.
 
-- **예외가 없습니다.** 잘린 응답도 정상 200 응답이라 코드가 그냥 통과합니다.
-- 노트북이 `print(pred[:400])` 처럼 출력까지 자르면 **이중으로 가려집니다**. 이 프로젝트가 실제로 그랬습니다(응답 1,262자 중 400자만 표시).
+- **예외가 발생하지 않습니다.** 잘린 응답도 HTTP 200으로 반환됩니다.
+- 노트북에서 `print(pred[:400])`처럼 일부만 출력하면 응답 절단 여부를 확인하기 더 어렵습니다. 초기 구현은 1,262자 중 400자만 표시했습니다.
   그래서 `common/display_utils.show_inference()`로 전체를 렌더링하도록 바꿨습니다.
 - 평가 지표에서는 더 위험합니다. 정답이 `max_tokens`보다 길면 예측이 구조적으로 잘려 **ROUGE/정확도가 실제보다 낮게** 나옵니다(모델 탓이 아닌데 모델을 의심하게 됩니다).
 
@@ -674,7 +674,7 @@ assert ch['finish_reason'] != 'length', '응답이 잘렸습니다: max_tokens�
 
 ### 추론 셀 73초: 68%는 데이터 로드
 
-멀티모달 추론 셀 한 번이 **73초**였습니다. 단계별로 재보니 범인이 추론이 아니었습니다.
+멀티모달 추론 셀의 전체 실행 시간은 **73초**였지만, 단계별 측정 결과 대부분은 추론이 아닌 데이터 로드에 사용됐습니다.
 
 | 단계 | 시간 | 비중 |
 |---|---|---|
@@ -694,7 +694,7 @@ cord-v2는 이미지가 parquet에 내장돼 있어 **첫 row 하나를 꺼내�
 
 반대로 **학습 컨테이너**처럼 "한 번만 읽고 버리는" 환경에서는 streaming이 맞습니다(디스크와 시간 절약). 캐시가 재사용되는지로 판단하세요.
 
-**검증용 이미지는 repository에 둡니다.** 배포 smoke test에는 이미지 1~2장이면 충분하므로 매번 데이터셋을 불러올 필요가 없습니다.
+**검증용 이미지는 저장소에 포함합니다.** 배포 smoke test에는 이미지 1~2장이면 충분하므로 매번 데이터셋을 불러올 필요가 없습니다.
 `tracks/05_multimodal_extraction/samples/`에 영수증 2장 + 정답 JSON(`ground_truth.json`)을 넣고 `track_data.load_sample_receipts()`로 읽습니다(**0.03초**).
 cord-v2는 CC BY 4.0이라 출처 표기 시 재배포가 가능합니다.
 
@@ -723,11 +723,10 @@ payload 크기는 무관했습니다. 1,853KB(PNG) → 64KB(축소 JPEG)로 **29
 
 그래서 멀티모달 셀은 `MAX_TOKENS=768`로 올렸습니다. 이미지도 JPEG(q85)로 보내 payload를 8배 줄였습니다(속도는 같지만 전송이 가벼움).
 
-!!! tip "교훈: 느리다를 추론 탓으로 단정하지 말 것"
-    "느리다"를 추론 탓으로 단정하지 말고 **단계별로 재세요**.
-    여기서는 68%가 데이터 로드였고, 게다가 진짜 문제(응답 절단)는 시간과 무관하게 숨어 있었습니다.
+!!! tip "지연 시간은 단계별로 측정하세요"
+    전체 실행 시간만으로 추론이 병목이라고 판단하지 마세요. 이 사례에서는 68%가 데이터 로드였고, 응답 절단은 지연 시간과 별개의 문제였습니다.
 
-### %store 전역 오염: 엉뚱한 endpoint 호출
+### %store 전역 값 오류: 다른 endpoint 호출
 
 요약 코스에서 추론했는데 이런 400 에러가 났습니다.
 
@@ -841,11 +840,11 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 전환이 자유롭다면 남는 질문은 "그래서 가장 빠른 것을 고르면 되는가"입니다.
 
-??? question "오해: “vLLM이 제일 빠르다니까 무조건 단독 vLLM이 정답 아닌가요?”"
+??? question "오해: “vLLM이 빠르면 항상 단독 vLLM을 선택해야 하나요?”"
     **그렇지 않습니다.** 엔진 성능과 **운영 총비용**은 서로 다른 축입니다. 단독 vLLM(BYOC)은 최신 기능을 유연하게 쓸 수 있지만, 그 대신 이미지와 SageMaker AI 규약과 보안 패치를 **직접** 책임져야 합니다.
-    관리 마찰을 줄이고 싶다면 AWS가 굽는 vLLM DLC나 LMI(내부 vLLM 백엔드)가 대체로 낫습니다. 같은 엔진을 관리형으로 쓰는 셈이기 때문입니다.
+    이미지 관리 부담을 줄이려면 AWS가 제공하는 vLLM DLC나 LMI의 vLLM backend를 선택할 수 있습니다.
 
-비용을 줄이려는 시도는 종종 엉뚱한 tier로 향합니다.
+비용을 줄이려다 워크로드와 맞지 않는 tier를 선택하는 경우도 있습니다.
 
 ??? question "오해: “Serverless로 싸게 LLM을 서빙하면 되지 않나요?”"
     **아닙니다.** 현시점의 SageMaker Serverless Inference에는 **GPU가 없습니다.** 따라서 LLM/SLM에는 부적합하며, 이 프로젝트의 기본은 real-time(GPU)입니다.
@@ -857,7 +856,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
     **아닙니다.** DLC는 **워크로드 컨테이너**로 EC2/ECS/EKS 등 어디서나 실행되며, 관리형 Job 전용이 아닙니다.
     또한 **DLAMI**(노드 호스트 이미지)와도 다른 레이어입니다. 본 문서의 vLLM DLC, LMI, TGI는 모두 DLC로 배포되는 컨테이너입니다.
 
-마지막은 컨테이너 선택과 롤아웃 방식을 같은 층으로 보는 착각입니다.
+컨테이너 선택과 rollout 방식도 서로 다른 설정입니다.
 
 ??? question "오해: “SageMaker AI 배포 가드레일(blue/green, canary, rolling)이 컨테이너 기능 아닌가요?”"
     **아닙니다.** 그 배포 가드레일은 **SageMaker AI endpoint의 배포 기능**이며 컨테이너 선택과는 무관합니다(그리고 HyperPod의 기능도 아닙니다).
@@ -870,7 +869,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 !!! danger "비용과 cleanup"
     **real-time endpoint는 삭제하기 전까지 시간당 GPU 요금이 부과됩니다.** 어떤 컨테이너를 골랐든 마찬가지입니다.
     실습이 끝나면 반드시 `99_cleanup`(또는 `predictor.delete_endpoint()`)을 실행하세요.
-    1-A(vLLM/SGLang)와 1-B(LMI)를 **둘 다** 돌리면 endpoint가 두 개가 되어 과금이 중복됩니다. 하나만 실행하세요.
+    1-A(vLLM/SGLang)와 1-B(LMI)를 모두 실행하면 endpoint별로 비용이 발생합니다. 필요한 경로 하나만 실행하세요.
 
 배포하거나 호출한 직후에 `common/aws_utils.cw_links()`가 CloudWatch/콘솔 다이렉트 링크를 출력해 주므로, 로그를 보면서 컨테이너 기동, OOM, 백엔드 로딩 상태를 확인할 수 있습니다.
 
@@ -883,7 +882,7 @@ speculative decoding은 **config 키만 넣는다고 동작하지 않습니다.*
 
 ---
 
-## 관련 리포지토리 파일
+## 관련 파일
 
 이미지와 서빙 설정:
 

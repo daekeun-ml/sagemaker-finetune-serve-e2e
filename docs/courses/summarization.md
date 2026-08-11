@@ -8,12 +8,12 @@
       SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
     - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 완주 절차는
-      [실행 runbook](../RUN_E2E.md)
+      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 전체 실행 절차는
+      [E2E 실행 가이드](../RUN_E2E.md)
     - **다른 코스**: 자유서술 답변은 [도메인 QA](domain_qa.md).
       대화체 요약(회의록과 상담 로그)은 시드를 바꿔야 합니다(아래 시드 절 참고)
 
-이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 파일입니다. 디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 초기 이름을 유지합니다.
 
 - `tracks/03_summarization/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/03_summarization/*.ipynb`: 이 코스의 노트북 9개
@@ -25,7 +25,7 @@
 
 ## 이 코스가 푸는 문제
 
-!!! abstract "쉽게 말하면"
+!!! abstract "입력과 출력"
     "이 긴 문서 요약해 줘"를 **전담하는 작은 모델**을 만듭니다. 입력은 문서 본문 하나, 출력은 요약 문장들뿐입니다. 라벨도 카테고리도 JSON 스키마도 없습니다.
     학습 데이터가 미국 연방 법안이므로 결과 모델의 어투는 "법안 요지 브리핑"에 가깝습니다. 사내 규정, 규약서, 보고서처럼 **형식이 정해진 긴 문서**를 다루는 작업에 가장 잘 맞고, 대화 로그 요약이나 회의록 같은 대화체에는 그대로 맞지 않습니다(아래 시드 절 참고).
 
@@ -60,7 +60,7 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
     반면 배포 후 호출부는 이 한 줄을 보내지 않습니다. `04_evaluate`, `05_agentic_strands`는 `gf.build_inference_messages(ex['input'], system_content=td.SYSTEM_PROMPT)`로 **system + 본문**만 보내고, `03_deploy_endpoint`는 `f'{td.SYSTEM_PROMPT}\n\n{user}'`를 씁니다. 지시문은 `SYSTEM_PROMPT`에 이미 들어 있어 실무상 큰 문제는 아니지만, "학습과 완전히 동일한 프롬프트"는 아니라는 뜻입니다. 파인튜닝 효과를 최대로 재려면 호출 시에도 같은 한 줄을 붙여 A/B로 비교해 보세요.
 
-    `02b_local_serve`의 예시 입력(`serve_example_user`)은 본문만, `03_deploy_endpoint`의 스모크 입력(`deploy_smoke_user`)은 같은 문서에 `"Summarize: "`를 붙인 형태라 두 표면형의 응답 차이를 `02b`의 3-D 셀에서 A/B로 볼 수 있습니다(`tracks/build_all_tracks.py`).
+    `02b_local_serve`의 예시 입력(`serve_example_user`)은 본문만 사용합니다. `03_deploy_endpoint`의 smoke test 입력(`deploy_smoke_user`)은 같은 문서 앞에 `"Summarize: "`를 붙입니다. `02b`의 3-D 셀에서 두 입력 형식의 응답을 비교할 수 있습니다(`tracks/build_all_tracks.py`).
 
 ---
 
@@ -68,10 +68,10 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 [`FiscalNote/billsum`](https://huggingface.co/datasets/FiscalNote/billsum): **cc0-1.0(public domain), ungated**라 HF 토큰이 필요 없습니다. `text`(법안 본문) + `summary`(사람이 쓴 요약) + `title` 구조이고, `load_seed_examples()`는 `train` 스플릿을 앞에서부터 순서대로 읽어 `input`/`output`이 모두 비어 있지 않은 것만 담습니다(셔플 없음 → 같은 인덱스가 항상 같은 예시).
 
-이 코스에서 실제로 물리는 지점은 **길이**입니다.
+이 코스에서는 입력과 출력 길이를 먼저 확인해야 합니다.
 
-- `track_data.MAX_DOC_CHARS = 6000`: 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. repository에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 이 코스의 학습 입력 길이는 데이터가 아니라 **이 상수가 결정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13%에 속하고, 상한에 걸리는 첫 행은 index 1입니다.
-- 정답 요약 길이는 시드 중앙 1,110자(최대 4,950자)인데, 합성으로 만든 200건은 중앙 515자(최대 850자)로 더 짧습니다. 합성이 시드보다 짧고 균질해지는 경향이 있으니 `01` 노트북의 EDA 표를 그냥 넘기지 마세요.
+- `track_data.MAX_DOC_CHARS = 6000`: 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. 저장소의 `data/train.jsonl`에 있는 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 이 코스의 학습 입력 길이는 데이터보다 **이 상수의 영향**을 크게 받습니다. 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13%에 속하고, 상한에 걸리는 첫 행은 index 1입니다.
+- 정답 요약 길이는 시드 중앙 1,110자(최대 4,950자)인데, 합성으로 만든 200건은 중앙 515자(최대 850자)로 더 짧습니다. 합성 데이터가 시드보다 짧고 균일해지는지 `01` 노트북의 EDA 표에서 확인하세요.
 - 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다. 잘림이 아니라 순수 지연이며, 그래서 이 프로젝트의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값)).
 
 !!! warning "법안 원문의 이중 백틱이 노트북 출력을 삼킵니다"
@@ -104,10 +104,10 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 | 노트북 | 결과 |
 |---|---|
 | `00_setup` | 자격증명, 리전, role 확인, 의존성 설치 |
-| `01_data_and_synthetic` | 시드 300건 + 합성 → `data/train.jsonl`(repository에 커밋된 버전은 500건), 토큰 길이 EDA |
+| `01_data_and_synthetic` | 시드 300건 + 합성 → `data/train.jsonl`(저장소에 포함된 버전은 500건), 토큰 길이 EDA |
 | `02_train_sft_sagemaker` | SageMaker AI Training Job(`scripts/train.py`, QLoRA) → 머지된 모델 artifact(S3), `%store md_summarization` |
 | `02b_local_serve` | **(선택)** 내 GPU의 vLLM로 preflight: 배포 5~15분 왕복을 줄입니다 |
-| `03_deploy_endpoint` | `gemma-summarization-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_summarization` |
+| `03_deploy_endpoint` | `gemma-summarization-vllm-<timestamp>` real-time endpoint + invoke smoke test. `%store ep_summarization` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
 | `05_agentic_strands` | `summarize_document` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
 | `06_agentcore_deploy` | AgentCore Runtime 배포 |
@@ -117,8 +117,8 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
     아닙니다. 의도적으로 없습니다. GRPO에는 **프로그램으로 채점되는 reward**가 필요하고 `scripts/train_grpo.py --reward_kind`가 받는 값은 `extraction`과 `classification` 둘뿐입니다. "좋은 요약"은 규칙으로 채점할 수 없어서 이 코스의 `TrackSpec`은 `grpo_reward_kind`가 비어 있고, 그러면 빌더가 `02a`를 생성하지 않습니다.
     LLM-judge를 reward로 쓸 수는 있지만 rollout마다 judge를 호출해야 해 비용과 시간이 급증하고 judge 편향이 학습에 섞입니다. 판단 근거는 [왜 추출과 분류 코스에만 GRPO가 있나](../03_finetuning.md#왜-추출과-분류-코스에만-grpo가-있나)에 있습니다.
 
-!!! tip "먼저 DRY_RUN=1로 한 바퀴 도세요"
-    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어들어 파이프라인 형태만 빠르게 검증합니다. 단계별 핸드오프와 비용 가드는 [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프)에 정리돼 있습니다.
+!!! tip "먼저 DRY_RUN=1로 데이터 흐름을 확인하세요"
+    `DRY_RUN=1`이면 시드 8건, 합성 6건, held-out 20건으로 줄어듭니다. SageMaker AI Training Job의 규모는 자동으로 줄지 않으므로 `MAX_TRAIN_SAMPLES`와 `EPOCHS`도 직접 조정하세요. 단계별 핸드오프와 비용은 [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프)에 정리돼 있습니다.
 
 ---
 
@@ -142,7 +142,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 !!! warning "이 코스에서 먼저 터진 두 가지"
     (1) **학습 Job이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, artifact에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)).
-    (2) **엉뚱한 endpoint를 불렀습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 에러가 났습니다. 요약 endpoint는 4096이라 정상인데도입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 오염](../05_serving_containers.md#store-전역-오염-엉뚱한-endpoint-호출)).
+    (2) **다른 코스의 endpoint를 호출했습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 오류가 발생했습니다. 요약 endpoint의 설정은 4096입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 값 오류](../05_serving_containers.md#store-전역-값-오류-다른-endpoint-호출)).
 
 ---
 
@@ -153,7 +153,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 - [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 re-export
 - [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조와 호출 스키마
 - [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
-- [실행 runbook](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 가드, 완료 기준
+- [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서, 비용 안내, 완료 기준
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.

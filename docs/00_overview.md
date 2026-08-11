@@ -30,19 +30,19 @@
 5. **실행 규율은 `DRY_RUN=1` 먼저**입니다. [파이프라인을 dry-run으로 확인](#실행-방법과-dry_run-규율)한 뒤 실제 실행으로 넘어가고, 끝나면 반드시 정리하세요([비용과 cleanup](#비용과-cleanup)).
 
 !!! tip "어디서부터 읽을까"
-    - **바로 손을 대고 싶다면** → [시작하기](getting_started.md)(설치 → 스모크 → dry-run → 노트북).
-    - **순서대로 완주하려면** → [실행 runbook](RUN_E2E.md)에 단계별 핸드오프, 비용, 체크리스트가 있습니다.
+    - **바로 실행하려면** → [시작하기](getting_started.md)(설치 → smoke test → dry-run → 노트북).
+    - **전체 과정을 순서대로 실행하려면** → [E2E 실행 가이드](RUN_E2E.md)에 단계별 핸드오프, 비용, 체크리스트가 있습니다.
     - **개념부터 잡으려면** → 배포/추론이 이 프로젝트의 핵심이므로 [SageMaker AI 추론](04_sagemaker_inference.md)을 먼저 보세요. 학습은 [파인튜닝](03_finetuning.md), 데이터는 [합성 데이터](02_synthetic_data.md)입니다.
 
 ---
 
 ## 기존 문제
 
-이 프로젝트가 없을 때 실제로 겪는 것들입니다.
+SageMaker AI에서 Gemma를 직접 학습하고 배포할 때는 다음 문제를 해결해야 합니다.
 
 - "Gemma를 SageMaker AI에서 파인튜닝→서빙"하는 예제는 여러 곳에 흩어져 있고, **버전과 이미지 태그가 오래된 경우가 많습니다**. 그대로 복사하면 컨테이너 resolve부터 실패합니다.
 - AWS 예제에는 DJL LMI, vLLM, HF DLC가 함께 등장하지만 **컨테이너 선택 기준이 명확하지 않아** 어디에 `model_data`를 연결할지 판단하기 어렵습니다.
-- **tier/서비스 혼동**도 흔합니다. "endpoint를 Bedrock으로 부른다", "Serverless로 LLM 띄운다", "학습은 JumpStart로" 같은 오해가 실습을 무너뜨립니다.
+- **tier와 서비스 경계**도 자주 혼동합니다. SageMaker endpoint를 Bedrock API로 호출하거나, GPU가 필요한 LLM을 Serverless endpoint에 배포하거나, JumpStart의 학습 지원 범위를 확인하지 않는 경우가 대표적입니다.
 - Gemma 특유의 함정(chat template의 system role 거부, fp16 NaN, packing cross-contamination)을 모르고 시작하면 **문제를 알아채기 어려운 학습 결과**가 나올 수 있습니다.
 - 합성 데이터를 teacher 그대로 만들고 **그걸로 평가**하면 성능을 과대평가하게 됩니다.
 
@@ -52,7 +52,7 @@
 
 ## 왜 이 구조인가
 
-!!! abstract "쉽게 말하면"
+!!! abstract "프로젝트 구성"
     이 프로젝트는 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
     부품(합성, 학습, 서빙, 평가)은 `common/`에 한 번만 작성해 두고, 코스는 데이터와 프롬프트만 갈아끼웁니다.
     멀티모달 코스만 이미지 입력이라 구조가 조금 다릅니다.
@@ -61,7 +61,7 @@
 
 "관리형이 EC2보다 비싸다"는 비교는 **총 소유비용(TCO) 중 인프라 비용 한 칸만** 놓고 이루어집니다. 아래 축별 선택보다 한 층 위에 있는 전제, 즉 **왜 관리형 티어인가**가 여기서 갈립니다.
 
-티어를 고를 때 사람들이 실제로 보는 축은 하나뿐입니다: **시간당 단가**. 그리고 그 비교에서 관리형이 지는 것은 사실입니다.
+티어를 비교할 때 **시간당 단가**를 먼저 보는 경우가 많습니다. 이 기준만 비교하면 관리형 서비스의 단가가 더 높을 수 있습니다.
 이 프로젝트가 쓰는 `ml.g6.2xlarge`를 SageMaker AI endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다.
 
 ??? info "단가는 직접 비교하세요"
@@ -71,7 +71,7 @@
 
 *자체 배포의 막대가 긴 이유는 단가가 아니라 칸 수입니다. 인프라 비용 위에 운영 비용과 규정 준수 비용이 더 얹힙니다.*
 
-그림 왼쪽의 세 문장은 이 프로젝트를 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다: **빠진 두 칸을 채우고 다시 비교하세요.**
+그림 왼쪽의 질문은 모두 같은 기준으로 판단할 수 있습니다. 인프라 비용뿐 아니라 운영 비용과 규정 준수 비용도 함께 비교해야 합니다.
 
 | 비용 칸 | 무엇이 들어가나 | 자체 배포(EC2/EKS)에서는 | 관리형(SageMaker AI)에서는 |
 |---|---|---|---|
@@ -79,7 +79,7 @@
 | **운영 비용** | GPU 드라이버, CUDA 업그레이드, `/ping` 상당의 health check와 로드밸런서 구성, 재시작, 롤백, 관측 스택, 당직 | 전부 내 몫. 그리고 이것은 **인건비라서 청구서에 안 보입니다** | 컨트롤 플레인이 AWS 몫. 내가 쓰는 것은 `.env` 값과 노트북 몇 줄 |
 | **규정 준수 비용** | guest OS 패치 적용, 감사 증적, 격리, 암호화 구성 | [공동 책임 모델](https://aws.amazon.com/compliance/shared-responsibility-model/) 기준으로 guest OS와 그 위의 소프트웨어 패치는 **고객 책임** | 호스트와 관리형 런타임은 AWS 책임. 내 몫은 이미지 태그를 올리는 것([운영 관점 비교](01_sagemaker_basics.md#운영-관점-비교)의 「보안 패치, 규정 준수」 행) |
 
-그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 프로젝트의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
+그림 오른쪽 아래에는 비교할 항목을 비용, 성능, 복잡성으로 나눴습니다. 이 프로젝트에서는 각 항목을 다음과 같이 확인합니다.
 
 - **비용**: 모델 호스팅 비용, 운영 오버헤드, **배포와 관리해야 할 모델 수**.
 
@@ -146,7 +146,7 @@
 
 ## E2E 파이프라인 (텍스트 코스 7단계)
 
-!!! abstract "쉽게 말하면"
+!!! abstract "파이프라인 흐름"
     문제를 정하고 → 데이터를 만들고 → 학습하고 → 띄우고 → 에이전트로 감싸고 → 채점하는 흐름입니다.
     각 단계가 노트북 하나에 대응합니다. 아래는 텍스트 코스(01~04) 기준이고,
     멀티모달 코스 05는 더 짧은 별도 파이프라인입니다.
@@ -162,7 +162,7 @@
 
 !!! danger "합성과 학습셋으로 평가하지 마세요"
     증강 이전 seed에서 **held-out을 먼저 분리**한 뒤 나머지만 합성으로 늘립니다.
-    합성 데이터나 학습셋으로 채점하면 지표가 조용히 부풀고, 그 수치를 근거로 배포 결정을 내리게 됩니다.
+    합성 데이터나 학습셋으로 채점하면 성능을 실제보다 높게 평가할 수 있습니다.
     분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율-합성으로-평가-금지)에 있습니다.
 
 ### 멀티모달 코스 05의 별도 파이프라인
@@ -273,7 +273,7 @@
 
 | 프리셋 (`MODEL_SIZE`) | 모델 ID | 성격 | 프리셋 인스턴스 | transformers 요건 |
 |---|---|---|---|---|
-| `E2B` | `google/gemma-4-E2B-it` | effective 2.3B(on-disk 5.12B, PLE가 46.7%). KV-sharing 있음. 계열 최소라 스모크 테스트에 적합 | `ml.g5.2xlarge` | >= 5.5.0 |
+| `E2B` | `google/gemma-4-E2B-it` | effective 2.3B(on-disk 5.12B, PLE가 46.7%). KV-sharing 있음. 계열 최소라 smoke test에 적합 | `ml.g5.2xlarge` | >= 5.5.0 |
 | **`E4B`** (기본) | `google/gemma-4-E4B-it` | effective 4.5B(PLE 포함 ~8B). KV-sharing 있음. 단일 L4 24GB QLoRA 여유 | `ml.g5.2xlarge` | >= 5.5.0 |
 | `12B` | `google/gemma-4-12B-it` | 11.95B dense, unified arch | `ml.g5.12xlarge` | >= 5.10.1 |
 | `26B-A4B` | `google/gemma-4-26B-A4B-it` | MoE total 25.2B / active 3.8B, 128 experts. audio 미지원(vision만) | `ml.g5.12xlarge` | >= 5.5.0 |
@@ -336,7 +336,7 @@ pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전
 
 ### 환경변수 주입
 
-시크릿과 계정 ID, 절대경로는 하드코딩하지 않습니다. repository에 포함된 `.env`는 **설정만 담기 때문에 커밋됩니다**. 개인 값은 `.env.local`(gitignore)에 두세요.
+secret, account ID, absolute path는 하드코딩하지 않습니다. 저장소의 `.env`에는 공용 설정만 두며, 개인 값은 `.env.local`(gitignore)에 저장하세요.
 
 ```bash
 export AWS_REGION=us-west-2                              # config 기본값. 리전 재확인 후 사용
@@ -382,7 +382,7 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 | [05 서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM, 절단 대응 | `03_deploy_endpoint`, `02b_local_serve` | `common/dlc.py`, `common/model_inspect.py` |
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
 | [속도 측정](benchmark.md) | TTFT/TPOT/ITL/E2EL을 `vllm bench serve` 규약으로. Inference Recommender는 토큰 단위 지표를 주지 않습니다 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
-| [실행 runbook](RUN_E2E.md) | 단계별 핸드오프, 비용 가드, 완료 기준 | 전 단계 | - |
+| [E2E 실행 가이드](RUN_E2E.md) | 단계별 핸드오프, 비용 안내, 완료 기준 | 전 단계 | - |
 | [SDK V3](sdk_v3/index.md) | V2→V3 매핑, metapackage 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
 
 위 표의 가이드는 **주제별**(데이터, 학습, 배포, 에이전트)이라 5개 코스에 공통으로 적용됩니다. **코스별**로 무엇이 다른지는 코스 문서 5개가 따로 다루며, [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)의 표에서 연결됩니다.
@@ -408,7 +408,7 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 ## 자주 나오는 오해
 
-앞에서 다루지 않은, 프로젝트 전체를 볼 때 자주 나오는 착각들입니다.
+앞에서 다루지 않은 오해를 정리합니다.
 
 ??? question "오해: “AWS 예제는 다 DJL LMI인데, 이 프로젝트는 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
