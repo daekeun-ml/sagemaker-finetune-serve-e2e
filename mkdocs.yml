@@ -1,5 +1,5 @@
 site_name: SageMaker AI Fine-tuning & Serving E2E
-site_description: Gemma 4를 Amazon SageMaker AI에서 합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop까지 잇는 한국어 핸즈온
+site_description: Gemma 4를 Amazon SageMaker AI에서 합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop까지 잇는 한국어 hands-on 가이드
 site_url: https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/
 repo_url: https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e
 repo_name: daekeun-ml/sagemaker-finetune-serve-e2e
@@ -113,7 +113,7 @@ extra_css:
 
 extra:
   # 모든 페이지 하단 푸터에 아이콘으로 붙습니다(Material 기본).
-  # 🔴 이 리포 링크는 넣지 않습니다: repo_url 로 이미 우측 상단 헤더에 있고,
+  # 이 repository 링크는 넣지 않습니다: repo_url로 이미 우측 상단 header에 있고,
   #    푸터에 또 두면 GitHub 아이콘이 두 개가 되어 어느 쪽이 저자 계정인지 구분되지 않습니다.
   #    여기는 저자 프로필만 둡니다.
   social:

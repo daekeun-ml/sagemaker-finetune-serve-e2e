@@ -27,8 +27,6 @@
 
 폴더 이름과 코드 식별자(`tracks/`, `TRACKS`, `track_data.py`)는 초기 이름인 `track`을 그대로 쓰고 있습니다. 이 문서에서 말하는 **코스**와 같은 것을 가리킵니다.
 
-정리하면 다음과 같습니다.
-
 1. **코스 하나가 완결된 E2E입니다.** 5개 코스는 서로 독립이므로 한 코스를 끝내고 정리한 뒤 다음 코스로 옮기세요([5개 코스를 모두 돌리려면](#5개-코스를-모두-돌리려면)).
 2. **핸드오프는 `%store`와 코스 로컬 파일로 이어집니다.** 어느 노트북이 무엇을 만들어 넘기는지는 [단계별 실행과 데이터 핸드오프](#단계별-실행과-데이터-핸드오프)의 표에 정리했습니다.
 3. **두 번 완주가 정석입니다.** 1차는 `DRY_RUN=1`, 2차는 실제 규모입니다([왜 두 번 완주하는가](#왜-두-번-완주하는가-dry_run-우선)).
@@ -38,18 +36,18 @@
 
 ---
 
-## 기존 Pain Point
+## 기존 문제
 
 완주를 시도한 사람이 실제로 자주 겪는 것들입니다.
 
 - "노트북이 10개인데 **어디서 시작해서 어디서 끝나는 건가요?**": 코스마다 선택 단계가 섞여 있어 필수 경로가 안 보입니다.
 - "`02`에서 `train_path`가 없다고 합니다.": 앞 노트북을 건너뛰었거나, `%store` 값이 **다른 코스 것**입니다.
-- "학습 Job이 `Completed`인데 **배포가 안 됩니다.**": 머지 단계가 시간 제한에 잘려 서빙용 모델이 아티팩트에 없습니다.
+- "학습 Job이 `Completed`인데 **배포가 안 됩니다.**": 머지 단계가 시간 제한에 잘려 서빙용 모델이 artifact에 없습니다.
 - "설정을 건드리지 않았는데 **endpoint가 `Failed`로 끝났어요.**": 24GB GPU에서 엔진 기본값이 메모리를 넘겼습니다.
 - "**얼마 나올지 모르겠어서** 시작이 무섭습니다.": 무엇이 상시 과금이고 무엇이 호출당 과금인지 구분이 안 됩니다.
 - "테스트만 했는데 **다음 날 청구서가 왔습니다.**": endpoint를 지우지 않았습니다.
 
-이 runbook은 위 여섯 가지를 실행 순서 안에서 하나씩 막습니다.
+아래 실행 순서에는 이 여섯 가지를 방지하는 검증 단계가 포함되어 있습니다.
 
 ---
 
@@ -72,12 +70,12 @@
 ### DRY_RUN이 바꾸는 것 3가지
 
 1. **합성과 시드 건수**: `01_data_and_synthetic`이 시드 8건, 합성 6건으로 줄입니다(`config.is_dry_run()`).
-    평상시 값은 `NUM_SEED_SAMPLES=300`, `NUM_SYNTHETIC`(config 기본 200, 이 리포의 `.env`는 100)입니다.
+    평상시 값은 `NUM_SEED_SAMPLES=300`, `NUM_SYNTHETIC`(config 기본 200, repository에 포함된 `.env`는 100)입니다.
 2. **평가 건수**: `04_evaluate`가 `N_EVAL=20`으로 축소합니다.
 3. **로컬 학습 규모**: `train.py --dry_run`이 epoch 1, `max_seq_length ≤ 512`, 최대 32행으로 자릅니다.
 
 !!! warning "SageMaker AI 학습 Job 규모는 DRY_RUN이 줄이지 않습니다"
-    `02_train_sft_sagemaker`가 제출하는 클라우드 학습 Job의 크기는 노트북 안의 `MAX_TRAIN_SAMPLES`(핸즈온 기본 200)와 `EPOCHS`(기본 2)가 결정합니다.
+    `02_train_sft_sagemaker`가 제출하는 클라우드 학습 Job의 크기는 노트북 안의 `MAX_TRAIN_SAMPLES`(hands-on 기본 200)와 `EPOCHS`(기본 2)가 결정합니다.
     `DRY_RUN`은 데이터 준비, 평가, 로컬 dry-run에만 걸리므로, 클라우드 학습 비용을 줄이려면 이 두 값을 직접 낮추세요.
 
 그래서 1차 완주도 "무료 리허설"은 아닙니다. 무엇이 실제로 과금되는지는 다음 착각에서 갈립니다.
@@ -95,7 +93,7 @@
 
 | | 노트북 (`tracks/`) | 스크립트 (`pipelines/`) |
 |---|---|---|
-| 적합 | 처음 배울 때, 중간 산출물을 눈으로 볼 때, 질의를 바꿔가며 볼 때 | 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현 |
+| 적합 | 처음 배울 때, 중간 결과를 확인할 때, 질의를 바꿔가며 볼 때 | 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현 |
 | 실행 | JupyterLab에서 셀 순서대로 | `python pipelines/run_extraction.py --stages all` |
 | 단계 전달 | `%store` (IPython 전용, **전역**) | 코스별 JSON 파일 (`.pipeline_state/`) |
 | 설정 | 노트북 셀 상수 + `.env` | `config.yaml` + env(시크릿만) |
@@ -129,19 +127,19 @@ python pipelines/run_extraction.py --stages deploy,eval
                                         (선택) 02a_train_grpo              ▼
                                         (선택) 02b_local_serve
                         04_evaluate ──▶ 05_agentic_strands ──▶ 06_agentcore_deploy
-                        (held-out 점수)   (SLM+Claude 루프)       (프로덕션 배포)
+                        (held-out 점수)   (SLM+Claude 루프)       (production 배포)
                                                                           │
                                                                           ▼
                                                                      99_cleanup
 ```
 
 - **(선택) `02a_train_grpo_sagemaker`**(SFT→GRPO 정련)는 리워드를 프로그램으로 채점할 수 있는 **추출과 분류 코스에만** 있습니다.
-- **(선택) `02b_local_serve`**(배포 전 로컬 vLLM 프리플라이트)는 4개 텍스트 코스 모두에 있습니다.
+- **(선택) `02b_local_serve`**(배포 전 로컬 vLLM preflight)는 4개 텍스트 코스 모두에 있습니다.
 - 평가는 `04_evaluate`(로컬 메트릭, 빠름, 저렴) 한 경로입니다.
 
 ??? info "관리형 evaluator를 쓰지 않는 이유"
     SDK v3의 관리형 evaluator(`BenchMarkEvaluator`/`CustomScorerEvaluator`/`LLMAsJudgeEvaluator`)는 **SageMaker Public Hub에 평가 레시피가 등록된 모델(Amazon Nova, 일부 JumpStart)** 전용입니다.
-    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)에는 쓸 수 없습니다. 실측하면 `DescribeHubContent ... does not exist`로 떨어집니다.
+    gemma-4 custom fine-tuning artifact(S3 checkpoint)에는 쓸 수 없습니다. 실측하면 `DescribeHubContent ... does not exist`로 실패합니다.
 
 ### 멀티모달 코스 (05) 파이프라인
 
@@ -189,7 +187,7 @@ export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 콘솔에서
 export DRY_RUN=1             # 첫 완주는 1로 (저비용 파이프라인 검증)
 ```
 
-VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 env로 자동 주입됩니다(인스턴스 타입과 DLC 이미지 URI, 리전, 합성 건수 등 설정값). 시크릿은 `.env`에 넣지 말고 셸 export나 `hf auth login`을 쓰세요.
+VS Code로 이 repository 폴더를 workspace로 열면 `.env`가 kernel env로 자동 주입됩니다(인스턴스 타입과 DLC 이미지 URI, 리전, 합성 건수 등 설정값). secret은 `.env`에 넣지 말고 shell export나 `hf auth login`을 쓰세요.
 
 !!! tip "LiteLLM이 필요하면 별도 환경에"
     agentic 단계는 Bedrock을 boto3로 직접 호출하므로 **LiteLLM 없이 완결됩니다**. `common/llm_gateway.py`(LiteLLM 경유)가 필요하면 별도 환경에 설치하세요(`uv pip install -e '.[litellm]'`, 현재 하한 `litellm>=1.75.9`).
@@ -207,11 +205,11 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 | ② | `01_data_and_synthetic` | 시드 로드 + grounded 합성 + EDA | 코스 로컬 파일 `data/train.jsonl` | JSONL 생성, 포맷, 토큰 길이 미리보기 정상 |
 | ③ | `02_train_sft_sagemaker` | (선택 로컬 dry-run →) [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) 기반 SageMaker AI 학습 Job | `%store`: `model_data`, `md_<track_key>` | Job `Completed`, CloudWatch 링크 |
 | ③-a | (선택) `02a_train_grpo_sagemaker` | SFT→GRPO 정련: **추출, 분류 코스만** | `model_data` 갱신 | Job `Completed` |
-| ③-b | (선택) `02b_local_serve` | 배포 전 로컬 vLLM 프리플라이트 | (없음) | 로컬 invoke 응답 정상 |
+| ③-b | (선택) `02b_local_serve` | 배포 전 로컬 vLLM preflight | (없음) | 로컬 invoke 응답 정상 |
 | ④ | `03_deploy_endpoint` | [real-time endpoint](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) 배포 + invoke 스모크 | `%store`: `endpoint_name`, `ep_<track_key>` | `InService` 도달, invoke 응답 정상 |
 | ⑤ | `04_evaluate` | held-out 세트로 성공기준 수치화 | (없음) | 지표 출력(`arg_f1`/`macro_f1`/ROUGE-L/judge) |
 | ⑥ | `05_agentic_strands` | SLM(tool) + Bedrock Claude 루프 ([Strands](https://github.com/strands-agents/sdk-python)) | (없음) | 에이전트 응답 정상 |
-| ⑦ | `06_agentcore_deploy` | [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) 배포(프로덕션) | (없음) | (선택) Runtime 호출 성공 |
+| ⑦ | `06_agentcore_deploy` | [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) 배포(production) | (없음) | (선택) Runtime 호출 성공 |
 | ⑧ | `99_cleanup` | endpoint, config, model, Runtime 삭제 | (없음) | 이 코스 endpoint 목록이 비어 있음 |
 
 학습 Job과 endpoint 생성은 **SageMaker AI 서버에서 진행되므로 커널이나 세션이 끊겨도 계속됩니다.**
@@ -219,11 +217,11 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
 
 ### 단계별 주의
 
-- **② 합성**: `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, 이 리포의 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다.
+- **② 합성**: `NUM_SYNTHETIC`가 Bedrock 호출량, 즉 비용을 좌우합니다. config 기본값은 200이고, repository에 포함된 `.env`는 요약 코스 지연 때문에 100으로 낮춰 두었습니다.
     합성 전에 토큰 길이 EDA를 꼭 보세요. 학습이 자르는 단위는 문자가 아니라 토큰이고, 한국어와 JSON은 문자당 토큰 수가 영어의 몇 배입니다.
 - **③ 학습**: `stopping_condition`을 **반드시 명시**하세요. 생략하면 SDK 기본 1시간이 붙습니다.
     [StoppingCondition API 문서](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_StoppingCondition.html)가 적는 API 기본값 1일과는 다릅니다.
-    학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 폴백합니다.
+    학습 이미지는 `.env`의 `DLC_IMAGE_URI`(완전 URI)를 `common/dlc.py`가 그대로 씁니다. env가 없으면 `DLC_REPOSITORY`+`DLC_TAG` 조립 → 라이브러리 버전 조합 순으로 fallback합니다.
     태그는 자주 갱신되므로 실행 직전에 [DLC available images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 현행 태그를 확인하세요.
     첫 실행은 용량 대기(Pending)와 이미지 pull(Downloading) 때문에 시작이 느립니다(실측 각 6분과 3분).
 - **④ 배포**: 기본 경로는 **vLLM DLC(`SERVING_ENGINE=vllm`)** 이고, `sglang`(같은 셀에서 처리) 또는 `lmi`(`OPTION_*` env)로 전환할 수 있습니다.
@@ -234,7 +232,7 @@ VS Code로 이 리포 폴더를 워크스페이스로 열면 `.env`가 커널 en
     `pool[-N:]` 방식은 위험합니다(예: `N_EVAL=50`이면 150건만 로드되어 held-out이 학습 구간 안쪽에 통째로 들어갑니다).
 - **⑥/⑦ agentic**: endpoint와 Bedrock이 **이중으로 과금**됩니다.
     endpoint는 `sagemaker-runtime`, Bedrock은 `bedrock-runtime`의 [`converse`](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)로 SageMaker AI와 **별개 서비스**입니다.
-    AgentCore는 GA 상태와 리전을 재확인하세요([프로덕션 배포](06_agentic.md#프로덕션-배포-agentcore-runtime)).
+    AgentCore는 GA 상태와 리전을 재확인하세요([production 배포](06_agentic.md#production-배포-agentcore-runtime)).
 - **⑧ 정리**: 중간에 멈추더라도 endpoint가 떠 있으면 `99_cleanup`이 먼저입니다. 그러지 않으면 계속 과금됩니다.
 
 ??? info "②에서 `NUM_SYNTHETIC`를 100으로 낮춘 근거"
@@ -284,16 +282,16 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증, gemma-4 vi
 | 증상 | 원인과 해결 |
 |---|---|
 | `02`에서 `train_path`/`data/train.jsonl` 없음 | `01`을 실행하지 않았습니다. 코스 내 노트북은 **순서대로** 실행하세요 |
-| 다른 코스 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 아티팩트를 걸러 줍니다 |
+| 다른 코스 endpoint를 호출하거나 옛 모델이 배포됨 | `%store` 전역 키 오염 → 코스 전용 키(`ep_<track_key>`, `md_<track_key>`)를 쓰고, 리전을 바꿨다면 `aws_utils.ensure_model_data_in_region()`이 옛 리전 artifact를 걸러 줍니다 |
 | 학습 Job이 시작 직후 실패 | IAM role 권한(S3/ECR) 또는 DLC 태그 문제 → CloudWatch 로그 확인, `.env`의 `DLC_IMAGE_URI` 리전, 태그 재확인(`aws ecr describe-images`). 권한이 제출 시점에 안 걸리고 여기서 터지는 구조는 [실행 role이 매개하는 것](01_sagemaker_basics.md#실행-role로-무엇을-하는가-s3와-ecr-접근) |
-| 학습이 끝났는데 Job이 `Stopped`, 아티팩트에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). 실측에서는 Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료됐고, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
+| 학습이 끝났는데 Job이 `Stopped`, artifact에 머지 모델이 없음 | `stopping_condition` 생략 시 붙는 SDK 기본 1시간(`MaxRuntimeExceeded`)에 머지 단계가 잘렸습니다 → `MAX_RUNTIME_HOURS`를 명시(기본 4시간). 실측에서는 Pending 6분 + Downloading 3분 + Training 55분(189 step 전부 완료) 후 머지 도중 종료됐고, `FailureReason`은 비어 있습니다. 상세는 [파인튜닝](03_finetuning.md) |
 | `InsufficientInstanceCapacity`로 Job이 안 뜸 | 리전별 GPU 용량 문제 → `AWS_REGION`을 바꿔 재시도(`.env`의 DLC URI 리전도 함께 변경) |
 | endpoint가 `Failed`, 이유는 `did not pass the ping health check`뿐 | 대개 CUDA OOM입니다. 24GB GPU(L4)에서 vLLM 기본 `max_num_seqs=256`이 샘플러 logits 버퍼를 `256 × 262,144 × 4B = 256 MiB`로 잡아 터집니다 → `serving_env()` 기본값(`max_num_seqs=32`, `gpu_memory_utilization=0.90`)을 유지하고 CloudWatch endpoint 로그를 확인하세요([24GB GPU CUDA OOM](04_sagemaker_inference.md#24gb-gpu-cuda-oom-max_num_seqs-기본값)) |
 | gated 모델 다운로드 401 | HF 약관 미수락 또는 토큰 없음 → `MODEL_IS_GATED=1` + `HF_TOKEN`(또는 `hf auth login`), 아니면 ungated `google/gemma-4-E4B-it`을 쓰세요 |
 | Bedrock `converse` 400 | 모델 ID가 base(접두사 없음)이거나 액세스 미승인 → inference-profile ID(`us.`/`global.` 등) 사용 + 콘솔에서 액세스 활성화 |
 | endpoint invoke 응답이 반복되거나 저품질 | raw 텍스트를 보내 chat template이 빠졌습니다 → `messages` 스키마로 보내 **서버가 template을 적용**하게 하세요(`aws_utils.invoke_sagemaker_chat`) |
 | 응답이 중간에 끊김 | `max_tokens` 부족 → `finish_reason`을 확인하세요([max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)) |
-| speculative decoding이 켜지지 않음 | 이 kit 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고** 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([Speculative decoding (EAGLE3 / P-EAGLE)](05_serving_containers.md#speculative-decoding-eagle3--p-eagle)) |
+| speculative decoding이 켜지지 않음 | 이 프로젝트 노트북에는 배선돼 있지 않습니다. 컨테이너 설정 키는 vLLM DLC `SM_VLLM_SPECULATIVE_CONFIG` / LMI `OPTION_SPECULATIVE_CONFIG`이며, **Gemma용 P-EAGLE head는 AWS가 공개하지 않았고** 커뮤니티 EAGLE3 head는 fine-tuned target과의 정합성을 직접 실측해야 합니다([Speculative decoding (EAGLE3 / P-EAGLE)](05_serving_containers.md#speculative-decoding-eagle3--p-eagle)) |
 | `litellm` import 오류 | 코어에 미포함(sagemaker와 `importlib-metadata` 충돌) → 별도 환경에 설치 |
 | 비용이 계속 나감 | endpoint 또는 AgentCore Runtime 미삭제 → `99_cleanup` 실행 + 콘솔에서 확인 |
 
@@ -303,11 +301,11 @@ tracks/05_multimodal_extraction/ (이미지→JSON 추출, 영수증, gemma-4 vi
 
 한 코스 E2E가 "됐다"고 말할 수 있는 조건입니다.
 
-- [ ] `02` 학습 Job이 `Completed`이고, 아티팩트 루트에 **머지된 서빙용 모델**이 있음(어댑터만 있으면 배포되지 않습니다)
+- [ ] `02` 학습 Job이 `Completed`이고, artifact 루트에 **머지된 서빙용 모델**이 있음(어댑터만 있으면 배포되지 않습니다)
 - [ ] `03` invoke 스모크가 의미 있는 출력을 반환
 - [ ] `04_evaluate` 지표가 나옴 (가능하면 파인튜닝 전 baseline과 비교해 개선 폭 확인)
 - [ ] (선택) `05_agentic_strands`에서 Claude가 SLM endpoint를 tool로 호출하는 왕복이 성공
-- [ ] (프로덕션 목표 시) `06_agentcore_deploy`로 Runtime 배포 확인
+- [ ] (production 목표 시) `06_agentcore_deploy`로 Runtime 배포 확인
 - [ ] `99_cleanup` 실행 → 이 코스 prefix의 endpoint 목록이 비어 있고, 콘솔에서도 0개
 
 ---
@@ -334,8 +332,8 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 각 노트북은 학습과 배포 직후 **CloudWatch 다이렉트 링크**를 출력합니다(`common/aws_utils.cw_links()`). Job 로그, endpoint 기동, OOM, Bedrock 호출량을 여기서 실시간으로 볼 수 있습니다.
 
 ??? question "오해: “endpoint를 호출하지 않으면 요금도 안 나오죠?”"
-    **아닙니다.** real-time endpoint는 호출 여부와 무관하게 **provisioned 인스턴스가 시간당** 과금됩니다. 오토스케일도 통상 최소 1대는 유지합니다.
-    쓰지 않는다면 삭제가 정답입니다. 비용 관점의 전체 비교는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 있습니다.
+    **아닙니다.** real-time endpoint는 호출 여부와 무관하게 **provisioned 인스턴스가 시간당** 과금됩니다. auto scaling을 설정해도 통상 최소 1대는 유지합니다.
+    사용하지 않는 endpoint는 삭제해야 합니다. 비용 관점의 전체 비교는 [비용과 cleanup](04_sagemaker_inference.md#비용과-cleanup)에 있습니다.
 
 ---
 
@@ -344,7 +342,7 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 설정과 공통 유틸:
 
 - `common/config.py`: 전역 설정 로더. `MODEL_SIZE` 프리셋, `SERVING_ENGINE`, `is_dry_run()`, `TRACKS` 레지스트리
-- `common/dlc.py`: DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 폴백)과 서빙 env 생성(`serving_env`)
+- `common/dlc.py`: DLC 이미지 URI 해석(`DLC_IMAGE_URI` → `DLC_REPOSITORY`+`DLC_TAG` → 버전 조합 fallback)과 서빙 env 생성(`serving_env`)
 - `common/aws_utils.py`: endpoint 호출(`invoke_sagemaker_chat`), CloudWatch 링크(`cw_links`),
     리전 정합성 검사(`ensure_model_data_in_region`), 비용 경고(`COST_WARNING`)
 - `.env`: 인스턴스 타입과 DLC 이미지 URI, 리전, 합성 건수 등 비시크릿 설정값
@@ -352,7 +350,7 @@ model 이름은 `ModelBuilder`가 `model-42c30d1e`처럼 자동 생성하므로 
 학습 스크립트(코스 폴더에 자족적으로 들어 있음):
 
 - `tracks/*/scripts/train.py`: SFT + LoRA/QLoRA 학습, 머지 후 텍스트 re-export
-- `tracks/*/scripts/train_grpo.py`: SFT 산출물을 reward 함수로 정련하는 GRPO 학습(추출과 분류 코스만)
+- `tracks/*/scripts/train_grpo.py`: SFT artifact를 reward 함수로 정련하는 GRPO 학습(추출과 분류 코스만)
 - `tracks/05_multimodal_extraction/scripts/train_mm.py`: 멀티모달 SFT(`AutoProcessor` + vision 동결, 텍스트 re-export 없음)
 
 평가와 정리:

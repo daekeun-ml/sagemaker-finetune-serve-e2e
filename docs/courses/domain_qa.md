@@ -13,13 +13,13 @@
     - **다른 코스**: 긴 문서 요약은 [요약](summarization.md).
       검색기를 붙이는 RAG는 이 코스 위에 얹는 별도 작업입니다(아래 "오해" 노트 참고)
 
-이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/04_domain_qa/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/04_domain_qa/*.ipynb`: 이 코스의 노트북 9개
 - `common/config.py`: `TRACKS['domain_qa']` 레지스트리(시드 데이터셋, `max_seq_length=1024`)
 - `common/eval_utils.py`: `eval_rouge()` + `llm_judge()`
-- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙과 생성 길이, GRPO reward 종류)
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(endpoint prefix, serving과 생성 길이, GRPO reward 종류)
 
 ---
 
@@ -65,7 +65,7 @@ output: Tope
 학습 시점에는 `to_messages()`가 이 쌍을 2턴 `messages`로 바꿉니다. 이때 `SYSTEM_PROMPT`("You are a helpful domain assistant. Answer the user's instruction. If context is provided, ground your answer in it and do not contradict it.")는 **system role이 아니라 첫 user 턴 앞에 병합**됩니다. Gemma chat template이 system role을 거부하기 때문입니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오해: “context가 있으니 RAG 코스 아닌가요?”"
-    아닙니다. 이 코스는 **검색 단계가 없습니다.** context는 데이터셋이 이미 붙여 준 문단이고, 모델이 배우는 것은 "주어진 문단에 근거해 답하기"입니다. 검색기를 붙이는 것은 이 코스 위에 얹는 별도 작업이며, 이 kit의 노트북에는 포함되지 않았습니다.
+    아닙니다. 이 코스는 **검색 단계가 없습니다.** context는 데이터셋이 이미 붙여 준 문단이고, 모델이 배우는 것은 "주어진 문단에 근거해 답하기"입니다. 검색기를 붙이는 것은 이 코스 위에 얹는 별도 작업이며, 이 프로젝트의 노트북에는 포함되지 않았습니다.
 
 ---
 
@@ -89,7 +89,7 @@ output: Tope
     `pool[-N_EVAL:]` 같은 방식은 쓰지 않습니다. 넉넉히 로드하지 않으면 held-out이 학습 구간(0~299) **안쪽**에 들어가 점수가 부풀려집니다. 배경은 [held-out 규율](../02_synthetic_data.md#held-out-규율-합성으로-평가-금지)에 있습니다.
 
 !!! danger "CC-BY-SA는 파생물로 전파됩니다"
-    dolly는 cc-by-sa-3.0(share-alike)입니다. 이 데이터로 학습한 어댑터와 머지 모델과 합성 데이터를 **배포**할 때 share-alike 의무가 따라붙습니다. 사내 실습으로 끝낼 것인지, 외부 배포까지 갈 것인지에 따라 시드를 다시 고르는 편이 나을 수 있습니다(이 kit의 다른 코스 시드는 apache-2.0 / mit / cc0-1.0 / cc-by-4.0입니다).
+    dolly는 cc-by-sa-3.0(share-alike)입니다. 이 데이터로 학습한 어댑터와 머지 모델과 합성 데이터를 **배포**할 때 share-alike 의무가 따라붙습니다. 사내 실습으로 끝낼 것인지, 외부 배포까지 갈 것인지에 따라 시드를 다시 고르는 편이 나을 수 있습니다(이 프로젝트의 다른 코스 시드는 apache-2.0 / mit / cc0-1.0 / cc-by-4.0입니다).
 
 ---
 
@@ -110,12 +110,12 @@ output: Tope
 
 이 코스의 노트북은 **9개**입니다. 텍스트 코스의 표준 세트와 같고, **`02a_train_grpo_sagemaker`만 없습니다**(`02a`를 갖는 것은 추출과 분류 코스 둘뿐이라 그 두 코스만 10개입니다).
 
-| 노트북 | 산출물 |
+| 노트북 | 결과 |
 |---|---|
 | `00_setup` | 자격증명, 리전, role 확인, 의존성 설치 |
 | `01_data_and_synthetic` | dolly 시드 300건 + grounded 합성 → `data/train.jsonl`(`messages` 포맷) |
-| `02_train_sft_sagemaker` | `scripts/train.py`를 SageMaker AI 학습 Job으로 실행 → 머지된 모델 아티팩트(S3), `%store md_domain_qa` |
-| `02b_local_serve` | **(선택)** 로컬 vLLM으로 프리플라이트: 클라우드 배포 전 30초 검증 |
+| `02_train_sft_sagemaker` | `scripts/train.py`를 SageMaker AI 학습 Job으로 실행 → 머지된 모델 artifact(S3), `%store md_domain_qa` |
+| `02b_local_serve` | **(선택)** 로컬 vLLM으로 preflight: 클라우드 배포 전 30초 검증 |
 | `03_deploy_endpoint` | `gemma-domainqa-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_domain_qa` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
 | `05_agentic_strands` | `answer_domain_question` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |

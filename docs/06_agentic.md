@@ -14,16 +14,16 @@
 
 이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다.
 
-"본문은 코스라고 하는데 코드는 왜 `track`인가?": 같은 것입니다.
+본문의 "코스"와 코드의 `track`은 같은 대상을 가리킵니다.
 
-- **코스**는 이 kit의 **태스크별 실습 코스**입니다. 하나의 태스크를 데이터 준비부터 학습, 배포, 평가, 정리까지 완주하는 실습 단위이고, 모두 다섯 개입니다.
+- **코스**는 이 프로젝트의 **태스크별 실습 코스**입니다. 하나의 태스크를 데이터 준비부터 학습, 배포, 평가, 정리까지 완주하는 실습 단위이고, 모두 다섯 개입니다.
 - 디렉터리는 초기 이름을 그대로 둬서 `tracks/`이고, `track_data`, `--track` 같은 코드 식별자도 바뀌지 않았습니다.
 
 이 문서와 관련된 리포지토리 파일:
 
-- `agentcore/app.py`: AgentCore Runtime 엔트리포인트 스캐폴드(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
-- `agentcore/templates/main.py`: CLI 스캐폴딩의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
-- `agentcore/templates/load.py`: reasoning 모델 로더, `BEDROCK_CLAUDE_MODEL_ID` env를 읽고 없으면 kit 기본값으로 폴백
+- `agentcore/app.py`: AgentCore Runtime entry point scaffold(`BedrockAgentCoreApp` + `@app.entrypoint`), 정보추출 코스 tool 포함
+- `agentcore/templates/main.py`: CLI scaffolding의 데모 tool을 대체해 이식되는 `extract_structured_json` tool
+- `agentcore/templates/load.py`: reasoning 모델 로더, `BEDROCK_CLAUDE_MODEL_ID` env를 읽고 없으면 프로젝트 기본값으로 fallback
 - `agentcore/Dockerfile`: ARM64 런타임 이미지(`/invocations`+`/ping`:8080 규약은 SDK가 제공)
 - `agentcore/setup_agentcore_cli.sh`: nvm으로 Node 20 + `@aws/agentcore` CLI 설치(sudo 불필요)
 - `agentcore/create_agent.sh`: 프로젝트를 non-interactive로 생성하고 SLM tool을 이식
@@ -43,11 +43,9 @@
 
 ## TL;DR
 
-**파인튜닝 Gemma SLM은 빠른 "전문가 도구(tool)", Bedrock Claude는 범용 "추론과 오케스트레이션(reasoning)" 역할을 맡습니다.** agent framework(Strands 우선, LangGraph 옵션)가 tool-use로 이 둘을 묶습니다.
+**fine-tuning한 Gemma SLM은 빠른 전문 tool, Bedrock Claude는 범용 reasoning과 orchestration 역할을 맡습니다.** agent framework(Strands 우선, LangGraph 옵션)가 tool-use로 이 둘을 연결합니다.
 
 **endpoint는 `sagemaker-runtime`, Bedrock은 `bedrock-runtime`으로 서로 다른 서비스이므로 절대 섞어서 부르면 안 됩니다.**
-
-세부 결론은 다음과 같습니다.
 
 1. SLM endpoint는 `@tool`로 감싼 `extract_structured_json`(내부는 `sagemaker-runtime invoke_endpoint`)으로 노출합니다.
     Claude가 "언제 이 도구를 부를지"를 판단합니다([Strands로 묶는 agentic loop](#strands로-묶는-agentic-loop)).
@@ -55,30 +53,30 @@
     멀티 프로바이더가 필요하면 `LiteLLMModel` 옵션을 쓰세요([provider 선택](#provider-선택-bedrockmodel과-litellmmodel)).
 3. Bedrock Claude 모델 ID는 **inference-profile prefix**(`us.`/`eu.`/`apac.`/`global.`) 형식입니다.
     env/param으로 주입해야 하고 하드코딩은 금지입니다([Bedrock Claude 모델 ID 규칙](#bedrock-claude-모델-id-규칙)).
-4. 프로덕션 배포는 **AgentCore Runtime**(ARM64 컨테이너, `/invocations`+`/ping`:8080)으로 진행합니다([프로덕션 배포](#프로덕션-배포-agentcore-runtime)).
+4. production 배포는 **AgentCore Runtime**(ARM64 컨테이너, `/invocations`+`/ping`:8080)으로 진행합니다([production 배포](#production-배포-agentcore-runtime)).
 5. 과금이 **두 군데 이상**(endpoint 시간당 + Bedrock 토큰당 + AgentCore Runtime)에서 발생하므로 cleanup이 필수입니다([비용과 cleanup](#비용과-cleanup)).
 
 ---
 
-## 기존 Pain Point
+## 기존 문제
 
-`03_deploy_endpoint`까지 진행했다면 대개 이런 상태일 것입니다.
+`03_deploy_endpoint`까지 진행하면 다음 선택이 남습니다.
 
-- SLM endpoint는 있지만 **"그래서 이걸 어떻게 앱으로 쓰지?"** 하는 고민이 생깁니다. endpoint는 프롬프트를 주면 텍스트를 뱉는 함수일 뿐, 스스로 "언제 나를 부를지"는 판단하지 못합니다.
+- SLM endpoint는 있지만 이를 애플리케이션 workflow에 연결하는 방법이 필요합니다. endpoint는 prompt를 받아 text를 반환할 뿐, 호출 시점은 판단하지 못합니다.
 - 반대로 Bedrock Claude는 범용 추론은 잘하지만, **우리 도메인 전용 구조화 추출/분류는 파인튜닝한 SLM이 더 싸고 빠르고 정확**합니다.
 - "그럼 Claude한테 endpoint를 Bedrock API로 부르라고 하면 되지 않나?": **틀린 접근**입니다. endpoint와 Bedrock은 별개 서비스입니다([서비스 경계](#서비스-경계-endpoint--bedrock)).
-- 또 다른 함정은, 로컬에서 `python app.py`로 잘 돌던 에이전트를 그대로 프로덕션에 올리려다 **AgentCore Runtime의 HTTP 규약(ARM64, `/invocations`, `/ping`, 8080)** 을 몰라서 막히는 경우입니다.
+- 또 다른 함정은, 로컬에서 `python app.py`로 잘 돌던 에이전트를 그대로 production에 올리려다 **AgentCore Runtime의 HTTP 규약(ARM64, `/invocations`, `/ping`, 8080)** 을 몰라서 막히는 경우입니다.
 
-이 문서는 "endpoint + Claude"를 하나의 **agentic loop**로 묶고, 로컬에서 AgentCore Runtime까지 올리는 최소 경로를 정리합니다.
+이 문서는 endpoint와 Claude를 하나의 **agentic loop**로 묶고 AgentCore Runtime에 배포하는 최소 경로를 설명합니다.
 
 ---
 
 ## 왜 SLM은 도구, Claude는 두뇌인가
 
 !!! abstract "쉽게 말하면"
-    - **Claude(reasoning LLM)** 는 전체 문제를 이해하고 "지금 무슨 도구가 필요한가"를 결정하는 **팀장**에 해당합니다.
-    - **파인튜닝 Gemma SLM(tool)** 은 한 가지 일(예: 텍스트→JSON 추출)을 아주 빠르고 정확하게 처리하는 **전문가 사원**에 해당합니다.
-    - **agent framework(Strands)** 는 팀장이 사원에게 일을 시키는 **결재 라인(tool-use 프로토콜)** 역할을 합니다.
+    - **Claude(reasoning LLM)** 는 전체 문제를 이해하고 필요한 tool을 선택합니다.
+    - **fine-tuning한 Gemma SLM(tool)** 은 텍스트→JSON 추출 같은 단일 작업을 빠르게 처리합니다.
+    - **agent framework(Strands)** 는 tool 호출과 결과 전달을 관리합니다.
 
 역할을 나누는 근거는 과금 모델과 커스터마이즈 수단이 서로 다르다는 데 있습니다.
 
@@ -89,13 +87,13 @@
 | 역할 | 계획, 판단, 도구 선택, 결과 검증 | 도메인 특화 단일 작업 실행 |
 | 호출 서비스 | `bedrock-runtime` → `converse()` | `sagemaker-runtime` → `invoke_endpoint()` |
 | 과금 모델 | 토큰당(사용량) | endpoint 시간당(상시 인스턴스) |
-| 강점 | 범용 추론, 멀티스텝, 자연어 오케스트레이션 | 전용 태스크의 속도, 비용, 포맷 안정성 |
+| 강점 | 범용 추론, multi-step 처리, 자연어 orchestration | 전용 태스크의 속도, 비용, 포맷 안정성 |
 | 모델 관리 | AWS 관리형(모델 ID만 지정) | 우리가 학습, 배포, 운영 |
 | 커스터마이즈 | 프롬프트/few-shot 위주 | 가중치 자체를 파인튜닝(LoRA) |
 
 ??? question "오해: “Claude 하나로 다 하면 안 되나요?”"
     됩니다. 다만 도메인 전용 추출/분류에서는 (1) 작은 파인튜닝 SLM이 **더 저렴하고 지연도 낮으며** (2) 출력 포맷이 **더 안정적**입니다.
-    반대로 SLM 하나로 다중 스텝 추론을 시키기는 어렵습니다. 그래서 **역할 분담**이 핵심입니다.
+    반대로 SLM 하나로 multi-step 추론을 처리하기는 어렵습니다. 두 모델은 이 역할에 맞춰 나눠 사용합니다.
 
 ### 기술적 차이 3가지
 
@@ -107,7 +105,7 @@
 
 ## 서비스 경계: endpoint ≠ Bedrock
 
-이 kit에서 가장 흔하게 사고가 나는 지점이므로 **절대 섞지 마세요**. `common/aws_utils.py` 상단에도 못 박아 둔 규칙은 다음과 같습니다.
+이 프로젝트에서 가장 자주 혼동하는 경계입니다. `common/aws_utils.py` 상단에도 다음 규칙을 명시했습니다.
 
 ```
 SageMaker endpoint 호출  = boto3 "sagemaker-runtime" 클라이언트, invoke_endpoint()
@@ -122,7 +120,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 *왼쪽으로 돌아가는 점선이 이 구조의 핵심입니다. SLM은 한 번 불려 값을 돌려줄 뿐이고, 그 결과를 판단하는 것은 다시 Claude입니다.*
 
 - **endpoint 쪽**은 boto3 `sagemaker-runtime` 직접 호출입니다. 배포된 모델을 코드에서 부르는 경로 전체는 [SageMaker 모델 배포 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에 정리되어 있습니다.
-- **호출 스키마는 서빙 컨테이너를 따릅니다.** 이 kit의 기본 엔진은 vLLM(대안 SGLang, DJL LMI)이고 셋 다 **OpenAI 호환**입니다.
+- **호출 스키마는 서빙 컨테이너를 따릅니다.** 이 프로젝트의 기본 엔진은 vLLM(대안 SGLang, DJL LMI)이고 셋 다 **OpenAI 호환**입니다.
     - 그래서 tool은 `{"messages": [...]}` 스키마를 씁니다(`common/aws_utils.py`의 `invoke_sagemaker_chat()`).
     - `{"inputs", "parameters"}` generation 스키마(LMI rolling-batch, HF TGI 관용)가 필요하면 같은 파일의 `invoke_sagemaker_endpoint()`를 쓰세요.
 - **스트리밍**이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. 체감 지연만 줄고 총 시간은 그대로입니다.
@@ -154,7 +152,7 @@ SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoi
 
 | 옵션 | 특징 | LLM/SLM 적합성 |
 |---|---|---|
-| Real-time | 상시 endpoint, 저지연 | ✅ 적합: 이 kit 기본. 시간당 과금 |
+| Real-time | 상시 endpoint, 저지연 | ✅ 적합: 이 프로젝트 기본. 시간당 과금 |
 | Serverless | 온디맨드, 스케일-투-제로 | ❌ 부적합: GPU 없음 |
 | Asynchronous | 큐 기반, 대용량/긴 추론 | 조건부: 긴 생성, 오프라인 배치 |
 | Batch Transform | Job 단위 대량 오프라인 | ❌ 부적합: 실시간 agentic엔 불가 |
@@ -213,14 +211,14 @@ agent = Agent(model=model, tools=[extract_structured_json], system_prompt="You o
 SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합니다(코스별 `track_data.SYSTEM_PROMPT`).
 
 !!! warning "`max_tokens`는 코스마다 다릅니다: 256을 그대로 복사하지 마세요"
-    위 스니펫의 `256`은 **추출과 분류 코스 값**입니다(`agentcore/app.py`가 정보추출 전용 스캐폴드이므로). 요약과 도메인 QA 노트북은 **512**를 씁니다.
+    위 스니펫의 `256`은 **추출과 분류 코스 값**입니다(`agentcore/app.py`가 정보추출 전용 scaffold이므로). 요약과 도메인 QA 노트북은 **512**를 씁니다.
     도메인 QA에서 256을 쓰면 정답 13건(8.7%)이 잘려 지표가 과소 측정됩니다. 배포, 평가, 에이전트 셀이 **모두 같은 값**을 쓰도록 코스별 `gen_max_tokens`가 정해져 있습니다. 전체 표는 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
 
 ### provider 선택: BedrockModel과 LiteLLMModel
 
 | 상황 | provider |
 |---|---|
-| Bedrock Claude만 쓴다 (이 kit 기본) | `strands.models.BedrockModel`: 기본 provider |
+| Bedrock Claude만 쓴다 (이 프로젝트 기본) | `strands.models.BedrockModel`: 기본 provider |
 | 여러 프로바이더(OpenAI/Anthropic API/기타)를 갈아끼워야 한다 | [`strands.models.LiteLLMModel`](https://strandsagents.com/docs/user-guide/concepts/model-providers/litellm/) 옵션 (`strands-agents[litellm]`) |
 
 ??? question "오해: “reasoning 모델을 LiteLLM으로 바꾸면 tool 호출 방식도 바뀌나요?”"
@@ -229,9 +227,9 @@ SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합�
 
 ### LangGraph 옵션
 
-이 kit은 Strands 경로를 완성형으로 제공하고, LangGraph는 대안으로 남겨 둡니다.
+이 프로젝트는 Strands 경로를 기본 구현으로 제공하고, LangGraph는 대안으로 남겨 둡니다.
 
-LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 있습니다. 이미 LangGraph 그래프 오케스트레이션에 익숙하거나, 복잡한 상태 머신과 분기가 필요할 때 고르세요.
+LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 있습니다. LangGraph orchestration에 익숙하거나 복잡한 state machine과 분기가 필요할 때 선택하세요.
 
 ---
 
@@ -240,12 +238,12 @@ LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 �
 - Bedrock Claude는 **[`converse` API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)** 로 호출합니다.
 - 모델 ID는 **inference-profile prefix**를 붙인 형식을 씁니다: `us.`/`eu.`/`apac.`/`global.` (지역 라우팅).
     - AWS는 이를 [cross-region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)로 문서화합니다.
-- 이 kit의 기본값은 `common/config.py`의 `BEDROCK_CLAUDE_MODEL_ID = "global.anthropic.claude-sonnet-5"`입니다.
-    - 이 값은 **해당 계정에서 `list_inference_profiles`로 확인**한 것입니다.
+- 이 프로젝트의 기본값은 `common/config.py`의 `BEDROCK_CLAUDE_MODEL_ID = "global.anthropic.claude-sonnet-5"`입니다.
+    - 이 값은 **해당 계정에서 `list_inference_profiles`로 확인한 값**입니다.
     - 최신 Claude는 날짜 없는 pinned-snapshot 형식을 씁니다.
 - 모델 로스터는 계정과 리전마다 다르므로 **실행 전 재확인**하고 env로 주입하세요. 코드에는 **절대 하드코딩하지 마세요**.
     - `common/config.py`의 `BEDROCK_CLAUDE_MODEL_ID`(env `BEDROCK_CLAUDE_MODEL_ID`)를 사용합니다. 호출 리전은 `BEDROCK_REGION`(기본값 `AWS_REGION`)입니다.
-    - `agentcore/app.py`는 `os.environ["BEDROCK_CLAUDE_MODEL_ID"]`로 반드시 주입받고(미설정이면 즉시 실패), `agentcore/templates/load.py`는 env가 없을 때만 kit 기본값으로 폴백합니다.
+    - `agentcore/app.py`는 `os.environ["BEDROCK_CLAUDE_MODEL_ID"]`로 반드시 주입받고(미설정이면 즉시 실패), `agentcore/templates/load.py`는 env가 없을 때만 프로젝트 기본값으로 fallback합니다.
 
 ??? question "오해: “모델 ID에 왜 `us.`가 붙나요? 그냥 `anthropic.claude-...`면 안 되나요?”"
     안 될 수 있습니다. 최신 Claude는 대부분 **cross-region inference profile**을 통해 호출하며, 그때 지역 prefix(`us.`/`eu.`/`apac.`/`global.`)가 필요합니다.
@@ -253,7 +251,7 @@ LangGraph로도 동일한 아키텍처(SLM=tool, Claude=node)를 구성할 수 �
 
 ---
 
-## 프로덕션 배포: AgentCore Runtime
+## production 배포: AgentCore Runtime
 
 !!! abstract "쉽게 말하면"
     - 로컬에서 `python app.py`로 잘 도는 에이전트를 AWS 관리형 런타임에 컨테이너로 올립니다.
@@ -283,7 +281,7 @@ if __name__ == "__main__":
     app.run()   # /invocations + /ping on :8080
 ```
 
-CLI가 생성하는 스캐폴딩은 위 스니펫과 조금 다릅니다. kit의 `agentcore/templates/main.py`가 그 형태입니다.
+CLI가 생성하는 scaffolding은 위 스니펫과 조금 다릅니다. 프로젝트의 `agentcore/templates/main.py`가 그 형태입니다.
 
 - import 경로가 `from bedrock_agentcore.runtime import BedrockAgentCoreApp`입니다.
 - 진입점이 `async def invoke(payload, context)`로 스트리밍(`agent.stream_async`)입니다.
@@ -323,11 +321,11 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 규약의 나머지 절반인 헬스체크도 자주 오해를 받습니다.
 
 ??? question "오해: “`/ping`은 왜 필요한가요?”"
-    런타임이 컨테이너의 헬스를 체크하는 엔드포인트입니다. `BedrockAgentCoreApp.run()`이 `/invocations`와 함께 자동으로 제공하므로 직접 구현할 필요는 없습니다.
+    runtime이 컨테이너 상태를 확인하는 health check endpoint입니다. `BedrockAgentCoreApp.run()`이 `/invocations`와 함께 자동으로 제공하므로 직접 구현할 필요는 없습니다.
 
 자세한 배포 절차는 노트북 **`06_agentcore_deploy`** 와 `agentcore/app.py`, `agentcore/Dockerfile`을 참고하세요.
 
-`agentcore/app.py`의 스캐폴드는 **정보추출 코스 전용**입니다(tool = `extract_structured_json`). 다른 코스에 쓸 때는 tool 함수와 system 프롬프트를 그 코스 것으로 바꿔야 합니다.
+`agentcore/app.py`의 scaffold는 **정보추출 코스 전용**입니다(tool = `extract_structured_json`). 다른 코스에 쓸 때는 tool 함수와 system 프롬프트를 그 코스 것으로 바꿔야 합니다.
 
 ---
 
@@ -352,7 +350,7 @@ agentcore invoke --prompt '...'                                   # 배포된 Ru
 agentic loop는 과금 소스가 **둘 이상**입니다.
 
 !!! danger "비용과 cleanup"
-    endpoint를 켜둔 채 잊어버리는 것이 이 kit에서 가장 흔한 비용 사고입니다. GPU 인스턴스는 **삭제할 때까지 시간당 과금**되며, AgentCore Runtime은 그와 **별개로** 과금됩니다.
+    endpoint를 켜둔 채 잊어버리는 것이 이 프로젝트에서 가장 흔한 비용 사고입니다. GPU 인스턴스는 **삭제할 때까지 시간당 과금**되며, AgentCore Runtime은 그와 **별개로** 과금됩니다.
     실습이 끝나면 반드시 `99_cleanup`을 실행하고, AgentCore를 배포했다면 `cleanup_agent.sh --aws`까지 실행하세요. `sm.list_endpoints()`로 남은 endpoint가 없는지 확인하세요.
 
 | 소스 | 과금 방식 | 정리 방법 |

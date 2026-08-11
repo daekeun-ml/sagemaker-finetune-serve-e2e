@@ -2,7 +2,7 @@
 
 !!! info "Scope"
     **V2에 익숙한 분**(`HuggingFace` estimator, `estimator.fit()`, `predictor.predict()`로
-    Amazon SageMaker AI를 써 오신 분)과, 이 kit의 노트북을 읽다가 **`ModelTrainer`, `sagemaker.core.resources`
+    Amazon SageMaker AI를 써 오신 분)과, 이 프로젝트의 노트북을 읽다가 **`ModelTrainer`, `sagemaker.core.resources`
     같은 낯선 import가 왜 나오는지** 궁금하신 분이 대상입니다.
 
     - **선행 조건**: 없습니다
@@ -12,7 +12,7 @@
     - **여기서 다루지 않는 것**: 학습 하이퍼파라미터와 LoRA 설계는
       [파인튜닝](../03_finetuning.md), endpoint 구조와 서빙 엔진은
       [SageMaker AI 추론](../04_sagemaker_inference.md), [서빙 컨테이너](../05_serving_containers.md),
-      Processing/Pipelines/Feature Store 마이그레이션(이 kit이 쓰지 않습니다)
+      Processing/Pipelines/Feature Store 마이그레이션(이 프로젝트가 쓰지 않습니다)
 
 이 문서의 동작은 모두 **SDK 3.16.0 설치본에서 실측**한 것이고, 이름과 의도는 [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)와 [V3 문서](https://sagemaker.readthedocs.io/en/stable/)를 기준으로 적었습니다. 둘이 어긋나는 지점은 그 자리에서 따로 표시했습니다.
 
@@ -33,11 +33,11 @@ V3는 V2의 확장이 아니라 **호환되지 않는 재설계**입니다. AWS�
 | 학습 설정(인스턴스/볼륨/시간) | `instance_type=`, `volume_size=`, `max_run=` | `Compute(instance_type=, instance_count=, volume_size_in_gb=)`, `StoppingCondition(max_runtime_in_seconds=)` | 평면 kwargs가 config 객체로 재편 |
 | 입력 채널 | `sagemaker.inputs.TrainingInput` | `InputData(channel_name=, data_source=)` | `train(input_data_config=[...])`에 리스트로 |
 | 세션 | `sagemaker.Session()`, `sagemaker.session.Session` | `sagemaker.core.helper.session_helper.Session` | `sagemaker.Session`은 `AttributeError` |
-| 실행 role | `sagemaker.get_execution_role()` | `sagemaker.core.helper.session_helper.get_execution_role()` | 최상위 헬퍼가 아니라 core 경유 |
+| 실행 role | `sagemaker.get_execution_role()` | `sagemaker.core.helper.session_helper.get_execution_role()` | 최상위 helper가 아니라 core 경유 |
 | 이미지 URI 조회 | `sagemaker.image_uris.retrieve` | `sagemaker.core.image_uris.retrieve` | 함수 시그니처는 사실상 동일, 모듈만 이동 |
 | 배포 | `Model(...)`, `HuggingFaceModel(...)` + `.deploy()` | `sagemaker.serve.ModelBuilder(...)` + `.build()` → `.deploy()` | `build()`가 Model 리소스, `deploy()`가 Endpoint 리소스 |
-| 추론 호출 | `Predictor.predict(data)` | boto3 `sagemaker-runtime.invoke_endpoint(...)` (SDK 쪽 대응은 `Endpoint.invoke`) | `Predictor`는 제거. 이 kit은 boto3 직접: **V2/V3 동일** |
-| 학습 아티팩트 경로 | `estimator.model_data` | `job.model_artifacts.s3_model_artifacts` | 응답 shape을 그대로 노출 |
+| 추론 호출 | `Predictor.predict(data)` | boto3 `sagemaker-runtime.invoke_endpoint(...)` (SDK 쪽 대응은 `Endpoint.invoke`) | `Predictor`는 제거. 이 프로젝트는 boto3 직접: **V2/V3 동일** |
+| 학습 artifact 경로 | `estimator.model_data` | `job.model_artifacts.s3_model_artifacts` | 응답 shape을 그대로 노출 |
 | 리소스 조회, 삭제 | `sm.describe_*` / `predictor.delete_endpoint()` | `sagemaker.core.resources.TrainingJob.get/get_all/refresh/wait`, `Endpoint.get/wait_for_status/delete` | 리소스 객체가 조회, 대기, 삭제를 다 가짐 |
 | 버전 확인 | `sagemaker.__version__` | `importlib.metadata.version("sagemaker")` | `__version__` 속성이 사라졌습니다 |
 
@@ -45,19 +45,19 @@ V3는 V2의 확장이 아니라 **호환되지 않는 재설계**입니다. AWS�
     V2는 "프레임워크마다 클래스가 하나씩"이었고(`HuggingFace`, `PyTorch`, `TensorFlow`…), V3는 "**클래스는 하나, 컨테이너 이미지로 프레임워크를 고른다**"입니다. 학습은 `ModelTrainer`, 배포는 `ModelBuilder` 둘뿐이고, 나머지 차이는 전부 이미지 URI와 config 객체로 표현됩니다.
     그리고 평면 kwargs가 사라진 자리를 `Compute`, `SourceCode`, `StoppingCondition`, `InputData` 같은 작은 설정 객체가 채웁니다. 이 객체들의 필드 이름은 `CreateTrainingJob` API 필드와 거의 1:1입니다.
 
-V2는 죽지 않았지만 **시한이 공개돼 있습니다**. [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html)에 따르면 V2는 maintenance mode(2026-07-06 ~ 2027-07-05) 구간에서 "critical bug fixes and security updates only"만 받고, 2027-07-06부터 End-of-Support입니다. 지금 V2에 남고 싶으면 `pip install "sagemaker<3"`로 고정해야 하며(고정하지 않으면 3.x가 설치됩니다), AWS의 권고는 "We recommend all users migrate to V3"입니다.
+V2는 지원 중이지만 **종료 일정이 공개돼 있습니다**. [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html)에 따르면 V2는 maintenance mode(2026-07-06 ~ 2027-07-05) 구간에서 "critical bug fixes and security updates only"만 받고, 2027-07-06부터 End-of-Support입니다. V2를 유지하려면 `pip install "sagemaker<3"`으로 고정해야 하며(고정하지 않으면 3.x가 설치됩니다), AWS의 권고는 "We recommend all users migrate to V3"입니다.
 
 ---
 
-## 메타패키지와 두 개의 레이어
+## metapackage와 두 개의 레이어
 
-[![sagemaker 메타패키지 아래 train, serve, mlops가 core 위에 놓인 2층 구조](../images/sdkv3_monolithic_to_modular.png)](../images/sdkv3_monolithic_to_modular.png)
+[![sagemaker metapackage 아래 train, serve, mlops가 core 위에 놓인 2층 구조](../images/sdkv3_monolithic_to_modular.png)](../images/sdkv3_monolithic_to_modular.png)
 
-*`pip install sagemaker` 하나가 전부를 끌어오지만, 안에서는 서브패키지가 **각자 버전을 갖습니다**(train/serve/mlops는 v1.4.1+, core는 v2.4.1+). 위층은 고수준 추상화와 기본값, 아래층은 API 전량 커버리지와 타입 안전성을 담당합니다.*
+*`pip install sagemaker` 하나가 전부를 끌어오지만, 안에서는 subpackage가 **각자 버전을 갖습니다**(train/serve/mlops는 v1.4.1+, core는 v2.4.1+). 위층은 고수준 추상화와 기본값, 아래층은 API 전량 커버리지와 타입 안전성을 담당합니다.*
 
-`sagemaker`는 **메타패키지**입니다. 그래서 `sagemaker` 3.16.0을 설치해도 실제로 동작하는 것은 독립적으로 버전이 붙은 서브패키지들이고, 3.x 안에서 import 경로가 옮겨 다니는 이유도 이것입니다. 우산 버전이 아니라 서브패키지 버전이 올라가기 때문입니다.
+`sagemaker`는 여러 subpackage를 묶는 **metapackage**입니다. `sagemaker` 3.16.0을 설치해도 실제 코드는 독립적으로 versioning되는 subpackage에서 동작합니다. 3.x 안에서 import 경로가 바뀌는 것도 각 subpackage가 별도로 업데이트되기 때문입니다.
 
-V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 둘**이기 때문입니다. 설치본의 `sagemaker/` 아래에는 정확히 여섯 개의 서브패키지만 있습니다: `ai_registry`, `core`, `lineage`, `mlops`, `serve`, `train`. 이 중 이 kit이 쓰는 것은 `core`, `train`, `serve` 셋입니다.
+V3의 import 경로가 처음에 임의로 보이는 이유는 **레이어가 둘**이기 때문입니다. 설치본의 `sagemaker/` 아래에는 정확히 여섯 개의 subpackage만 있습니다: `ai_registry`, `core`, `lineage`, `mlops`, `serve`, `train`. 이 중 이 프로젝트가 쓰는 것은 `core`, `train`, `serve` 셋입니다.
 
 | 레이어 | 무엇인가 | 대표 심볼 | 성격 |
 |---|---|---|---|
@@ -76,7 +76,7 @@ core는 공용 기반도 함께 갖습니다: 세션 관리, IAM role 자동 탐
 
 `sagemaker.core`가 "생성된" 레이어라는 건 저장소에서 확인할 수 있습니다. `core/tools/`에 `codegen.py`, `resources_codegen.py`, `shapes_codegen.py`가 있고 이들이 botocore service model(`service-2.json`)을 읽어 `resources.py`와 `shapes/shapes.py`를 뽑습니다([api_coverage.json](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-core/src/sagemaker/core/tools/api_coverage.json)은 391 supported / 21 unsupported API로 집계). 실제로 `sagemaker.core.resources`에는 API 리소스 이름을 그대로 딴 pydantic 클래스가 85개, `sagemaker.core.shapes.shapes`에 요청과 응답 shape 클래스가 822개 들어 있습니다. 공식 문서는 이를 "generated"라는 단어보다 "full parity with SageMaker APIs" / "map directly to AWS APIs"로 표현합니다([sagemaker.core 문서](https://sagemaker.readthedocs.io/en/stable/sagemaker_core/index.html)).
 
-두 레이어는 **같은 객체 모델**입니다. `ModelTrainer.train()`은 내부에서 요청 dict를 만들어 `TrainingJob.create(...)`를 호출합니다(`sagemaker/train/model_trainer.py`). 그래서 "편의 레이어로 제출하고 core 레이어로 관찰한다"가 자연스러운 사용법이고, 이 kit의 노트북이 정확히 그렇게 합니다.
+두 레이어는 **같은 객체 모델**입니다. `ModelTrainer.train()`은 내부에서 요청 dict를 만들어 `TrainingJob.create(...)`를 호출합니다(`sagemaker/train/model_trainer.py`). 그래서 "편의 레이어로 제출하고 core 레이어로 관찰한다"가 자연스러운 사용법이고, 이 프로젝트의 노트북이 정확히 그렇게 합니다.
 
 **언제 어느 쪽을 잡는가.**
 
@@ -86,7 +86,7 @@ core는 공용 기반도 함께 갖습니다: 세션 관리, IAM role 자동 탐
 
 !!! warning "sagemaker.train.configs vs sagemaker.core.training.configs"
     같은 클래스를 두 경로에서 가져올 수 있는데, **`sagemaker.train.configs`는 shim**입니다. import하면 "has been moved to sagemaker.core.training.configs … This shim will be removed in a future version" `DeprecationWarning`이 뜹니다(re-export된 클래스 객체 자체는 동일합니다).
-    성가신 점은 SDK 자신의 마이그레이션 안내가 `from sagemaker.train.configs import InputData`, 즉 **deprecated 경로**를 알려준다는 것입니다. 이 kit은 경고가 나지 않는 `sagemaker.core.training.configs`를 씁니다. 제거 목표 버전은 어디에도 공지돼 있지 않습니다.
+    문제는 SDK의 migration 안내가 `from sagemaker.train.configs import InputData`, 즉 **deprecated 경로**를 제시한다는 점입니다. 이 프로젝트는 경고가 나지 않는 `sagemaker.core.training.configs`를 씁니다. 제거 목표 버전은 공지되지 않았습니다.
 
 ---
 
@@ -129,9 +129,9 @@ MXNet, Chainer, `RLEstimator`, Training Compiler는 **대체 없이 삭제**됐�
 
 ### stopping_condition을 생략하면 1시간이 들어갑니다
 
-가장 비싸게 물리는 함정입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 조용히 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. Job 로그에 `StoppingCondition not provided. Using default` 한 줄이 남는 것이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다. 어느 쪽이든 3600은 LLM 파인튜닝에 짧습니다).
+비용과 결과에 직접 영향을 주는 기본값입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 자동으로 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. Job 로그의 `StoppingCondition not provided. Using default` 한 줄이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다. 어느 쪽이든 3600은 LLM fine-tuning에 짧습니다).
 
-이 kit이 실제로 여기 걸렸습니다. 학습은 100% 끝났는데 어댑터 머지 중에 Job이 잘려 배포 불가능한 아티팩트가 남았습니다. 증상, 타임라인, 대응은 [MaxRuntimeExceeded: 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)이 전부 갖고 있으니 그쪽을 보세요.
+이 프로젝트에서도 학습은 100% 끝났지만 adapter merge 중 Job이 종료되어 배포할 수 없는 artifact가 남았습니다. 증상, 타임라인, 대응은 [MaxRuntimeExceeded: 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)에 정리했습니다.
 
 같은 파일에 조용한 기본값이 더 있습니다. `DEFAULT_INSTANCE_TYPE = "ml.m5.xlarge"`는 **CPU 인스턴스**입니다. `compute=`를 빼먹은 GPU 학습은 에러 없이 CPU에서 돌기 시작합니다(`DEFAULT_INSTANCE_COUNT=1`, `DEFAULT_VOLUME_SIZE=30`도 같은 방식). 결론은 하나입니다. `compute`와 `stopping_condition`은 항상 명시하세요.
 
@@ -147,7 +147,7 @@ MXNet, Chainer, `RLEstimator`, Training Compiler는 **대체 없이 삭제**됐�
 try:
     from sagemaker.core.image_uris import retrieve   # v3
 except ModuleNotFoundError:
-    from sagemaker.image_uris import retrieve        # v2 폴백
+    from sagemaker.image_uris import retrieve        # v2 fallback
 ```
 
 3.16.0에서는 `except` 절이 **절대 성공할 수 없는 죽은 코드**입니다(`sagemaker.image_uris` 모듈이 없으므로). 무해하기는 합니다(try 쪽이 항상 이깁니다). 다만 "V2에서도 돌 것"이라는 기대는 하지 마세요. V2/V3 양쪽을 진짜로 지원하려면 `importlib.metadata.version("sagemaker")`로 분기해야 합니다. 참고로 `sagemaker.core.image_uris.retrieve`는 `@override_pipeline_parameter_var` 데코레이터로 감싸져 있어서 `inspect.getsourcefile(retrieve)`가 엉뚱하게 `core/workflow/utilities.py`를 가리킵니다(`retrieve.__wrapped__`가 진짜 파일입니다).
@@ -163,16 +163,16 @@ except ModuleNotFoundError:
 
 ---
 
-## 이 kit이 V3를 쓰는 방식
+## 이 프로젝트가 V3를 쓰는 방식
 
-이 kit은 `sagemaker>=3.16.0`을 요구하고 V2 호환 경로를 유지하지 않습니다. 실제로 쓰는 V3 API는 다음이 전부입니다.
+이 프로젝트는 `sagemaker>=3.16.0`을 요구하고 V2 호환 경로를 유지하지 않습니다. 실제로 쓰는 V3 API는 다음이 전부입니다.
 
 | 자리 | 심볼 | 파일 |
 |---|---|---|
 | 세션, role | `core.helper.session_helper.Session`, `get_execution_role` | `00_setup`, `02_train_sft_sagemaker`, `common/config.py` |
-| 이미지 URI | `core.image_uris.retrieve` | `common/dlc.py`(env 우선, retrieve는 폴백) |
+| 이미지 URI | `core.image_uris.retrieve` | `common/dlc.py`(env 우선, retrieve는 fallback) |
 | 학습 제출 | `train.model_trainer.ModelTrainer` + `SourceCode`/`Compute`/`InputData`/`StoppingCondition` | `02_train_sft_sagemaker`, `02a_train_grpo_sagemaker` |
-| Job 재접속, 아티팩트 | `core.resources.TrainingJob` | `02_train_sft_sagemaker` |
+| Job 재접속, artifact | `core.resources.TrainingJob` | `02_train_sft_sagemaker` |
 | 배포 | `serve.ModelBuilder` + `serve.mode.function_pointers.Mode` | `03_deploy_endpoint` |
 | endpoint 상태 대기 | `core.resources.Endpoint` | `03_deploy_endpoint` |
 | endpoint 호출 | (SDK 아님) boto3 `sagemaker-runtime` | `common/aws_utils.py` |
@@ -180,7 +180,7 @@ except ModuleNotFoundError:
 
 세부는 [파인튜닝](../03_finetuning.md)과 [SageMaker AI 추론](../04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../05_serving_containers.md#이미지-해석-우선순위-commondlcpy)에 있습니다.
 
-**왜 프레임워크 estimator 대신 커스텀 `train.py`인가.** 선택의 여지가 없습니다. V3에 `HuggingFace` estimator가 없습니다. 그리고 AWS가 문서화한 후속 경로가 정확히 이 형태입니다: `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 고르고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 내 스크립트를 얹는 것. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 이제 estimator를 언급하지 않고 "Hugging Face SageMaker AI ModelTrainer"로 안내합니다. 즉 이 kit의 "PyTorch DLC + 내 `train.py`"는 우회로가 아니라 **문서화된 정규 경로**입니다. 부수 효과로 컨테이너 안에서 `requirements.txt`로 최신 `transformers`/`trl`을 맞출 수 있어, 프레임워크 버전이 SDK 릴리스에 묶이지 않습니다([JumpStart vs 자체 train.py](../03_finetuning.md#jumpstart-vs-자체-trainpy)).
+**왜 프레임워크 estimator 대신 커스텀 `train.py`인가.** 선택의 여지가 없습니다. V3에 `HuggingFace` estimator가 없습니다. 그리고 AWS가 문서화한 후속 경로가 정확히 이 형태입니다: `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 고르고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 내 스크립트를 얹는 것. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 이제 estimator를 언급하지 않고 "Hugging Face SageMaker AI ModelTrainer"로 안내합니다. 즉 이 프로젝트의 "PyTorch DLC + 내 `train.py`"는 우회로가 아니라 **문서화된 정규 경로**입니다. 부수 효과로 컨테이너 안에서 `requirements.txt`로 최신 `transformers`/`trl`을 맞출 수 있어, 프레임워크 버전이 SDK 릴리스에 묶이지 않습니다([JumpStart vs 자체 train.py](../03_finetuning.md#jumpstart-vs-자체-trainpy)).
 
 ---
 
@@ -191,14 +191,14 @@ except ModuleNotFoundError:
     "`DeprecationWarning`이 뜨지만 일단 돈다"는 완충 구간은 **없습니다**. `pip install -U sagemaker`로 3.x가 들어오면 V2 노트북은 첫 import 셀에서 멈춥니다. 준비가 안 됐으면 `pip install "sagemaker<3"`으로 고정하세요(V2 End-of-Support는 2027-07-06입니다).
 
 ??? question "오해: “SDK를 V3로 바꾸면 endpoint 호출 코드도 바꿔야 하나요?”"
-    호출을 boto3로 하고 있다면 **한 줄도 바꿀 필요가 없습니다**. endpoint 호출은 `sagemaker-runtime` 서비스의 `InvokeEndpoint` API이고, SageMaker Python SDK의 메이저 버전과 무관합니다. 이 kit의 `common/aws_utils.py`는 처음부터 boto3 클라이언트를 직접 쓰기 때문에 V3 전환의 영향을 받지 않았습니다.
+    호출을 boto3로 하고 있다면 **한 줄도 바꿀 필요가 없습니다**. endpoint 호출은 `sagemaker-runtime` 서비스의 `InvokeEndpoint` API이고, SageMaker Python SDK의 메이저 버전과 무관합니다. 이 프로젝트의 `common/aws_utils.py`는 처음부터 boto3 클라이언트를 직접 쓰기 때문에 V3 전환의 영향을 받지 않았습니다.
     바꿔야 하는 것은 `sagemaker.predictor.Predictor`와 serializer/deserializer에 **의존하던 코드**뿐입니다. 그 자리는 boto3 직접 호출이나 `core.resources.Endpoint.invoke()`로 대체합니다.
 
 ??? question "오해: “ModelTrainer, ModelBuilder는 V3에서 새로 나온 클래스다”"
-    둘 다 V2 후반부터 이미 있었습니다(`sagemaker.modules.train.model_trainer`, `sagemaker.serve.builder.model_builder`에 V2 API 문서 페이지가 지금도 살아 있습니다). V3가 한 일은 **이 둘을 유일한 지원 인터페이스로 승격**하고, 경로를 `sagemaker.train`/`sagemaker.serve`로 옮기고, 대안(estimator, Model, Predictor)을 삭제한 것입니다. 그래서 늦은 2.x 코드베이스에서 오는 분은 클래스 이름은 이미 알고 있고 **import 경로와 config 객체만** 새로 익히면 됩니다.
+    둘 다 V2 후반부터 이미 있었습니다(`sagemaker.modules.train.model_trainer`, `sagemaker.serve.builder.model_builder`에 V2 API 문서 페이지가 남아 있습니다). V3는 **이 둘을 유일한 지원 인터페이스로 승격**하고, 경로를 `sagemaker.train`/`sagemaker.serve`로 옮기고, 대안(estimator, Model, Predictor)을 삭제했습니다. 2.x 후반 코드베이스에서 옮겨 온다면 **import 경로와 config object**만 새로 익히면 됩니다.
 
 ??? question "오해: “sagemaker-core 버전이 2.x면 V2인가요?”"
-    아닙니다. V3는 `sagemaker-core`/`sagemaker-train`/`sagemaker-serve`/`sagemaker-mlops`로 쪼개진 모듈 구조이고 **각 하위 패키지는 독립적으로 버전이 매겨집니다**. `sagemaker` 3.16.0 설치본이 `sagemaker-core` 2.x를 끌고 오는 것이 정상입니다. 확인할 것은 우산 패키지 하나뿐입니다. `importlib.metadata.version("sagemaker")`가 3으로 시작하면 V3입니다.
+    아닙니다. V3는 `sagemaker-core`/`sagemaker-train`/`sagemaker-serve`/`sagemaker-mlops`로 나뉜 모듈 구조이고 **각 subpackage는 독립적으로 versioning됩니다**. `sagemaker` 3.16.0 설치본이 `sagemaker-core` 2.x를 가져오는 것이 정상입니다. top-level package 버전인 `importlib.metadata.version("sagemaker")`가 3으로 시작하면 V3입니다.
 
 ---
 

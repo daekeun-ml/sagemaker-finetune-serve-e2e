@@ -13,13 +13,13 @@
     - **다른 코스**: 자유서술 답변은 [도메인 QA](domain_qa.md).
       대화체 요약(회의록과 상담 로그)은 시드를 바꿔야 합니다(아래 시드 절 참고)
 
-이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/03_summarization/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/03_summarization/*.ipynb`: 이 코스의 노트북 9개
 - `common/config.py`: `TRACKS['summarization']` 레지스트리(시드 데이터셋, `max_seq_length=2048`)
 - `common/eval_utils.py`: `eval_rouge()` + `llm_judge()`
-- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙과 생성 길이, GRPO reward 종류)
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(endpoint prefix, serving과 생성 길이, GRPO reward 종류)
 
 ---
 
@@ -70,15 +70,15 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 이 코스에서 실제로 물리는 지점은 **길이**입니다.
 
-- `track_data.MAX_DOC_CHARS = 6000`: 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. 리포에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 즉 이 코스의 학습 입력 길이는 데이터가 정하는 게 아니라 **이 상수가 정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13% 쪽이고, 상한에 걸리는 첫 행은 index 1입니다.
+- `track_data.MAX_DOC_CHARS = 6000`: 법안 본문이 매우 길 수 있어 문자 단위로 자릅니다. repository에 커밋된 `data/train.jsonl`의 시드 300건 중 **260건(87%)이 이 상한에 걸려** user 턴이 정확히 6,211자(고정 접두 211자 + 본문 6,000자)입니다. 이 코스의 학습 입력 길이는 데이터가 아니라 **이 상수가 결정합니다.** 위에 인용한 row 0은 본문이 5,026자라 상한에 닿지 않은 나머지 13%에 속하고, 상한에 걸리는 첫 행은 index 1입니다.
 - 정답 요약 길이는 시드 중앙 1,110자(최대 4,950자)인데, 합성으로 만든 200건은 중앙 515자(최대 850자)로 더 짧습니다. 합성이 시드보다 짧고 균질해지는 경향이 있으니 `01` 노트북의 EDA 표를 그냥 넘기지 마세요.
-- 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다. 잘림이 아니라 순수 지연이며, 그래서 이 kit의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값)).
+- 합성 단계가 다른 코스보다 **느립니다.** 시드 1건이 중앙 1,651자(추출 코스는 475자)라 배치 프롬프트가 약 10,900자가 됩니다. 잘림이 아니라 순수 지연이며, 그래서 이 프로젝트의 `.env`는 `NUM_SYNTHETIC=100`으로 낮춰 두었습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값)).
 
 !!! warning "법안 원문의 이중 백틱이 노트북 출력을 삼킵니다"
     billsum은 구식 인용부호로 ``` ``and'' ``` 처럼 **이중 백틱**을 씁니다. 실측된 한 held-out 입력에는 백틱이 **79개** 있었고, 이 텍스트를 노트북 마크다운에 그대로 넣자 인라인 코드스팬이 열려 뒤따르는 예측 블록까지 사라졌습니다(응답 1,596자를 정상 수신한 상태였는데도 화면에 아무것도 없었습니다).
     `common/display_utils.py`가 입력과 예측을 모두 `<pre>`로 감싸 막아 두었습니다. `html.escape()`로는 막을 수 없습니다(`<`, `>`, `&`만 변환하고 백틱은 통과시킵니다). 직접 셀을 쓸 때도 같은 규칙을 지키세요.
 
-대화체 요약(회의록과 상담 로그)을 원한다면 시드를 바꿔야 합니다. 완전 permissive한 대화 요약 공개셋이 마땅치 않아 이 kit은 **문서 요약 시드 + grounded 합성**으로 확장하는 쪽을 택했습니다(`track_data.py` 독스트링).
+대화체 요약(회의록과 상담 로그)을 원한다면 시드를 바꿔야 합니다. 완전 permissive한 대화 요약 공개셋이 마땅치 않아 이 프로젝트는 **문서 요약 시드 + grounded 합성**으로 확장하는 쪽을 택했습니다(`track_data.py` 독스트링).
 
 ---
 
@@ -101,12 +101,12 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 이 코스의 노트북은 **9개**입니다. 텍스트 코스 표준 세트에서 `02a_train_grpo_sagemaker`만 빠져 있습니다(`02a`를 갖는 것은 추출과 분류 코스 둘뿐이라 그 두 코스만 10개입니다).
 
-| 노트북 | 산출물 |
+| 노트북 | 결과 |
 |---|---|
 | `00_setup` | 자격증명, 리전, role 확인, 의존성 설치 |
-| `01_data_and_synthetic` | 시드 300건 + 합성 → `data/train.jsonl`(리포 커밋본은 500건), 토큰 길이 EDA |
-| `02_train_sft_sagemaker` | SageMaker AI Training Job(`scripts/train.py`, QLoRA) → 머지된 모델 아티팩트(S3), `%store md_summarization` |
-| `02b_local_serve` | **(선택)** 내 GPU의 vLLM로 프리플라이트: 배포 5~15분 왕복을 줄입니다 |
+| `01_data_and_synthetic` | 시드 300건 + 합성 → `data/train.jsonl`(repository에 커밋된 버전은 500건), 토큰 길이 EDA |
+| `02_train_sft_sagemaker` | SageMaker AI Training Job(`scripts/train.py`, QLoRA) → 머지된 모델 artifact(S3), `%store md_summarization` |
+| `02b_local_serve` | **(선택)** 내 GPU의 vLLM로 preflight: 배포 5~15분 왕복을 줄입니다 |
 | `03_deploy_endpoint` | `gemma-summarization-vllm-<timestamp>` real-time endpoint + invoke 스모크. `%store ep_summarization` |
 | `04_evaluate` | held-out ROUGE-L + LLM-judge 점수 |
 | `05_agentic_strands` | `summarize_document` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
@@ -124,7 +124,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 
 ## 코스별 설정값
 
-다른 코스와 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`입니다. 입력이 길고 정답도 길어서 **서빙 컨텍스트와 생성 길이를 학습 길이와 분리**해 둔 코스이고(도메인 QA 코스도 같은 이유로 분리합니다), `serve_max_model_len`은 이 kit에서 가장 큰 값입니다(생성 상한만은 멀티모달 코스의 768이 더 큽니다. 정답 JSON이 592토큰까지 가기 때문입니다).
+다른 코스와 다른 값만 모았습니다. 값의 출처는 `common/config.py`의 `TRACKS`와 `tracks/build_all_tracks.py`의 `TrackSpec`입니다. 입력이 길고 정답도 길어서 **서빙 컨텍스트와 생성 길이를 학습 길이와 분리**해 둔 코스이고(도메인 QA 코스도 같은 이유로 분리합니다), `serve_max_model_len`은 이 프로젝트에서 가장 큰 값입니다(생성 상한만은 멀티모달 코스의 768이 더 큽니다. 정답 JSON이 592토큰까지 가기 때문입니다).
 
 | 설정 | 이 코스 | 다른 텍스트 코스 | 근거 |
 |---|---|---|---|
@@ -141,7 +141,7 @@ held-out은 `01`이 학습에 쓴 앞 `NUM_SEED_SAMPLES`건(기본 300)을 **명
 이 코스는 응답이 긴 자유서술이라 실시간 추론 셀에서 **스트리밍이 기본으로 켜져** 있습니다(`_stream_default()`가 `eval_kind`로 판단). 실측에서 첫 응답 0.42초 vs 완성 대기 16.16초로 체감이 38배 좋아지지만, 완료 시각은 15.9초 vs 16.2초로 사실상 같습니다. 총 생성 시간과 처리량은 개선되지 않습니다([응답 스트리밍](../04_sagemaker_inference.md#응답-스트리밍-invoke_endpoint_with_response_stream)).
 
 !!! warning "이 코스에서 먼저 터진 두 가지"
-    (1) **학습 Job이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, 아티팩트에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)).
+    (1) **학습 Job이 머지 도중 잘렸습니다.** `gemma-summarization-train-20260731084146`(`ml.g6.2xlarge`)이 189/189 step을 다 끝낸 뒤 1시간 기본 한도에 걸려 `Stopped`로 종료됐고, artifact에 어댑터만 남아 배포가 불가능했습니다. seq 2048은 약 17s/step이라 이 코스가 가장 먼저 한도에 부딪힙니다 → `stopping_condition`을 반드시 명시하세요([MaxRuntimeExceeded 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)).
     (2) **엉뚱한 endpoint를 불렀습니다.** `%store`의 전역 `endpoint_name`이 다른 코스 값으로 덮여, 요약 노트북이 멀티모달 endpoint(`max_model_len=2048`)를 호출해 "maximum context length is 2048" 400 에러가 났습니다. 요약 endpoint는 4096이라 정상인데도입니다. 그래서 이 코스는 `ep_summarization` 키를 우선 사용합니다([%store 전역 오염](../05_serving_containers.md#store-전역-오염-엉뚱한-endpoint-호출)).
 
 ---

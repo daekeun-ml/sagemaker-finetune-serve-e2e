@@ -6,10 +6,10 @@
     - **여기서 다루는 것**: 검증된 코스를 다시 돌릴 때, CI, 무인 실행, 결과 재현
     - **여기서 다루지 않는 것**: 학습 내용 자체(LoRA, 하이퍼파라미터)는
       [파인튜닝](03_finetuning.md), 서빙 엔진 선택은 [서빙 컨테이너](05_serving_containers.md)
-    - **노트북이 맞는 경우**: 처음 배우는 중이거나 중간 산출물을 눈으로 보고 싶을 때.
+    - **노트북이 맞는 경우**: 처음 배우는 중이거나 중간 결과를 눈으로 보고 싶을 때.
       두 경로의 선택 기준은 [실행 runbook](RUN_E2E.md#두-가지-실행-방법)
 
-노트북 대신 **파이썬을 그대로 돌려** 코스 하나를 끝까지 수행합니다. 노트북과 같은
+노트북 대신 **Python 스크립트로** 코스 하나를 끝까지 실행합니다. 노트북과 같은
 `common/` 레이어를 쓰므로 결과는 같고, 진입점만 다릅니다.
 
 ```bash
@@ -51,9 +51,9 @@ reward를 프로그램으로 채점할 수 없어 rollout이 전부 만점이 �
 
 ## 속도 측정: `run_benchmark.py`
 
-`eval`이 답이 맞는지를 본다면 벤치마크는 얼마나 빨리 오는지를 봅니다. 파이프라인 스테이지가 아니라
+`eval`이 답의 정확도를 본다면 benchmark는 응답 속도를 봅니다. 파이프라인 stage가 아니라
 별도 진입점입니다: `run_<course>.py`는 앞 단계가 뒤 단계의 선행조건인 배포 흐름이고, 벤치마크는
-이미 있는 endpoint를 설정만 바꿔 몇 번씩 다시 재는 일입니다.
+이미 있는 endpoint를 설정만 바꿔 반복 측정합니다.
 
 ```bash
 python pipelines/run_benchmark.py --course extraction
@@ -78,7 +78,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 
 - **코스별로 파일이 따로**입니다. `%store`는 전역이라 요약 코스가 멀티모달 endpoint를
   호출하는 사고가 있었는데(`maximum context length is 2048`), 파일을 나누면 구조적으로 막힙니다.
-- 이미 만들어진 산출물이 있으면 스테이지를 **건너뜁니다**. 다시 하려면 `--force`.
+- 이미 만들어진 artifact가 있으면 stage를 **건너뜁니다**. 다시 하려면 `--force`.
 - `--show-state`로 현재 상태만 볼 수 있습니다.
 - 이 디렉토리는 gitignore 대상입니다(endpoint 이름과 S3 URI가 들어갑니다).
 
@@ -93,7 +93,7 @@ python pipelines/run_benchmark.py --endpoint-name my-endpoint
 | 이전 실행이 남긴 것 | 다시 실행하면 |
 |---|---|
 | 학습 Job이 `InProgress` | 새로 제출하지 않고 **이어서 대기** |
-| 학습 Job이 `Completed` | 재학습 없이 **산출물만 회수** |
+| 학습 Job이 `Completed` | 재학습 없이 **artifact만 회수** |
 | 학습 Job이 `Failed`/`Stopped` | 원인을 보여주고 중단 |
 | endpoint가 `Creating` | 새로 만들지 않고 `InService`까지 대기 |
 | endpoint가 `InService` | 그 endpoint를 그대로 사용 |
@@ -106,7 +106,7 @@ aws sagemaker stop-training-job --training-job-name <state의 training_job> --re
 ```
 
 !!! warning "--force는 진행 중인 것을 새로 만들지 않습니다"
-    `--force`는 "이미 만든 산출물이 있어도 다시 한다"는 뜻입니다. 다만 **돌고 있는 Job이나
+    `--force`는 "이미 만든 artifact가 있어도 다시 실행한다"는 뜻입니다. 다만 **실행 중인 Job이나
     endpoint는 `--force`로도 새로 만들지 않습니다.** 두 개가 동시에 과금되기 때문입니다.
     의도적으로 멈춘 Job을 같은 설정으로 다시 제출할 때만 필요합니다.
 

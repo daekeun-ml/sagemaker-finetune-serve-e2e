@@ -33,7 +33,7 @@ LLM 서빙에서 하나 더 필요한 것이 스트리밍 안쪽입니다. 응�
 
 !!! question "vLLM이 SageMaker보다 빠른 것 아닌가"
     같은 GPU라면 **모델이 토큰을 만드는 속도는 같습니다.** 둘 다 안에서 vLLM이 돌기 때문입니다
-    (이 kit의 기본 서빙 컨테이너가 vLLM DLC입니다). 실측에서 TPOT이 1.6%, ITL이 0.0% 차이였던
+    (이 프로젝트의 기본 서빙 컨테이너가 vLLM DLC입니다). 실측에서 TPOT이 1.6%, ITL이 0.0% 차이였던
     이유입니다.
 
     달라지는 것은 TTFT입니다. HTTP로 직접 붙는 대신 SageMaker Runtime을 한 번 더 거치므로 그만큼이
@@ -42,14 +42,14 @@ LLM 서빙에서 하나 더 필요한 것이 스트리밍 안쪽입니다. 응�
 ## 어떻게 돌리나
 
 endpoint를 지정하는 방법이 두 가지입니다. 코스를 주면 배포가 상태 파일에 남긴 이름을 쓰고,
-이름을 직접 주면 이 kit 밖에서 만든 endpoint도 잽니다. `--course`는 코스를 실행하는 것이 아니라
-endpoint 이름을 어디서 찾을지 정하는 것입니다.
+이름을 직접 주면 이 프로젝트 밖에서 만든 endpoint도 잽니다. `--course`는 코스를 실행하는 것이 아니라
+endpoint 이름을 찾을 위치를 정합니다.
 
 ```bash
 # 코스의 상태 파일에서 endpoint 이름을 읽습니다
 python pipelines/run_benchmark.py --course classification
 
-# 이름을 직접 주면 이 kit 밖에서 만든 endpoint도 잴 수 있습니다
+# 이름을 직접 주면 이 프로젝트 밖에서 만든 endpoint도 잴 수 있습니다
 python pipelines/run_benchmark.py --endpoint-name my-endpoint
 
 # 실행할 명령만 확인하고 끝냅니다(측정하지 않습니다)
@@ -87,7 +87,7 @@ TPOT p99가 39.93ms인 이유입니다.
 
 ## 실제로 재 보면
 
-이 kit의 분류 코스 endpoint를 측정한 값입니다.
+이 프로젝트의 분류 코스 endpoint를 측정한 값입니다.
 
 **서빙 조건**: `ml.g6.2xlarge`(L4 24GB) 1대, vLLM DLC 0.26.0,
 `max_model_len 1024` / `max_num_seqs 32` / `gpu_memory_utilization 0.90`, gemma-4 E4B QLoRA 머지본
@@ -213,7 +213,7 @@ ShareGPT, HuggingFace 데이터셋으로 바꾸거나 CloudWatch `ModelLatency`�
 ## 결과를 파일로 남기기
 
 `save_results: true`(기본)면 요청별 값까지 JSON으로 남깁니다. 저장 위치는 `--course`를 주면 그
-코스의 `data/`, 없으면 리포 루트의 `bench_results/`입니다. 파일명에 endpoint 이름이 들어가서 둘 다
+코스의 `data/`, 없으면 repository root의 `bench_results/`입니다. 파일명에 endpoint 이름이 들어가서 둘 다
 gitignore 대상입니다.
 
 키 이름은 vLLM의 `--save-result` 출력과 맞췄습니다(`mean_ttft_ms`, `p99_ttft_ms` 등).
@@ -244,4 +244,3 @@ Error breakdown:
 
 특히 아래 둘을 먼저 봅니다. `Output token count source`가 `server-usage`가 아니면 TPOT은 참고값이고,
 `Error breakdown`이 비어 있지 않으면 위 지표는 성공한 요청만의 값입니다.
-

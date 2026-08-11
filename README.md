@@ -2,7 +2,7 @@
 
 [Quick start](#quick-start) | [Courses](#courses) | [Why this kit](#why-this-kit) | [Setup](#setup) | [Docs](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/) | [Cost & cleanup](#cost--cleanup)
 
-Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 핸즈온 kit입니다.
+Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서빙 → 평가 → agentic loop**까지 잇는 한국어 hands-on 가이드입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
 
 ### 📘 [가이드북 바로가기 →](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/)
@@ -50,7 +50,7 @@ python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
 
 자세한 내용은 [`pipelines/README.md`](pipelines/README.md).
 
-**노트북 (JupyterLab)**: 처음 배울 때, 중간 산출물을 눈으로 볼 때
+**노트북 (JupyterLab)**: 처음 배울 때, 중간 결과를 눈으로 볼 때
 
 ```bash
 jupyter lab
@@ -84,7 +84,7 @@ jupyter lab
 
 - 파인튜닝 없이 **바로 배포만** 하려는 경우 → SageMaker JumpStart가 더 빠릅니다.
 - 관리형 레시피가 **이미 지원하는 조합**이라면 → SageMaker AI model customization / SageMaker Recipes가 운영 부담이 적습니다.
-- 멀티노드 대규모 사전학습 → SageMaker HyperPod 영역입니다. 이 kit은 단일 GPU LoRA/QLoRA 기준입니다.
+- 멀티노드 대규모 사전학습 → SageMaker HyperPod 영역입니다. 이 프로젝트는 단일 GPU LoRA/QLoRA 기준입니다.
 
 전제 지식은 Python과 Jupyter 사용 경험 정도면 충분합니다. SageMaker AI와 Bedrock 개념은 노트북에서 설명합니다.
 
@@ -112,23 +112,23 @@ jupyter lab
 
 **"SageMaker AI가 Gemma 4를 지원하지 않나?"** 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
 
-AWS가 관리해 주는 방식(JumpStart, model customization, Recipes)은 지원 모델, 기법, 리전 목록이 정해져 있고, 같은 모델이라도 사이즈에 따라 갈립니다. 이 kit은 그 목록에 없는 조합을 맡습니다.
+AWS가 관리해 주는 방식(JumpStart, model customization, Recipes)은 지원 모델, 기법, 리전 목록이 정해져 있고, 같은 모델이라도 사이즈에 따라 갈립니다. 이 프로젝트는 그 목록에 없는 조합을 맡습니다.
 
 | Path | Fine-tuning | Notes |
 |---|---|---|
 | **SageMaker JumpStart** | 불가 (배포만) | 클릭 몇 번으로 endpoint. gemma-4 5종 모두 `training_supported=False`로 확인 |
 | **SageMaker AI model customization** | 가능 | 관리형 SFT/DPO/RFT. 지원 모델, 기법, 리전이 한정 |
 | **SageMaker Recipes** (Training Job / HyperPod) | 가능 | 검증된 레시피로 SFT/DPO/GRPO. 지원 모델 목록에 의존 |
-| **이 kit (BYOC, DLC + 커스텀 스크립트)** | 가능 | 모델, 기법, 하이퍼파라미터를 **직접 제어**. 대신 코드를 관리해야 함 |
+| **이 프로젝트 (BYOC, DLC + 커스텀 스크립트)** | 가능 | 모델, 기법, 하이퍼파라미터를 **직접 제어**. 대신 코드를 관리해야 함 |
 
 <details>
 <summary><b>이 방식을 택한 이유 3가지와, 그래서 만난 함정</b></summary>
 
 1. **지원 목록에 없는 조합을 쓸 수 있습니다.** AWS 관리형 방식은 지원 모델, 기법, 리전이 정해져 있고 자주 바뀝니다. 원하는 조합이 빠져 있으면 기다리는 수밖에 없습니다.
 2. **학습 코드가 열려 있습니다.** LoRA target, chat template, packing, reward 함수까지 읽고 고칠 수 있습니다. 관리형은 노출된 하이퍼파라미터 범위 안에서만 조정됩니다.
-3. **함정이 코드에 반영돼 있습니다.** 컨테이너를 직접 가져가면 AWS가 대신 처리해 주던 문제를 내가 맡게 됩니다. 이 kit은 실제로 겪고 고친 것들을 담고 있습니다.
+3. **함정이 코드에 반영돼 있습니다.** 컨테이너를 직접 가져가면 AWS가 대신 처리해 주던 문제를 내가 맡게 됩니다. 이 프로젝트는 실제로 겪고 고친 것들을 담고 있습니다.
 
-가장 대표적인 함정: **`save_pretrained`로 저장한 gemma-4 E2B/E4B 체크포인트는 vLLM, SGLang, LMI에서 로드가 실패합니다.** KV-sharing 레이어의 가중치가 저장 과정에서 빠지기 때문입니다. `scripts/train.py`가 저장 직전에 이를 복원하므로, 학습 결과를 그대로 vLLM으로 서빙할 수 있습니다 (상세: [`docs/05_serving_containers.md`](docs/05_serving_containers.md)).
+대표적인 예로, **`save_pretrained`로 저장한 gemma-4 E2B/E4B checkpoint는 vLLM, SGLang, LMI에서 로드되지 않습니다.** 저장 과정에서 KV-sharing 레이어의 가중치가 빠지기 때문입니다. `scripts/train.py`가 저장 직전에 이를 복원하므로 학습 결과를 그대로 vLLM으로 서빙할 수 있습니다. 자세한 내용은 [`docs/05_serving_containers.md`](docs/05_serving_containers.md)에 있습니다.
 
 그 외에도 학습이 끝난 뒤 머지 단계에서 Job이 잘리는 문제, 24GB GPU에서의 서빙 OOM, 응답이 조용히 절단되는 문제 등을 `docs/`에 원인과 함께 정리해 두었습니다.
 
@@ -184,7 +184,7 @@ AWS가 관리해 주는 방식(JumpStart, model customization, Recipes)은 지�
 
 | | 노트북 (`tracks/`) | 스크립트 (`pipelines/`) |
 |---|---|---|
-| 적합 | 처음 배울 때, 중간 산출물을 볼 때, 질의를 바꿔가며 볼 때 | 검증된 코스 재실행, CI, 무인 실행, 결과 재현 |
+| 적합 | 처음 배울 때, 중간 결과를 볼 때, 질의를 바꿔가며 볼 때 | 검증된 코스 재실행, CI, 무인 실행, 결과 재현 |
 | 단계 전달 | `%store` (IPython 전용이고 **전역**) | 코스별 JSON 파일 (`.pipeline_state/`) |
 | 설정 | 노트북 셀 상수 + `.env` | `config.yaml` + env(시크릿만) |
 | agentic 단계 | 있음 (05, 06) | 없음 (노트북에만) |
@@ -215,7 +215,7 @@ sagemaker-finetune-serve-e2e/
 ├── pipelines/  같은 코스를 파이썬으로 한 번에 실행 (CI와 재현용)
 ├── docs/       파인튜닝, 서빙 컨테이너, 합성 데이터, agentic 가이드
 ├── tools/      노트북 셀 출력 정리
-└── agentcore/  ARM64 컨테이너 스캐폴드 (Strands → AgentCore Runtime)
+└── agentcore/  ARM64 컨테이너 scaffold (Strands → AgentCore Runtime)
 ```
 
 <details>
@@ -223,14 +223,14 @@ sagemaker-finetune-serve-e2e/
 
 | File | Role |
 |---|---|
-| `config.py` | 모델 프리셋, 리전, role/bucket, DRY_RUN (전부 env 오버라이드) |
+| `config.py` | 모델 프리셋, 리전, role/bucket, DRY_RUN (전부 env override) |
 | `gemma_format.py` | messages 어댑터 (`apply_chat_template`에 위임) |
 | `aws_utils.py` | endpoint 호출(스트리밍 포함), Bedrock Converse, CloudWatch 링크 |
 | `dlc.py` | DLC 이미지 해석 + 엔진별(vLLM/SGLang/LMI) 서빙 env 조립 |
 | `display_utils.py` | 노트북 추론 결과 렌더링 |
 | `eval_utils.py` | 코스별 평가 지표 |
 | `grpo_data.py` | GRPO 프롬프트 소스 3종 (holdout / synth / failures) |
-| `model_inspect.py` | 체크포인트가 vLLM으로 서빙 가능한지 판정 |
+| `model_inspect.py` | checkpoint가 vLLM으로 서빙 가능한지 판정 |
 | `synth/` | grounded 합성 (Bedrock Converse + critique/refine) |
 
 </details>
@@ -247,7 +247,7 @@ sagemaker-finetune-serve-e2e/
 | `scripts/train_grpo.py` | SFT→GRPO 정련. reward를 프로그램으로 채점하는 추출과 분류 코스에서 사용 |
 | `scripts/serve_local_vllm.sh` | 배포 전 로컬 vLLM으로 모델 로드 확인 |
 | `scripts/bench_local_vllm.sh` | 로컬 처리량과 지연 측정 |
-| `scripts/cleanup_local.sh` | 로컬에 받아 둔 모델과 벤치 산출물 정리 |
+| `scripts/cleanup_local.sh` | 로컬에 받아 둔 모델과 benchmark 결과 정리 |
 | `scripts/requirements.txt` | 학습 컨테이너 안에서 설치할 패키지 (로컬 환경과 별개) |
 
 `train.py` / `train_grpo.py` / `*.sh`는 네 코스에서 **내용이 동일**합니다. 코스 차이는 `track_data.py`와 노트북의 하이퍼파라미터에 있습니다.
@@ -316,31 +316,31 @@ export DRY_RUN=1     # 먼저 파이프라인만 검증
 
 ## License
 
-이 리포의 코드와 문서는 [MIT](LICENSE)입니다. 아래는 **그와 별개로** 확인해야 하는 모델과 데이터셋
+이 프로젝트의 코드와 문서는 [MIT](LICENSE)입니다. 아래는 **그와 별개로** 확인해야 하는 모델과 데이터셋
 라이선스입니다.
 
 - **Gemma 4** = apache-2.0 + ungated. 토큰 없이 받을 수 있고 use-restriction이 없습니다.
-- **Gemma 3 / 2 / 3n** = 커스텀 Gemma Terms + gated. HF 토큰과 약관 수락이 필요하고, 파인튜닝과 서빙 산출물까지 use-restriction이 전파됩니다.
+- **Gemma 3 / 2 / 3n** = 커스텀 Gemma Terms + gated. HF 토큰과 약관 수락이 필요하고, fine-tuning 모델과 serving 결과에도 use restriction이 적용됩니다.
 - 시드 데이터셋은 permissive만 선별했습니다 (NC/ND/라이선스 미선언 제외). dolly 등 share-alike 데이터의 파생물은 배포 시 조건을 확인하세요.
 
 모델 카드와 데이터셋 라이선스는 재배포나 서빙 전에 다시 확인하는 것이 안전합니다. 모델 ID, SDK 버전, 리전 지원 여부는 자주 바뀝니다.
 
 ## How this was built
 
-기본 설계와 의사 코드(pseudo code)는 직접 작성했고, 이를 바탕으로 Claude Code로 노트북과 스크립트를 생성했습니다.
+기본 설계와 pseudo code는 직접 작성했고, 이를 바탕으로 Claude Code로 노트북과 스크립트를 생성했습니다.
 
-**백지에서 시작한 것이 아닙니다.** 그동안 직접 만들어 온 SageMaker AI 실습 에셋들에서 얻은 판단 기준(어떤 순서로 가르쳐야 이해되는지, 어디서 사람들이 막히는지, 어떤 값을 기본으로 둬야 안전한지)을 컨텍스트로 넣었습니다. 그 축적이 없으면 "돌아가는 코드"는 나오지만 "실습에 쓸 수 있는 코드"는 나오지 않습니다.
+그동안 직접 만든 SageMaker AI 실습 assets에서 얻은 판단 기준을 context로 넣었습니다. 설명 순서, 자주 막히는 지점, 안전한 기본값이 여기에 포함됩니다.
 
-**그리고 한 번 생성해서 끝난 것도 아닙니다.** human-in-the-loop으로 돌렸습니다. 생성 → 실제 실행 → 문제 발견 → 지시 수정 → 재생성을 반복했고, 그 과정에서 나온 판단 기준은 다시 규칙으로 정리해 다음 생성에 반영했습니다.
+생성 후에는 human-in-the-loop으로 검증했습니다. 실제 실행, 문제 확인, 지시 수정, 재생성을 반복하고 그 결과를 다음 생성 규칙에 반영했습니다.
 
 실제로 이 루프에서 잡아낸 것들입니다.
 
-- **학습 Job이 머지 도중 죽는 문제**: SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 창이 후처리까지 덮습니다. 상태는 `Stopped`이고 `FailureReason`은 비어 있어서, 실행해 보지 않으면 드러나지 않았습니다.
-- **`save_pretrained`가 저장한 체크포인트를 vLLM이 못 읽는 문제**: KV-shared 레이어의 텐서 54개가 소실됩니다. 배포까지 가 봐야 나오는 문제였습니다.
+- **학습 Job이 merge 도중 종료되는 문제**: SDK가 `StoppingCondition`을 생략하면 1시간을 넣는데, 그 제한이 후처리까지 포함합니다. 상태는 `Stopped`이고 `FailureReason`은 비어 있어서, 실행 전에는 확인하기 어려웠습니다.
+- **`save_pretrained`가 저장한 checkpoint를 vLLM이 못 읽는 문제**: KV-shared 레이어의 텐서 54개가 소실됩니다. 배포까지 가 봐야 나오는 문제였습니다.
 - **`--dry-run`인데 실제로 과금되던 문제**: 건수만 줄이고 Bedrock 호출은 그대로여서, 합성 100건에 약 110회가 청구됐습니다. 실행 로그를 읽다 발견했습니다.
 - **문서의 어색한 표현**: `재-export` 같은 조어, "근육기억"(muscle memory 직역), 문단 전체를 감싼 볼드 안의 볼드. 사람이 읽어 보고 지적한 뒤에야 고쳐졌습니다.
 
-그래서 이 kit의 코드에는 **한 번에 맞힌 것보다 틀렸다가 고친 것이 더 많이 담겨 있습니다.** 주석에 "왜 이 값인가"가 자주 붙어 있는 이유도 그것입니다.
+이 과정에서 얻은 판단 근거는 코드 주석과 문서에 남겼습니다.
 
 ## Disclaimer
 

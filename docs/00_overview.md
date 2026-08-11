@@ -1,10 +1,10 @@
-# 00. 전체 지도: kit 구조와 실행 순서
+# 00. 전체 지도: 프로젝트 구조와 실행 순서
 
 !!! info "Scope"
-    이 kit을 처음 여는 ML 엔지니어 / 데이터 과학자를 위한 지도입니다.
+    이 프로젝트를 처음 여는 ML 엔지니어 / 데이터 과학자를 위한 지도입니다.
     Amazon SageMaker AI, Bedrock을 몰라도 읽을 수 있습니다.
 
-    - **선행 조건**: 없습니다. 이 문서가 kit의 **진입점(index)**입니다
+    - **선행 조건**: 없습니다. 이 문서가 프로젝트의 **진입점(index)**입니다
     - **여기서 다루는 것**: 무엇이 어디에 있고 어떤 순서로 도는지, 노트북 ↔ 문서 매핑,
       모델과 엔진 기본값, 비용과 정리
     - **여기서 다루지 않는 것**: 개념 상세는 각 가이드 01~06으로 연결합니다
@@ -20,10 +20,8 @@
 
 ## TL;DR
 
-**태스크별로 독립 완결되는 실습 코스 5개가 얇은 `common/` 레이어를 공유하는 step-by-step 실습 kit입니다.**
+**태스크별 독립 실습 코스 5개가 얇은 `common/` 레이어를 공유하는 단계별 실습 프로젝트입니다.**
 각 코스는 task → 오픈 시드 데이터 → grounded 합성 → SageMaker AI 학습(PyTorch DLC + TRL/PEFT) → real-time endpoint(vLLM DLC 기본) → agentic(Strands → AgentCore) → held-out 평가로 이어집니다.
-
-정리하면 다음과 같습니다.
 
 1. **텍스트 코스 파이프라인은 7단계**입니다. 노트북 `00→06` + `99_cleanup`이 그대로 각 단계에 대응합니다([E2E 파이프라인](#e2e-파이프라인-텍스트-코스-7단계)).
 2. **코스는 5개**(추출→JSON / 분류 / 요약 / 도메인-QA / 멀티모달 추출)이고 서로 독립된 E2E입니다. 공통 로직만 분리했습니다([5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)).
@@ -34,28 +32,28 @@
 !!! tip "어디서부터 읽을까"
     - **바로 손을 대고 싶다면** → [시작하기](getting_started.md)(설치 → 스모크 → dry-run → 노트북).
     - **순서대로 완주하려면** → [실행 runbook](RUN_E2E.md)에 단계별 핸드오프, 비용, 체크리스트가 있습니다.
-    - **개념부터 잡으려면** → 배포/추론이 이 kit의 핵심이므로 [SageMaker AI 추론](04_sagemaker_inference.md)을 먼저 보세요. 학습은 [파인튜닝](03_finetuning.md), 데이터는 [합성 데이터](02_synthetic_data.md)입니다.
+    - **개념부터 잡으려면** → 배포/추론이 이 프로젝트의 핵심이므로 [SageMaker AI 추론](04_sagemaker_inference.md)을 먼저 보세요. 학습은 [파인튜닝](03_finetuning.md), 데이터는 [합성 데이터](02_synthetic_data.md)입니다.
 
 ---
 
-## 기존 Pain Point
+## 기존 문제
 
-이 kit이 없을 때 실제로 겪는 것들입니다.
+이 프로젝트가 없을 때 실제로 겪는 것들입니다.
 
-- "Gemma를 SageMaker AI에서 파인튜닝→서빙"하는 예제는 조각조각 흩어져 있고, **버전과 이미지 태그가 스치듯 오래된 경우가 많습니다**. 그대로 복붙하면 컨테이너 resolve부터 실패합니다.
-- "AWS 예제는 죄다 DJL LMI를 쓰는데 vLLM이 제일 빠르다고 하고, 어떤 문서는 HF DLC를 쓴다"처럼 **컨테이너 선택지가 정리되지 않아** 무엇에 `model_data`를 물릴지 판단이 서지 않습니다.
+- "Gemma를 SageMaker AI에서 파인튜닝→서빙"하는 예제는 여러 곳에 흩어져 있고, **버전과 이미지 태그가 오래된 경우가 많습니다**. 그대로 복사하면 컨테이너 resolve부터 실패합니다.
+- AWS 예제에는 DJL LMI, vLLM, HF DLC가 함께 등장하지만 **컨테이너 선택 기준이 명확하지 않아** 어디에 `model_data`를 연결할지 판단하기 어렵습니다.
 - **tier/서비스 혼동**도 흔합니다. "endpoint를 Bedrock으로 부른다", "Serverless로 LLM 띄운다", "학습은 JumpStart로" 같은 오해가 실습을 무너뜨립니다.
-- Gemma 특유의 함정(chat template의 system role 거부, fp16 NaN, packing cross-contamination)을 모르고 시작하면 **조용히 망가진 학습**을 얻게 됩니다.
+- Gemma 특유의 함정(chat template의 system role 거부, fp16 NaN, packing cross-contamination)을 모르고 시작하면 **문제를 알아채기 어려운 학습 결과**가 나올 수 있습니다.
 - 합성 데이터를 teacher 그대로 만들고 **그걸로 평가**하면 성능을 과대평가하게 됩니다.
 
-이 kit은 위 함정을 코드 주석, 노트북, 본 문서의 "오해" 노트로 박아 두어, 초심자가 밟지 않도록 돕습니다.
+이 프로젝트는 위 함정을 코드 주석, 노트북, 문서의 "오해" 항목에 명시해 초심자가 같은 문제를 피하도록 돕습니다.
 
 ---
 
 ## 왜 이 구조인가
 
 !!! abstract "쉽게 말하면"
-    이 kit은 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
+    이 프로젝트는 "하나의 큰 튜토리얼"이 아니라 **"같은 부품을 공유하는 5개의 작은 완결 튜토리얼"**입니다.
     부품(합성, 학습, 서빙, 평가)은 `common/`에 한 번만 작성해 두고, 코스는 데이터와 프롬프트만 갈아끼웁니다.
     멀티모달 코스만 이미지 입력이라 구조가 조금 다릅니다.
 
@@ -64,7 +62,7 @@
 "관리형이 EC2보다 비싸다"는 비교는 **총 소유비용(TCO) 중 인프라 비용 한 칸만** 놓고 이루어집니다. 아래 축별 선택보다 한 층 위에 있는 전제, 즉 **왜 관리형 티어인가**가 여기서 갈립니다.
 
 티어를 고를 때 사람들이 실제로 보는 축은 하나뿐입니다: **시간당 단가**. 그리고 그 비교에서 관리형이 지는 것은 사실입니다.
-이 kit이 쓰는 `ml.g6.2xlarge`를 SageMaker AI endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다.
+이 프로젝트가 쓰는 `ml.g6.2xlarge`를 SageMaker AI endpoint로 띄우면 같은 세대의 `g6.2xlarge` EC2 인스턴스보다 시간당 단가가 높습니다.
 
 ??? info "단가는 직접 비교하세요"
     정확한 배율은 리전과 시점에 따라 다릅니다. [SageMaker AI 요금](https://aws.amazon.com/sagemaker-ai/pricing/)과 [EC2 온디맨드 요금](https://aws.amazon.com/ec2/pricing/on-demand/)에서 같은 인스턴스 계열을 직접 대조하세요.
@@ -73,7 +71,7 @@
 
 *자체 배포의 막대가 긴 이유는 단가가 아니라 칸 수입니다. 인프라 비용 위에 운영 비용과 규정 준수 비용이 더 얹힙니다.*
 
-그림 왼쪽의 세 문장은 이 kit을 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다: **빠진 두 칸을 채우고 다시 비교하세요.**
+그림 왼쪽의 세 문장은 이 프로젝트를 처음 볼 때 실제로 하는 질문과 거의 같습니다. 세 개 모두 같은 대답을 갖습니다: **빠진 두 칸을 채우고 다시 비교하세요.**
 
 | 비용 칸 | 무엇이 들어가나 | 자체 배포(EC2/EKS)에서는 | 관리형(SageMaker AI)에서는 |
 |---|---|---|---|
@@ -81,18 +79,18 @@
 | **운영 비용** | GPU 드라이버, CUDA 업그레이드, `/ping` 상당의 health check와 로드밸런서 구성, 재시작, 롤백, 관측 스택, 당직 | 전부 내 몫. 그리고 이것은 **인건비라서 청구서에 안 보입니다** | 컨트롤 플레인이 AWS 몫. 내가 쓰는 것은 `.env` 값과 노트북 몇 줄 |
 | **규정 준수 비용** | guest OS 패치 적용, 감사 증적, 격리, 암호화 구성 | [공동 책임 모델](https://aws.amazon.com/compliance/shared-responsibility-model/) 기준으로 guest OS와 그 위의 소프트웨어 패치는 **고객 책임** | 호스트와 관리형 런타임은 AWS 책임. 내 몫은 이미지 태그를 올리는 것([운영 관점 비교](01_sagemaker_basics.md#운영-관점-비교)의 「보안 패치, 규정 준수」 행) |
 
-그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 kit의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
+그림 오른쪽 아래의 육각형 세 개는 그렇게 비교할 때 실제로 봐야 하는 축입니다. 이 프로젝트의 실습에서 각각이 어디서 드러나는지 붙여 보면 추상적인 목록이 아니게 됩니다.
 
 - **비용**: 모델 호스팅 비용, 운영 오버헤드, **배포와 관리해야 할 모델 수**.
 
     마지막 항목이 가장 자주 빠집니다. 모델이 하나면 EC2 한 대에 vLLM을 띄우는 것으로 충분합니다.
-    그런데 코스마다 다른 모델이 붙기 시작하면(이 kit만 해도 추출, 분류, 요약, 멀티모달 코스가 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
+    그런데 코스마다 다른 모델이 붙기 시작하면(이 프로젝트만 해도 추출, 분류, 요약, 멀티모달 코스가 각자 어댑터를 만듭니다) 대수가 아니라 **배포 파이프라인 수**가 늘어납니다.
 
 - **성능**: 지연 시간, 처리량, 가용성.
 
     지연과 처리량은 서빙 엔진의 몫이라 자체 배포로도 같은 값을 낼 수 있습니다(vLLM은 같은 vLLM입니다). 하지만 **가용성**은 엔진이 주지 않습니다.
 
-    `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능입니다(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다. 이 kit은 실습이라 `initial_instance_count=1` 고정입니다).
+    `/ping` health check로 기동 실패를 걸러 내고 인스턴스를 **여러 AZ에 분산**해 주는 것은 endpoint 층의 기능입니다(AWS는 production endpoint에 [인스턴스 여러 대를 두라고 권고](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-best-practices.html)합니다. 이 프로젝트는 실습이라 `initial_instance_count=1` 고정입니다).
 
     모델을 교체할 때의 canary, 롤백은 [배포 가드레일](https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html)이 담당합니다(endpoint **업데이트** 전용 기능입니다).
 
@@ -110,12 +108,12 @@
 
 ### 설계 축별 선택
 
-| 축 | 이 kit의 선택 | 대안 | 왜 이걸 골랐나 (조건부) |
+| 축 | 이 프로젝트의 선택 | 대안 | 왜 이걸 골랐나 (조건부) |
 |---|---|---|---|
 | 학습 경로 | **PyTorch DLC + [TRL `SFTTrainer`](https://huggingface.co/docs/trl/sft_trainer) + [PEFT](https://huggingface.co/docs/peft/index) LoRA/QLoRA** | JumpStart 원클릭 / HF DLC | 커스텀 chat template, LoRA 타깃, bf16 등을 **직접 제어**해야 Gemma가 제대로 학습됩니다. 베이스가 순수 PyTorch DLC라 `scripts/requirements.txt`로 최신 `transformers`를 컨테이너 안에서 맞출 수 있습니다. 세밀한 제어가 필요 없다면 JumpStart도 유효한 선택입니다. |
 | [추론 옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html) | **SageMaker AI real-time endpoint** | Serverless / Async / Batch | 대화형 SLM은 상시 저지연이 필요하므로 real-time이 적합합니다. **Serverless는 GPU가 없어 LLM에 부적합합니다.** 배치성 작업이라면 Async/Batch를 고려하세요. |
 | 서빙 컨테이너 | **[vLLM](https://github.com/vllm-project/vllm) DLC (`SERVING_ENGINE=vllm`, 기본)** | [SGLang](https://github.com/sgl-project/sglang) DLC / [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html) | gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다. 관리형 컨테이너와 `OPTION_*` 규약이 익숙하면 `lmi`, RadixAttention 등이 필요하면 `sglang`으로 env만 바꾸면 됩니다. 셋 다 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드가 동일합니다**. |
-| reasoning 모델 | **Bedrock Claude ([Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html))** | 자체 대형 모델 호스팅 | agentic 오케스트레이션은 대형 LLM이 유리하고, Bedrock은 상시 리소스 없이 토큰 단위로 과금됩니다. |
+| reasoning 모델 | **Bedrock Claude ([Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html))** | 자체 대형 모델 호스팅 | agentic orchestration은 대형 LLM이 유리하고, Bedrock은 상시 리소스 없이 토큰 단위로 과금됩니다. |
 | 에이전트 | **[Strands](https://github.com/strands-agents/sdk-python) → [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html)** | LangGraph 등 | Strands는 Bedrock/SageMaker AI와 정합하고, AgentCore는 관리형 런타임입니다. LangGraph 옵션은 `pyproject.toml` extras로 열려 있습니다. |
 | 데이터 | **grounded 합성 (Bedrock Converse + critique/refine)** | 대형 오픈 합성셋 그대로 | 시드 도메인에 grounded 시켜 **task에 적합하고 라이선스도 안전**하게 만듭니다. |
 
@@ -153,12 +151,12 @@
     각 단계가 노트북 하나에 대응합니다. 아래는 텍스트 코스(01~04) 기준이고,
     멀티모달 코스 05는 더 짧은 별도 파이프라인입니다.
 
-![텍스트 코스의 노트북 파이프라인. task 정의에서 시작해 00_setup이 env, role, bucket, 의존성을 확인합니다. 01_data_and_synthetic이 오픈 시드를 로드하고 Bedrock Converse로 grounded 합성을 하며 common/synth/bedrock_synth.py가 messages JSONL을 만듭니다. 02_train_sft_sagemaker가 PyTorch DLC와 TRL SFTTrainer로 LoRA 또는 QLoRA 학습을 하고 JumpStart는 쓰지 않으며, scripts/train.py가 로컬 dry-run과 SageMaker AI 학습 Job 양쪽에서 같은 파일로 돕니다. 여기서 선택 분기 두 개가 갈라집니다. 02a는 SFT 결과를 GRPO로 정련하고 추출과 분류 코스에만 있으며, 02b는 배포 전 로컬 vLLM 프리플라이트입니다. 이어서 03_deploy_endpoint가 real-time endpoint를 띄우고 여기서부터 시간당 과금이 시작됩니다. 04_evaluate가 held-out 세트로 성공 기준을 수치화하고, 05_agentic_strands가 Strands Agent를 만들며, 06_agentcore_deploy가 AgentCore Runtime에 배포합니다. 마지막으로 99_cleanup이 endpoint와 리소스를 삭제해 과금을 멈춥니다](images/notebook_pipeline.svg)
+![텍스트 코스의 노트북 파이프라인. task 정의에서 시작해 00_setup이 env, role, bucket, 의존성을 확인합니다. 01_data_and_synthetic이 오픈 시드를 로드하고 Bedrock Converse로 grounded 합성을 하며 common/synth/bedrock_synth.py가 messages JSONL을 만듭니다. 02_train_sft_sagemaker가 PyTorch DLC와 TRL SFTTrainer로 LoRA 또는 QLoRA 학습을 하고 JumpStart는 쓰지 않으며, scripts/train.py가 로컬 dry-run과 SageMaker AI 학습 Job 양쪽에서 같은 파일로 돕니다. 여기서 선택 분기 두 개가 갈라집니다. 02a는 SFT 결과를 GRPO로 정련하고 추출과 분류 코스에만 있으며, 02b는 배포 전 로컬 vLLM preflight입니다. 이어서 03_deploy_endpoint가 real-time endpoint를 띄우고 여기서부터 시간당 과금이 시작됩니다. 04_evaluate가 held-out 세트로 성공 기준을 수치화하고, 05_agentic_strands가 Strands Agent를 만들며, 06_agentcore_deploy가 AgentCore Runtime에 배포합니다. 마지막으로 99_cleanup이 endpoint와 리소스를 삭제해 과금을 멈춥니다](images/notebook_pipeline.svg)
 
 *파란 박스가 필수 단계, 점선 박스가 코스에 따라 있고 없는 선택 단계입니다. 주황색 두 칸(`03`, `99`)이 과금이 시작되고 끝나는 지점이라, 이 둘은 짝으로 기억하세요.*
 
 - **(선택) `02a_train_grpo_sagemaker`**: SFT 결과를 GRPO(RLHF)로 정련합니다(`scripts/train_grpo.py`).
-- **(선택) `02b_local_serve`**: SageMaker AI 배포 전 로컬 vLLM으로 프리플라이트합니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).
+- **(선택) `02b_local_serve`**: SageMaker AI 배포 전 로컬 vLLM으로 preflight 검증을 합니다(`scripts/serve_local_vllm.sh`, `scripts/bench_local_vllm.sh`).
 - 위 두 노트북은 코스마다 있고 없고가 갈립니다. 어느 코스에 붙는지는 [텍스트 코스의 공통 노트북 세트](#텍스트-코스의-공통-노트북-세트)에 있습니다.
 - **`04_evaluate`**: endpoint를 held-out 세트로 직접 호출해 코스별 지표를 계산합니다. 로컬에서 돌기 때문에 빠르고 저렴합니다.
 
@@ -221,7 +219,7 @@
     그래서 이 두 코스는 노트북이 10개, 요약과 도메인 QA는 9개입니다.
 - **`02b_local_serve`: 4개 코스 모두에 있지만 선택입니다.** 로컬 GPU가 없으면 건너뛰어도 됩니다.
 
-따라서 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`이고, 노트북별 산출물은 [노트북 단계와 산출물](#노트북-단계와-산출물) 표에 있습니다.
+따라서 최소 경로는 `00 → 01 → 02 → 03 → 04 → 99`이고, 노트북별 결과는 [노트북 단계와 결과](#노트북-단계와-결과) 표에 있습니다.
 
 코스별로 달라지는 값은 두 곳에만 있습니다.
 
@@ -254,12 +252,12 @@
 | `common/gemma_format.py` | 표준 `messages` 어댑터 (`apply_chat_template`에 위임, 수동 마커 금지) |
 | `common/aws_utils.py` | `invoke_endpoint`(sagemaker-runtime), `converse`(bedrock-runtime), CloudWatch 링크, 비용 가드 |
 | `common/dlc.py` | DLC 이미지 URI 해석(계정 `763104351884`, 태그는 env 주입) + 엔진별 서빙 env 조립(`serving_env`) |
-| `common/model_inspect.py` | 체크포인트 점검(KV-sharing 여부, 서빙 가능 엔진 판정) |
+| `common/model_inspect.py` | checkpoint 점검(KV-sharing 여부, 서빙 가능 엔진 판정) |
 | `common/llm_gateway.py` | (LiteLLM) Bedrock + SageMaker AI endpoint 단일 인터페이스 |
 | `common/synth/bedrock_synth.py` | grounded 합성 (Converse + critique/refine, boto3만, 무의존성) |
 | `common/eval_utils.py` | 코스별 메트릭 (추출/분류/요약/QA) + Bedrock LLM-judge |
 | `tracks/*/scripts/train.py`, `train_grpo.py` | self-contained 학습 (로컬 dry-run ↔ SageMaker AI 겸용) |
-| `agentcore/app.py` | AgentCore Runtime 엔트리포인트 ([bedrock-agentcore SDK](https://github.com/aws/bedrock-agentcore-sdk-python)로 Strands 에이전트 호스팅) |
+| `agentcore/app.py` | AgentCore Runtime entry point ([bedrock-agentcore SDK](https://github.com/aws/bedrock-agentcore-sdk-python)로 Strands 에이전트 호스팅) |
 
 ??? question "오해: “코스끼리 뭔가 공유하니 순서대로 해야 하나?”"
     **그렇지 않습니다.** 5개 코스는 **완전히 독립된 E2E**입니다. 관심 있는 코스 하나만 `00→99`로 돌려도 완결됩니다.
@@ -283,12 +281,12 @@
 
 - **`31B`만 프리셋 인스턴스가 `ml.g6e.12xlarge`(L40S, nominal 48GB, 가용 44GiB)입니다.** 4bit로도 base가 24GB 카드(L4, A10G, 가용 22GiB)를 넘길 수 있어서입니다.
     `params/2` 어림값이 통하지 않는 지점입니다.
-- 이 kit의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습과 서빙 인스턴스를 override해 둡니다.
+- 이 프로젝트의 `.env`는 용량 대기가 짧은 `ml.g6.2xlarge`(L4 24GB GPU + 32GB RAM)로 학습과 서빙 인스턴스를 override해 둡니다.
     크기를 올릴 때는 `TRAIN_INSTANCE_TYPE`/`INFER_INSTANCE_TYPE`도 함께 조정하세요.
 - **인스턴스는 GPU만 보지 말고 호스트 RAM도 보세요.** QLoRA 학습 자체는 GPU에 들어가지만, 학습 후 merge/re-export가 base 모델을 bf16 full로 CPU에 로드하므로 RAM이 병목입니다.
     `train.py`는 merge 전 학습 모델을 해제하고 base를 `low_cpu_mem_usage`로 로드해 사본을 최소화합니다. E4B의 peak RAM 실측값은 약 17.5GB입니다.
-- **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 체크포인트가 없습니다).** 그래서 텍스트 코스는 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 re-export합니다.
-    이 과정을 건너뛰면 서빙 컨테이너가 image processor를 찾다가 `Can't load image processor`로 죽습니다.
+- **gemma-4는 전 사이즈가 멀티모달입니다(텍스트 전용 공식 checkpoint가 없습니다).** 그래서 텍스트 코스는 머지 후 language 서브모듈만 텍스트 arch(`*ForCausalLM`, `model_type=*_text`)로 re-export합니다.
+    이 과정을 건너뛰면 serving container가 image processor를 찾다가 `Can't load image processor` 오류로 종료됩니다.
 
 ??? info "31B가 24GB 카드를 넘기는 내역"
     - quantizable linear 29.29B → NF4로 14.6GB(+double-quant 상수 0.46GB)
@@ -338,7 +336,7 @@ pip만 쓰신다면 `pip install -r requirements.txt`를 실행하세요. 버전
 
 ### 환경변수 주입
 
-시크릿과 계정 ID, 절대경로는 하드코딩하지 않습니다. 리포의 `.env`는 **설정만 담기 때문에 커밋됩니다**. 개인 값은 `.env.local`(gitignore)에 두세요.
+시크릿과 계정 ID, 절대경로는 하드코딩하지 않습니다. repository에 포함된 `.env`는 **설정만 담기 때문에 커밋됩니다**. 개인 값은 `.env.local`(gitignore)에 두세요.
 
 ```bash
 export AWS_REGION=us-west-2                              # config 기본값. 리전 재확인 후 사용
@@ -360,14 +358,14 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 ### DRY_RUN 우선
 
 `DRY_RUN=1`로 두면 **파이프라인만** 검증합니다. 학습은 **1 epoch, `max_seq_length` <= 512, 앞 32건**으로, 합성은 소량으로 돕니다.
-관련 코드는 `common/config.py:is_dry_run`과 `train.py`의 dry-run 오버라이드입니다.
+관련 코드는 `common/config.py:is_dry_run`과 `train.py`의 dry-run override입니다.
 
 **GPU dry-run은 L40S에서 검증되었습니다.** 다른 GPU/메모리에서는 배치와 seq 길이를 재조정해야 할 수 있습니다. 파이프라인이 확인되면 `DRY_RUN=0`으로 실제 실행하세요.
 
 ??? question "오해: “로컬 `transformers`와 SageMaker AI가 같은 버전이겠지?”"
     **그렇지 않습니다.** 로컬 env의 `transformers`는 데이터 준비/dry-run용이고, **SageMaker AI 컨테이너 버전은 DLC 이미지 태그**가 결정합니다.
     컨테이너 안에서 상위 버전이 필요하면 `tracks/*/scripts/requirements.txt`가 이를 업그레이드합니다.
-    이 kit의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다. baked-in `transformers`에 묶이지 않습니다.
+    이 프로젝트의 학습 베이스가 순수 PyTorch DLC인 것도 같은 이유입니다. baked-in `transformers`에 묶이지 않습니다.
 
 ---
 
@@ -385,21 +383,21 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
 | [속도 측정](benchmark.md) | TTFT/TPOT/ITL/E2EL을 `vllm bench serve` 규약으로. Inference Recommender는 토큰 단위 지표를 주지 않습니다 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
 | [실행 runbook](RUN_E2E.md) | 단계별 핸드오프, 비용 가드, 완료 기준 | 전 단계 | - |
-| [SDK V3](sdk_v3/index.md) | V2→V3 매핑, 메타패키지 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
+| [SDK V3](sdk_v3/index.md) | V2→V3 매핑, metapackage 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
 
 위 표의 가이드는 **주제별**(데이터, 학습, 배포, 에이전트)이라 5개 코스에 공통으로 적용됩니다. **코스별**로 무엇이 다른지는 코스 문서 5개가 따로 다루며, [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)의 표에서 연결됩니다.
 
 평가는 별도 문서 없이 `common/eval_utils.py`와 각 코스의 `04_evaluate` 노트북에 담겨 있습니다(held-out 평가, 코스별 메트릭, LLM-judge).
 
-### 노트북 단계와 산출물
+### 노트북 단계와 결과
 
-| 노트북 | 산출물 | 비고 |
+| 노트북 | 결과 | 비고 |
 |---|---|---|
 | `00_setup` | env/role/bucket 확인 | `DRY_RUN` 권장 |
 | `01_data_and_synthetic` | `messages` JSONL(합성) | S3 업로드 |
-| `02_train_sft_sagemaker` | 학습 Job → 모델 아티팩트(S3) | LoRA 머지 + 텍스트 re-export 산출물 포함 |
+| `02_train_sft_sagemaker` | 학습 Job → 모델 artifact(S3) | LoRA 머지 + 텍스트 re-export artifact 포함 |
 | (선택) `02a_train_grpo_sagemaker` | GRPO 정련 모델 | 추출, 분류 코스만 |
-| (선택) `02b_local_serve` | 로컬 vLLM 프리플라이트 결과 | 과금 없음(로컬 GPU) |
+| (선택) `02b_local_serve` | 로컬 vLLM preflight 결과 | 과금 없음(로컬 GPU) |
 | `03_deploy_endpoint` | real-time endpoint | 과금 시작 |
 | `04_evaluate` | 메트릭 리포트 | held-out만 (로컬, 빠름, 저렴) |
 | `05_agentic_strands` | 로컬 에이전트 루프 | endpoint + Bedrock |
@@ -410,33 +408,33 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 ## 자주 나오는 오해
 
-앞에서 다루지 않은, kit 전체를 볼 때 자주 나오는 착각들입니다.
+앞에서 다루지 않은, 프로젝트 전체를 볼 때 자주 나오는 착각들입니다.
 
-??? question "오해: “AWS 예제는 다 DJL LMI인데, 이 kit은 왜 vLLM이 기본인가요?”"
+??? question "오해: “AWS 예제는 다 DJL LMI인데, 이 프로젝트는 왜 vLLM이 기본인가요?”"
     **둘 다 씁니다. 기본값만 vLLM DLC입니다.** gemma-4 서빙에는 vLLM >= 0.19가 필요하고, AWS 독립 vLLM DLC가 그 최신을 가장 빨리 따라갑니다.
-    LMI도 됩니다. 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 kit이 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회로 확인). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK 폴백에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다. 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
+    LMI도 됩니다. 단 **번들 vLLM 버전을 결정하는 것은 태그의 `lmi<NN>` 부분**입니다. 이 프로젝트가 고정한 `djl-inference:0.36.0-lmi27.0.0-cu130-v1.1`은 LMI 27.0.0 = vLLM 0.23.1이라 조건을 충족합니다(ECR 실조회로 확인). 앞의 `0.36.0`은 djl-serving 버전이라 판단 기준이 아니므로, `LMI_IMAGE_URI`를 비워 SDK fallback에 맡기면 같은 `0.36.0` 키로 더 낮은 `-lmi<NN>` 태그가 잡힐 수 있습니다. 그 태그의 번들 vLLM이 0.19 미만이면 gemma-4가 로드되지 않으니 배포 전 확인하세요.
     `SERVING_ENGINE=lmi`로 두면 [DJL LMI](https://docs.djl.ai/master/docs/serving/serving/docs/lmi/index.html)가 `OPTION_ROLLING_BATCH=vllm`으로 뜨고, `sglang`도 같은 방식으로 고를 수 있습니다.
     세 엔진 모두 연속 배칭 + OpenAI 호환(messages)이라 **호출 코드는 바뀌지 않습니다**. 선택 기준은 [서빙 컨테이너](05_serving_containers.md)에 있습니다.
 
 컨테이너 이야기는 학습 쪽에서도 같은 형태로 반복됩니다.
 
 ??? question "오해: “학습은 HF DLC를 써야 하는 거 아닌가요?”"
-    **꼭 그렇지 않습니다.** 이 kit은 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
+    **꼭 그렇지 않습니다.** 이 프로젝트는 순수 **PyTorch DLC**(`pytorch-training`)를 베이스로 쓰고 `scripts/requirements.txt`로 `transformers`/`trl`/`peft`를 직접 설치합니다.
     [HF DLC](https://huggingface.co/docs/sagemaker/index)의 baked-in `transformers`는 gemma-4에 필요한 버전보다 낮을 수 있는데, 베이스를 PyTorch DLC로 두면 컨테이너 안에서 최신으로 맞출 수 있습니다.
     학습 이미지는 **리전별 private ECR**(`763104351884.dkr.ecr.<region>...`)만 허용됩니다. `public.ecr.aws` URI를 주면 `CreateTrainingJob`이 거부합니다.
 
 학습과 서빙을 지나면 평가 단계에서 tier를 헷갈리게 됩니다.
 
 ??? question "오해: “SageMaker AI 관리형 evaluator로 채점하면 되지 않나요?”"
-    **이 kit의 산출물에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova, 일부 JumpStart) 전용입니다.
-    gemma-4 커스텀 파인튜닝 산출물(S3 체크포인트)은 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다.
+    **이 프로젝트의 model artifact에는 쓸 수 없습니다.** SDK v3의 `BenchMarkEvaluator`/`LLMAsJudgeEvaluator`/`CustomScorerEvaluator`는 **SageMaker Public Hub에 평가 레시피가 등록된 모델**(Amazon Nova, 일부 JumpStart) 전용입니다.
+    gemma-4 custom fine-tuning artifact(S3 checkpoint)는 Hub 레시피가 없어 `DescribeHubContent ... does not exist`로 실패했습니다.
     그래서 평가 경로는 `04_evaluate`의 **로컬 메트릭 평가**(`common/eval_utils.py`)입니다(빠르고 저렴하다는 부수 효과도 있습니다).
 
-마지막은 이 kit에서 가장 비싼 착각인 과금에 관한 것입니다.
+과금과 관련해 가장 주의할 오해는 다음과 같습니다.
 
 ??? question "오해: “endpoint를 안 부르면 공짜겠지?”"
     **그렇지 않습니다.** real-time endpoint는 **호출 여부와 무관하게 provisioned 인스턴스가 시간당 과금**됩니다.
-    쓰지 않는다면 삭제하는 것이 정답입니다([비용과 cleanup](#비용과-cleanup)).
+    사용하지 않는 endpoint는 삭제해야 합니다([비용과 cleanup](#비용과-cleanup)).
 
 위 항목들의 근거를 원본에서 직접 확인하고 싶다면 다음이 출발점입니다.
 
@@ -465,7 +463,7 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 
 ### 라이선스 요약
 
-- **Gemma 4는 apache-2.0 + ungated**로 마찰이 가장 적습니다(이 kit의 기본 경로입니다).
+- **Gemma 4는 apache-2.0 + ungated**로 마찰이 가장 적습니다(이 프로젝트의 기본 경로입니다).
 - Gemma 3/2/3n은 **Gemma Terms + gated**입니다. HF 토큰과 약관 수락이 필요하고, 서빙 시 use-restriction 전파 의무가 따릅니다(예: [`gemma-3-4b-it` 모델 카드](https://huggingface.co/google/gemma-3-4b-it)).
 - 시드 데이터셋은 전부 permissive한 것만 선별했으나, share-alike(dolly의 cc-by-sa-3.0 등) 파생물은 주의하시기 바랍니다.
 - 재배포/서빙 전에 각 모델과 데이터셋의 **live 라이선스 배너를 재확인**하세요.

@@ -2,7 +2,7 @@
 
 !!! info "Scope"
     자연어 텍스트에서 **스키마가 정해진 JSON**을 뽑아내야 하는 개발자를 위한
-    코스입니다(`tracks/01_extraction_to_json`, 이 kit의 플래그십).
+    코스입니다(`tracks/01_extraction_to_json`, 이 프로젝트의 플래그십).
 
     - **선행 조건**: [시작하기](../getting_started.md)의 설치와 AWS 자격증명과 Amazon SageMaker AI 실행 role
       (`00_setup`이 확인). SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
@@ -13,14 +13,14 @@
     - **다른 코스**: 이미지 입력(영수증 등)은 [멀티모달 추출](multimodal.md),
       라벨 하나만 고르는 문제는 [분류](classification.md)
 
-이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/01_extraction_to_json/track_data.py`: 시드 로드, `{input, output}` 어댑터, `SYSTEM_PROMPT`
 - `tracks/01_extraction_to_json/scripts/train.py`, `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
 - `tracks/01_extraction_to_json/*.ipynb`: 이 코스의 노트북 10개
 - `common/config.py`: `TRACKS['extraction']` 레지스트리 항목(시드 데이터셋, `max_seq_length=2048`)
 - `common/eval_utils.py`: `eval_extraction()`(valid_json_rate, name_accuracy, arg_f1)
-- `tracks/01_extraction_to_json/_build_notebooks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙과 생성 길이, GRPO reward 종류)
+- `tracks/01_extraction_to_json/_build_notebooks.py`: 이 코스의 `TrackSpec`(endpoint prefix, serving과 생성 길이, GRPO reward 종류)
 
 ---
 
@@ -84,7 +84,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     이 시드는 `{"arguments": {}}`처럼 **인자가 비어 있는 호출**이 많습니다. `common/grpo_data.py`가 쓰는 glaive 뒷부분 구간에서 94%입니다. SFT에는 문제가 없지만, GRPO에서는 채점이 사실상 "함수명 맞았나"로 축소되어 rollout이 전부 만점이 되고 학습 신호가 사라집니다.
     그래서 `02a`의 기본 prompt 소스(`synth`)는 생성 프롬프트에 난이도 제약을 걸어 **인자 2개 이상**을 강제합니다(제약 적용 후 실측: 인자 없음 0건 / 평균 인자 2.1개). 자세한 근거는 [RL prompt 소스 3가지](../03_finetuning.md#rl-prompt-소스-3가지)에 있습니다.
 
-시드는 300건(`config.NUM_SEED_SAMPLES`)만 앞에서 잘라 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, 이 리포의 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧아 약 475자이므로 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값) 참고).
+시드는 앞의 300건(`config.NUM_SEED_SAMPLES`)만 쓰고, 나머지는 Bedrock grounded 합성으로 늘립니다(`config.NUM_SYNTHETIC` 기본 200, repository에 포함된 `.env`는 100). 시드 1건의 길이는 요약 코스(중앙 1,651자)보다 짧은 약 475자라 합성 호출 지연이 작습니다([생성 건수 결정](../02_synthetic_data.md#생성-건수-결정-num_synthetic-기본값) 참고).
 
 ---
 
@@ -124,13 +124,13 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 이 코스의 노트북은 **10개**입니다. `02a`(GRPO)와 `02b`(로컬 서빙)를 모두 갖는 두 코스 중 하나입니다(다른 하나는 [분류 코스](classification.md), 요약과 도메인 QA는 `02a`가 없어 9개입니다).
 
-| 노트북 | 산출물 |
+| 노트북 | 결과 |
 |---|---|
 | `00_setup` | 자격증명, 리전, role 확인, `role`, `bucket` `%store` 저장 |
 | `01_data_and_synthetic` | 시드 300건 파싱 + grounded 합성 → `data/train.jsonl`, 토큰 길이, 중복 EDA(JSON 파싱률 점검 포함) |
-| `02_train_sft_sagemaker` | SageMaker AI 학습 Job(TRL SFT + QLoRA) → 머지된 모델 아티팩트, `%store md_extraction` |
-| `02a_train_grpo_sagemaker` | **(선택)** SFT 산출물을 base로 GRPO 정련 → 새 아티팩트 |
-| `02b_local_serve` | **(선택)** 로컬 GPU vLLM 프리플라이트: 배포 전 30초 안에 같은 오류를 재현 |
+| `02_train_sft_sagemaker` | SageMaker AI 학습 Job(TRL SFT + QLoRA) → 머지된 모델 artifact, `%store md_extraction` |
+| `02a_train_grpo_sagemaker` | **(선택)** SFT artifact를 base로 GRPO 정련 → 새 artifact |
+| `02b_local_serve` | **(선택)** 로컬 GPU vLLM preflight: 배포 전 30초 안에 같은 오류를 재현 |
 | `03_deploy_endpoint` | `gemma-extraction-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
 | `04_evaluate` | held-out `valid_json_rate`, `name_accuracy`, `arg_f1` |
 | `05_agentic_strands` | `extract_structured_json` tool을 가진 Strands 에이전트(reasoning은 Bedrock Claude) |
@@ -165,7 +165,7 @@ You are a helpful assistant with access to the following functions. Use them if 
 
 ??? question "오해: “function calling 데이터로 학습하니 이 모델은 툴을 실행하는 거죠?”"
     아닙니다. 이 코스가 학습하는 것은 **함수 호출을 표현하는 JSON을 생성하는 능력**이고, 그 JSON을 실제로 실행하는 주체는 호출자 쪽 코드입니다.
-    `05_agentic_strands`에서 실행 오케스트레이션은 Bedrock Claude가 맡고, SLM endpoint는 `extract_structured_json` tool로서 구조화 JSON만 반환합니다. SLM = 빠른 구조화 추출기, Claude = 추론기라는 역할 대비가 가장 선명한 코스라 플래그십으로 삼았습니다([Agentic loop](../06_agentic.md)).
+    `05_agentic_strands`에서 orchestration은 Bedrock Claude가 맡고, SLM endpoint는 `extract_structured_json` tool로 구조화 JSON만 반환합니다. SLM은 빠른 구조화 추출기, Claude는 reasoning model로 역할이 명확히 나뉘어 있어 flagship 코스로 삼았습니다([Agentic loop](../06_agentic.md)).
 
 ??? question "오해: “툴 호출이 목적이 아니면 이 코스는 안 맞나요?”"
     출력 스키마가 정해진 추출 문제 전반에 그대로 옮겨집니다. 규약서에서 당사자, 금액, 기간을 뽑거나, 문의 메일에서 주문번호와 요청유형을 뽑는 작업은 형태가 같습니다. `{"name": ..., "arguments": {...}}` 대신 원하는 스키마를 `SYSTEM_PROMPT`에 넣고, `track_data.py`의 파서를 자기 데이터에 맞게 바꾸면 됩니다(다른 코스들도 이 파일만 교체해 만들었습니다).

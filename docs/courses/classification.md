@@ -4,7 +4,7 @@
     고객 문의, 티켓, 로그처럼 **입력 하나에 라벨 하나**를 붙이는 일을 SLM 파인튜닝으로
     해결하려는 분을 위한 코스입니다(`tracks/02_classification`).
 
-    - **산출물**: `mteb/banking77`의 77개 intent를 텍스트로 생성하는 Gemma 4 LoRA 모델,
+    - **결과**: `mteb/banking77`의 77개 intent를 텍스트로 생성하는 Gemma 4 LoRA 모델,
       그것을 서빙하는 real-time endpoint, held-out macro-F1
     - **선행 조건**: AWS 자격증명과 Amazon SageMaker AI 실행 role (`00_setup`이 확인).
       SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
@@ -14,14 +14,14 @@
       [실행 runbook](../RUN_E2E.md)
     - **다른 코스**: 스키마가 있는 JSON은 [추출](extraction.md), 자유서술은 [도메인 QA](domain_qa.md)
 
-이 코스와 관련된 리포지토리 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
+이 코스와 관련된 repository 파일입니다(디렉터리 이름 `tracks/`와 `TRACKS`, `track_data.py` 같은 식별자는 역사적 이유로 그대로 둡니다):
 
 - `tracks/02_classification/track_data.py`: 시드 로드와 셔플, `{input, output}` 어댑터, `SYSTEM_PROMPT`, 라벨 목록 조회
 - `tracks/02_classification/scripts/train.py`, `train_grpo.py`: SFT / GRPO 학습(로컬 dry-run ↔ SageMaker AI 겸용)
 - `tracks/02_classification/*.ipynb`: 이 코스의 노트북 10개
 - `common/config.py`: `TRACKS['classification']` 레지스트리(시드 데이터셋, `max_seq_length=512`)
 - `common/eval_utils.py`: `normalize_label()` + `eval_classification()`(accuracy, macro-F1, weighted-F1)
-- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(엔드포인트 prefix, 서빙과 생성 길이, GRPO reward 종류)
+- `tracks/build_all_tracks.py`: 이 코스의 `TrackSpec`(endpoint prefix, serving과 생성 길이, GRPO reward 종류)
 
 ---
 
@@ -52,7 +52,7 @@ label_text: card_arrival
 정답은 라벨 문자열 한 줄뿐입니다. `data/train.jsonl` 500건을 Gemma 4 E4B 토크나이저로 재면 **정답이 median 5토큰 / max 16토큰**입니다. 이 코스의 모든 길이 설정값이 다른 코스보다 작은 이유가 여기 있습니다.
 
 ??? question "오해: “분류인데 왜 생성 모델을 쓰나요?”"
-    이 kit은 JumpStart의 분류 전용 헤드를 쓰지 않고 DLC + 커스텀 `train.py`(TRL `SFTTrainer`)로 학습합니다([왜 커스텀 train.py 경로인가](../03_finetuning.md#왜-커스텀-trainpy-경로인가)). 그래서 라벨을 **텍스트로 생성**시키고, 평가 시점에 `common/eval_utils.normalize_label`이 자유 텍스트 출력을 닫힌 라벨셋에 다시 매핑합니다(정확 일치 → substring → rapidfuzz 유사도 순).
+    이 프로젝트는 JumpStart의 분류 전용 헤드를 쓰지 않고 DLC + 커스텀 `train.py`(TRL `SFTTrainer`)로 학습합니다([왜 커스텀 train.py 경로인가](../03_finetuning.md#왜-커스텀-trainpy-경로인가)). 그래서 라벨을 **텍스트로 생성**시키고, 평가 시점에 `common/eval_utils.normalize_label`이 자유 텍스트 출력을 닫힌 라벨셋에 다시 매핑합니다(정확 일치 → substring → rapidfuzz 유사도 순).
     이 방식의 이점은 같은 파이프라인과 같은 서빙 컨테이너를 다른 네 코스와 그대로 공유한다는 점입니다. 대신 모델이 라벨셋 밖의 문자열을 낼 수 있으므로 정규화 단계가 필수입니다.
 
 ---
@@ -64,8 +64,8 @@ label_text: card_arrival
 `track_data._CANDIDATES`는 `mteb/banking77` → `gtfintechlab/banking77`(cc-by-4.0) 순으로 시도하므로, 첫 미러가 사라져도 다음으로 넘어갑니다. 두 스키마가 달라(`label_text` vs `ClassLabel`) `_label_str()`이 양쪽을 모두 처리합니다.
 
 !!! warning "원본 PolyAI/banking77은 로드되지 않습니다"
-    원본 리포는 **스크립트 기반**(`banking77.py`)이라 이 kit이 핀한 `datasets>=5.0.0`에서 `RuntimeError: Dataset scripts are no longer supported`로 로드 자체가 실패합니다. parquet 자동변환본(`refs/convert/parquet`)도 없어 되살릴 방법이 없습니다.
-    `legacy-datasets/banking77`은 카드에 "deprecated and will be deleted"가 명시돼 있어 쓰지 않고, `gtfintechlab/banking77`은 동작하지만 다운로드 수가 적어 폴백으로만 둡니다.
+    원본 repository는 **스크립트 기반**(`banking77.py`)이라 이 프로젝트가 고정한 `datasets>=5.0.0`에서 `RuntimeError: Dataset scripts are no longer supported`로 로드 자체가 실패합니다. parquet 자동 변환본(`refs/convert/parquet`)도 없어 다시 사용할 수 없습니다.
+    `legacy-datasets/banking77`은 카드에 "deprecated and will be deleted"가 명시돼 있어 쓰지 않고, `gtfintechlab/banking77`은 동작하지만 다운로드 수가 적어 fallback으로만 둡니다.
     그래서 `04_evaluate`도 `load_dataset('PolyAI/banking77').features['label'].names`를 직접 부르지 않고 `track_data.load_label_names()`를 씁니다. 미러가 또 바뀌어도 고칠 곳이 한 군데입니다.
 
 !!! danger "셔플 없이 앞에서부터 뽑으면 평가가 무너집니다"
@@ -94,7 +94,7 @@ accuracy만 보면 안 되는 이유가 이 코스에서 특히 분명합니다.
 
     그래서 `accuracy`, `weighted_f1`의 숫자는 문자 그대로 읽어도 되지만, `macro_f1`은 **같은 held-out에서의 다른 실행값과 비교하는 상대 지표**로만 쓰세요. 절대값 0.3을 보고 "형편없다"고 판단하면 오진입니다. 0.45가 그 판의 만점입니다. 절대값을 그대로 읽고 싶다면 `labels`를 held-out에 등장한 클래스로 좁히면 되고(같은 완전 일치 조건에서 `1.0`), 그때는 실행 간 라벨 집합이 달라져 비교 가능성이 떨어진다는 대가를 치릅니다. `N_EVAL`을 키워 등장 클래스 수를 늘리는 것도 같은 방향의 완화책입니다.
 
-모델은 자유 텍스트로 답하므로 채점 전에 `normalize_label()`이 예측을 닫힌 라벨셋에 매핑합니다: 소문자와 공백→`_` 정규화 후 **정확 일치 → substring 포함 → rapidfuzz 유사도** 순이고, 전부 실패하면 `label_set[0]`으로 폴백합니다(즉 오답으로 계산됩니다). `04_evaluate`는 `temperature=0.0`으로 호출해 재현성을 확보하고, held-out은 `NUM_SEED_SAMPLES`(300)건을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 씁니다.
+모델은 자유 텍스트로 답하므로 채점 전에 `normalize_label()`이 예측을 닫힌 라벨셋에 매핑합니다: 소문자와 공백→`_` 정규화 후 **정확 일치 → substring 포함 → rapidfuzz 유사도** 순이고, 전부 실패하면 `label_set[0]`으로 fallback합니다(즉 오답으로 계산됩니다). `04_evaluate`는 `temperature=0.0`으로 호출해 재현성을 확보하고, held-out은 `NUM_SEED_SAMPLES`(300)건을 **명시적으로 건너뛴 뒤** `N_EVAL`건(기본 50, `DRY_RUN`이면 20)을 씁니다.
 
 ---
 
@@ -102,12 +102,12 @@ accuracy만 보면 안 되는 이유가 이 코스에서 특히 분명합니다.
 
 이 코스의 노트북은 **10개**입니다. `02a`(GRPO)와 `02b`(로컬 서빙)를 모두 갖는 두 코스 중 하나입니다(다른 하나는 [추출 코스](extraction.md), 요약과 도메인 QA는 `02a`가 없어 9개입니다).
 
-| 노트북 | 산출물 |
+| 노트북 | 결과 |
 |---|---|
 | `00_setup` | 리전, role, bucket 확인 후 `%store` 저장, 의존성 설치 |
 | `01_data_and_synthetic` | 셔플된 시드 300건 + Bedrock grounded 합성을 합친 `data/train.jsonl` |
-| `02_train_sft_sagemaker` | SFT LoRA 학습 Job → 머지된 모델 아티팩트(S3), `%store md_classification` |
-| `02a_train_grpo_sagemaker` | **(선택)** SFT 산출물을 base로 GRPO 정련 → 새 아티팩트 |
+| `02_train_sft_sagemaker` | SFT LoRA 학습 Job → 머지된 모델 artifact(S3), `%store md_classification` |
+| `02a_train_grpo_sagemaker` | **(선택)** SFT artifact를 base로 GRPO 정련 → 새 artifact |
 | `02b_local_serve` | **(선택)** 로컬 GPU `vllm serve`로 배포 전 검증 + `vllm bench` 측정값 |
 | `03_deploy_endpoint` | `gemma-classification-vllm-<timestamp>` real-time endpoint + invoke 스모크 |
 | `04_evaluate` | held-out accuracy, macro-F1, weighted-F1 |
@@ -138,7 +138,7 @@ GRPO의 prompt 소스로 `failures`(=`04_evaluate`에서 틀린 건)를 고르�
 스트리밍이 기본 off인 이유는 이 코스의 응답이 **라벨 한 줄**이라 완성돼야 파싱과 라우팅에 쓸 수 있기 때문입니다. 스트리밍은 첫 토큰 체감만 줄이고 전체 생성 시간이나 처리량은 바꾸지 않습니다([스트리밍이 개선하지 않는 것](../05_serving_containers.md#스트리밍이-개선하지-않는-것)).
 
 !!! tip "짧은 시퀀스가 이 코스를 가장 저렴하게 만듭니다"
-    `02_train_sft_sagemaker`는 step 시간을 시퀀스 길이로 추정하는데, ml.g6.2xlarge 실측이 **seq 512에서 약 7초/step, seq 2048에서 약 17초/step**입니다. 핸즈온 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2` → 약 50 step)이면 학습이 10분 안쪽입니다.
+    `02_train_sft_sagemaker`는 step 시간을 시퀀스 길이로 추정하는데, ml.g6.2xlarge 실측이 **seq 512에서 약 7초/step, seq 2048에서 약 17초/step**입니다. hands-on 기본값(`MAX_TRAIN_SAMPLES=200`, `EPOCHS=2` → 약 50 step)이면 학습이 10분 안쪽입니다.
     다섯 코스 중 하나만 완주해 볼 생각이라면 이 코스가 가장 빠르고, GRPO까지 곁들여 볼 수 있는 코스이기도 합니다.
 
 !!! warning "서빙 파라미터는 GPU를 바꾸면 함께 조정하세요"
