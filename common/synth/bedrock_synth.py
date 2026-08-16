@@ -1,15 +1,7 @@
-"""
-common/synth/bedrock_synth.py — grounded 합성 데이터 생성 (무의존성 기본 경로)
+"""시드 데이터를 근거로 합성 학습 데이터를 생성합니다.
 
-설계 (synthetic-data-gen 스킬 정석):
-  - seed 샘플에 **grounded**(근거) 된 instruction 데이터를 Amazon Bedrock Converse로 생성.
-  - **critique/refine 루프**: 생성물을 groundedness(seed 근거) + relevance(task 적합) 로
-    LLM이 재평가 → 임계값 미달이면 폐기/재생성.
-  - PII/중복 필터.
-  - 🔴 외부 합성 라이브러리(distilabel 등)에 의존하지 않는다 — boto3만. 노후화 위험 0.
-    (활발히 유지보수되는 오픈 라이브러리 대안은 synth/README.md 참고 — 선택적.)
-
-모델 ID는 config.BEDROCK_CLAUDE_MODEL_ID(env)에서 주입, 하드코딩 금지.
+Bedrock Converse로 후보를 만들고 근거성과 관련성을 평가한 뒤 PII와 중복을 제거합니다.
+모델 ID는 호출부에서 전달합니다.
 """
 from __future__ import annotations
 
@@ -106,8 +98,7 @@ def _extract_json(text: str) -> Any:
     raise ValueError(f"JSON parse failed: {text[:200]}...")
 
 
-# ⚠️ 정규식은 구분자(공백/-/괄호)를 요구해 순수 숫자열(타임스탬프·금액·id 등 function-call JSON에
-#    흔한 값)을 오탐하지 않게 좁혔다. 순수 긴 숫자는 PII로 보지 않는다(오탐 시 유효 합성 폐기).
+# 순수 숫자열을 PII로 오인하지 않도록 전화번호와 카드번호에 구분자를 요구합니다.
 _PII_PATTERNS = [
     re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),                                  # email
     re.compile(r"(?<!\d)\+?\d{1,3}[\s.\-()]\d[\d\s.\-()]{6,}\d(?!\d)"),           # phone (구분자 필수)
@@ -146,11 +137,8 @@ def _gen_one_batch(task_instruction, seed_texts, batch_size, seeds_per_batch,
     start = ((batch_no - 1) * seeds_per_batch) % max(1, len(seed_texts))
     seed_chunk = (seed_texts + seed_texts)[start : start + seeds_per_batch]
     prompt = build_generation_prompt(task_instruction, seed_chunk, batch_size)
-    # 🔴 max_tokens 를 넉넉히 (실측 2026-07-31): Claude Sonnet 5 는 응답 전에 reasoningContent
-    #    (추론 블록)에 토큰을 먼저 쓴다. 2048이면 추론만 하다 stopReason=max_tokens 로 잘려
-    #    text 블록이 비거나 JSON이 중간에 끊긴다("응답에 text 블록이 없습니다" / 파싱 실패).
-    #    batch_size 를 키우면 필요한 출력도 커지므로 배치 크기에 비례해 늘린다.
-    #    temperature 는 보내지 않는다 — Claude 5+ 에서 deprecated 라 매번 폴백 재시도(호출 2배)를 탔다.
+    # 추론 토큰과 JSON 출력을 수용하도록 배치 크기에 비례해 출력 한도를 늘립니다.
+    # Claude 5 이상에서는 호환성을 위해 temperature를 전달하지 않습니다.
     _max_out = max(4096, 900 * batch_size)
     raw = bedrock_converse(model_id=model_id, region=region, user_text=prompt,
                            system_text=GEN_SYSTEM, max_tokens=_max_out)
@@ -161,8 +149,7 @@ def _gen_one_batch(task_instruction, seed_texts, batch_size, seeds_per_batch,
 
 
 def _critique_one(task_instruction, seed_chunk, ex, model_id, region):
-    """단일 후보 critique(1 Bedrock 호출) → (groundedness, relevance)."""
-    # 🔴 critique 도 reasoning 블록 때문에 256 으로는 부족하다(같은 실측). temperature 도 제거.
+    """단일 후보의 근거성과 관련성을 평가합니다."""
     raw = bedrock_converse(model_id=model_id, region=region,
                            user_text=build_critique_prompt(task_instruction, seed_chunk, ex),
                            system_text=CRITIQUE_SYSTEM, max_tokens=2048)
@@ -175,10 +162,7 @@ def generate_grounded(
     task_instruction: str,
     seed_texts: list[str],
     n_total: int,
-    # 🔴 생성용 지시를 따로 줄 수 있다(critique는 task_instruction 그대로 유지).
-    #    왜 분리하나: 생성 제약("인자 2개 이상" 등)을 task_instruction에 섞으면 critique도 그 기준으로
-    #    채점해 seed와 다르다며 groundedness를 낮춰 **전부 기각**한다(실측: 8/8 기각).
-    #    → 생성만 어렵게 하고 채점은 원래 도메인 기준으로 두려면 gen_instruction 을 쓴다.
+    # 생성 조건과 평가 기준을 분리할 때 사용합니다.
     gen_instruction: str | None = None,
     model_id: str,
     region: str,
@@ -232,12 +216,12 @@ def generate_grounded(
         while len(accepted) < n_total:
             if max_batches is not None and round_no >= max_batches:
                 if verbose:
-                    logger.warning("max_batches(%d) reached — stopping after %d/%d",
+                    logger.warning("max_batches(%d)에 도달해 %d/%d에서 중단합니다",
                                    max_batches, len(accepted), n_total)
                 break
             if stale_rounds >= MAX_STALE:
                 if verbose:
-                    logger.warning("no new examples for %d rounds — stopping at %d/%d "
+                    logger.warning("%d회 연속 새 예시가 없어 %d/%d에서 중단합니다 "
                                    "(수율 저조: seed 다양성/기준 완화 고려)", MAX_STALE, len(accepted), n_total)
                 break
             before = len(accepted)
@@ -253,8 +237,7 @@ def generate_grounded(
                 try:
                     cands, seed_chunk = gf.result()
                 except (ValueError, KeyError) as e:
-                    # 🔴 예외 '종류'까지 남긴다 — 예전엔 KeyError('text') 가 "skipped ('text')" 로만 찍혀
-                    #    무엇이 문제인지 알 수 없었다(실측: 커널이 옛 aws_utils 를 캐시해 응답 파싱 실패).
+                    # 원인 확인을 위해 예외 유형과 메시지를 함께 남깁니다.
                     if verbose:
                         logger.info("batch gen failed, skipped (%s: %s)", type(e).__name__, e)
                     continue

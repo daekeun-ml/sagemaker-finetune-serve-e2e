@@ -2,9 +2,7 @@
      aria-label="배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정합니다. 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정합니다. 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다. Model과 EndpointConfig 생성은 무료 API입니다.">
   <title>배포 3단계: Model에서 Endpoint까지</title>
 
-  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
-       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
-       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <!-- SVG는 페이지 CSS를 상속하지 않으므로 색상 모드와 한글 폰트를 내부에서 설정합니다. -->
   <style>
     :root {
       --fg: #202124; --line: #868e96;

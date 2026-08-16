@@ -1,21 +1,22 @@
 [project]
 name = "sagemaker-finetune-serve-e2e"
 version = "0.1.0"
-description = "Production-oriented E2E SageMaker fine-tuning toolkit for Gemma SLMs (data→synthetic→train→endpoint→agentic)"
+description = "End-to-end SageMaker fine-tuning and serving examples for Gemma SLMs"
 requires-python = ">=3.10"
-# 🔴 이 kit 은 배포 패키지가 아니지만(tool.uv package = false) 라이선스는 선언한다 —
-#    LICENSE 파일이 없으면 공개 리포라도 법적으로는 모든 권리 유보이고, GitHub 도 라이선스를
-#    표시하지 못한다. 모델·데이터셋 라이선스는 별개다(README 의 라이선스 절 참고).
+# 배포 패키지는 아니지만 코드와 문서의 라이선스를 명시합니다.
+# 모델과 데이터셋 라이선스는 README의 라이선스 절을 따릅니다.
 license = "MIT"
 license-files = ["LICENSE"]
 
-# 버전 floor(>=)는 PyPI 실측 최신(2026-07-19). `uv lock --upgrade` 로 언제든 상위로 갱신 가능.
+# 최소 버전은 `uv lock --upgrade`로 갱신할 수 있습니다.
 dependencies = [
     # --- AWS / SageMaker ---
     "sagemaker>=3.16.0",       # 3.x = sagemaker-core 재구조화
     "boto3>=1.43.51",
-    # --- HuggingFace (로컬 데이터 준비·토크나이저·dry-run 학습) ---
-    "transformers>=5.14.1",
+    # common/config.py가 저장소 루트의 .env를 직접 읽습니다.
+    "python-dotenv>=1.2.2",
+    # 로컬 데이터 준비와 dry-run 학습
+    "transformers==5.14.1",
     "datasets>=5.0.0",
     "huggingface_hub>=1.24.0",
     # --- 로컬 GPU dry-run 학습 (train.py) ---
@@ -28,7 +29,7 @@ dependencies = [
     "scikit-learn>=1.5.0",     # 분류 accuracy/macro_f1
     "rapidfuzz>=3.9.0",        # 분류 라벨 퍼지 매칭(생성 라벨 정규화)
     # --- 부하 벤치마크 (pipelines/run_benchmark.py) ---
-    # vllm bench serve 와 지표를 맞춘 도구를 그대로 쓴다 — 같은 것을 재는 코드를 두 벌 두지 않는다.
+    # vllm bench serve와 같은 지표를 제공하는 도구를 사용합니다.
     # 리포를 고치면서 쓰려면 [tool.uv.sources] 로 로컬 경로를 가리킬 수 있다:
     #   sm-endpoint-bmt = { path = "../sm-endpoint-bmt", editable = true }
     "sm-endpoint-bmt>=1.0.0",
@@ -39,33 +40,27 @@ dependencies = [
     "jupyterlab",
     "ipywidgets",
 ]
-# ⚠️ litellm 은 코어에서 제외한다: litellm(현행)은 importlib-metadata>=8 을 요구하는데
-#    sagemaker(sagemaker-core)는 <7 을 요구해 하드 충돌. litellm 게이트웨이는 add-on이므로
-#    optional 로 분리(별도 환경/설치 권장). 코어 파이프라인은 boto3 직접 호출로 동작한다.
+# LiteLLM과 sagemaker의 importlib-metadata 요구 버전이 충돌하므로 선택 의존성으로 분리합니다.
 
 [project.optional-dependencies]
-# 🔴 로컬 vLLM 서빙 프리플라이트(02b_local_serve, serve_local_vllm.sh). gemma-4는 vLLM>=0.19 필요.
-#   vllm은 수 GB + CUDA 의존이라 코어에서 제외 — 로컬 GPU 검증 시에만: uv pip install -e '.[local-serve]'
-#   (SageMaker 학습/배포는 DLC 컨테이너가 vLLM을 담으므로 이 로컬 설치가 불필요).
+# 로컬 vLLM 검증에만 설치합니다. SageMaker 배포에는 필요하지 않습니다.
 local-serve = ["vllm>=0.19"]
-# LiteLLM 게이트웨이 (common/llm_gateway.py, `from litellm import completion`만 사용 — 버전 민감 X).
-#   ⚠️ sagemaker와 importlib-metadata 충돌 가능 → 별도 venv 권장:
+# LiteLLM은 sagemaker와 분리된 환경에 설치하는 것을 권장합니다.
 #     uv pip install -e '.[litellm]' --prerelease=allow
-#   🔴 하한을 1.75.9로 둔다: litellm-provider(strands-agents[litellm])가 litellm<=1.91.1을 요구하므로,
-#     >=1.93.0으로 두면 두 extra가 동시 해결 시 모순(uv add 등에서 실패)이 된다. completion API는 이 범위에도 존재.
+# strands-agents와 함께 해결 가능한 최소 버전을 사용합니다.
 litellm = ["litellm>=1.75.9"]
 # AgentCore Runtime 배포 시 (05 노트북 / agentcore/)
 agentcore = ["bedrock-agentcore>=1.18.1"]
 # LangGraph 옵션 (Strands 대안)
 langgraph = ["langchain-aws>=1.6.2", "langgraph>=1.2.9"]
-# Strands를 LiteLLM 프로바이더로 쓸 때 (litellm 충돌 주의 — 별도 환경 권장)
+# Strands에서 LiteLLM 프로바이더를 사용할 때 설치합니다.
 litellm-provider = ["strands-agents[litellm]>=1.48.0"]
 
 [tool.uv]
 # uv 전용 설정. 재현용 잠금은 uv.lock 로 관리.
 # 업그레이드:  uv lock --upgrade                      (전체 최신으로)
 #             uv lock --upgrade-package transformers  (특정 패키지만)
-package = false   # 애플리케이션/자산 kit — 빌드 대상 패키지가 아님 (build-system 불필요)
+package = false   # 빌드 대상 패키지가 아닌 애플리케이션 저장소입니다.
 
 [dependency-groups]
 docs = [

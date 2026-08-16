@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# setup_agentcore_cli.sh — @aws/agentcore CLI 설치 (Node ≥ 20 자동 준비).
-#
-# 왜: @aws/agentcore CLI는 Node.js 20+ 를 요구한다. 시스템 Node가 18 이하면 EBADENGINE 경고 +
-#     런타임 오류가 나고, /usr/local 전역 설치는 EACCES(권한) 에러가 난다. 이 스크립트는
-#     nvm으로 홈 디렉토리에 Node 20을 깔아(권한 문제 없음, sudo 불필요) CLI까지 설치한다.
+# Node.js와 @aws/agentcore CLI를 사용자 홈에 설치합니다.
 #
 # 사용:
 #   bash agentcore/setup_agentcore_cli.sh
 #   # 설치 후, 같은 터미널에서 nvm을 계속 쓰려면:  source ~/.nvm/nvm.sh && nvm use 20
 #
-# 🔴 이 스크립트는 시스템을 바꾼다(nvm/Node 설치). sudo는 쓰지 않는다(전부 $HOME 하위).
+# nvm과 Node.js는 사용자 홈에 설치하며 sudo를 사용하지 않습니다.
 set -euo pipefail
 
 NODE_MAJOR="${NODE_MAJOR:-20}"          # 필요 시 NODE_MAJOR=22 로 오버라이드
@@ -26,7 +22,7 @@ node_major() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node
 
 CUR="$(node_major)"
 if [ "$CUR" -ge "$NODE_MAJOR" ] 2>/dev/null; then
-  log "현재 Node v$(node --version | tr -d 'v') (>= ${NODE_MAJOR}) — nvm 단계 건너뜀."
+  log "현재 Node v$(node --version | tr -d 'v')을 사용합니다."
 else
   log "현재 Node 메이저=${CUR} (< ${NODE_MAJOR}). nvm으로 Node ${NODE_MAJOR} 설치를 진행합니다."
 
@@ -57,7 +53,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4) 검증 — Node 20+ 확인 (아니면 중단)
+# 4) Node 버전 확인
 # ---------------------------------------------------------------------------
 CUR="$(node_major)"
 if [ "$CUR" -lt "$NODE_MAJOR" ] 2>/dev/null; then
@@ -67,13 +63,13 @@ fi
 log "Node: $(node --version) | npm: $(npm --version) | which node: $(command -v node)"
 
 # ---------------------------------------------------------------------------
-# 5) @aws/agentcore 전역 설치 (nvm Node라 $HOME 하위 → sudo/권한 문제 없음)
+# 5) @aws/agentcore 설치
 # ---------------------------------------------------------------------------
 log "${AGENTCORE_PKG} 전역 설치 중..."
 npm install -g "$AGENTCORE_PKG"
 
 if command -v agentcore >/dev/null 2>&1; then
-  log "✅ 완료: $(agentcore --version 2>/dev/null || echo 'agentcore 설치됨')"
+  log "완료: $(agentcore --version 2>/dev/null || echo 'agentcore 설치됨')"
   log "   agentcore 경로: $(command -v agentcore)"
 else
   err "agentcore 명령을 PATH에서 못 찾음. 새 터미널을 열거나 'source $HOME/.nvm/nvm.sh && nvm use ${NODE_MAJOR}' 후 확인하세요."
@@ -82,18 +78,13 @@ fi
 
 cat <<EOF
 
-────────────────────────────────────────────────────────────
-✅ 설치 완료. 🔴 이 스크립트는 자식 셸에서 nvm을 로드했으므로,
-   '현재' 터미널에서 agentcore를 바로 쓰려면 아래를 한 번 실행하세요:
+설치 완료. 현재 터미널에서 agentcore를 사용하려면 아래 명령을 실행하세요.
 
      source \$HOME/.nvm/nvm.sh && nvm use ${NODE_MAJOR}
 
-   (새 터미널을 열면 nvm이 자동 로드되어 이 과정이 불필요합니다.)
-
-   다음 단계 (agentcore/ 에서):
+   다음 단계:
      cd $(cd "$(dirname "$0")" && pwd)
      agentcore create   # 프레임워크=Strands, 모델=Bedrock
      agentcore dev       # 로컬 핫리로드
-     agentcore deploy    # ARM64 → ECR → Runtime endpoint
-────────────────────────────────────────────────────────────
+     agentcore deploy    # Runtime 배포
 EOF

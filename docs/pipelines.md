@@ -31,11 +31,11 @@ python pipelines/run_extraction.py --stages all --dry-run
 
 | 진입점 | 코스 | GRPO |
 |---|---|---|
-| `run_extraction.py` | 텍스트 → 구조화 JSON | ✅ |
-| `run_classification.py` | intent 분류 | ✅ |
-| `run_summarization.py` | 문서 요약 | ❌ |
-| `run_domain_qa.py` | 도메인 QA | ❌ |
-| `run_multimodal.py` | 이미지 → JSON (영수증) | ❌ |
+| `run_extraction.py` | 텍스트에서 구조화 JSON 추출 | 지원 |
+| `run_classification.py` | 의도 분류 | 지원 |
+| `run_summarization.py` | 문서 요약 | 미지원 |
+| `run_domain_qa.py` | 도메인 QA | 미지원 |
+| `run_multimodal.py` | 영수증 이미지에서 JSON 추출 | 미지원 |
 
 스테이지는 `data → train → grpo → deploy → eval → cleanup` 순입니다. `--stages all`은
 **grpo와 cleanup을 제외**합니다. cleanup은 실수로 방금 만든 endpoint를 지우지 않게, grpo는

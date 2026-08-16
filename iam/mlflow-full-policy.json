@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "MlflowDataPlane",
+      "Effect": "Allow",
+      "Action": "sagemaker-mlflow:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "MlflowAppManagement",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:CreateMlflowApp",
+        "sagemaker:DescribeMlflowApp",
+        "sagemaker:ListMlflowApps",
+        "sagemaker:DeleteMlflowApp",
+        "sagemaker:CreatePresignedMlflowAppUrl"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

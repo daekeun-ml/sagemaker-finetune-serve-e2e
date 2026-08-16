@@ -114,11 +114,11 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 
 | 텍스트 코스 노트북 | 05에 있나 | 이유 |
 |---|---|---|
-| `01_data_and_synthetic` | ❌ (`01_data_explore`로 대체) | **이미지 합성은 별개 문제**입니다. Bedrock으로 텍스트를 늘리는 방식이 통하지 않아 시드 라벨을 직접 씁니다 |
-| `02a_train_grpo_sagemaker` | ❌ | `grpo_reward_kind`가 비어 있습니다. `train_grpo.py`의 `--reward_kind`는 `extraction`/`classification`만 받고, 이 코스에는 `train_grpo.py` 자체가 없습니다 |
-| `02b_local_serve` | ❌ | 코스 spec의 `has_local_serve=False`. 그래서 `99_cleanup`에 '로컬 모델 정리' 섹션도 넣지 않습니다(없는 스크립트를 안내하지 않기 위해) |
-| `04_evaluate` | ❌ | [성공 기준](#성공-기준) 참고 |
-| `05_agentic_strands`, `06_agentcore_deploy` | ❌ | agentic 단계는 텍스트 코스 전용입니다 |
+| `01_data_and_synthetic` | 미지원 (`01_data_explore`로 대체) | **이미지 합성은 별개 문제**입니다. Bedrock으로 텍스트를 늘리는 방식이 통하지 않아 시드 라벨을 직접 씁니다 |
+| `02a_train_grpo_sagemaker` | 미지원 | `grpo_reward_kind`가 비어 있습니다. `train_grpo.py`의 `--reward_kind`는 `extraction`/`classification`만 받고, 이 코스에는 `train_grpo.py` 자체가 없습니다 |
+| `02b_local_serve` | 미지원 | 코스 spec의 `has_local_serve=False`. 그래서 `99_cleanup`에 '로컬 모델 정리' 섹션도 넣지 않습니다(없는 스크립트를 안내하지 않기 위해) |
+| `04_evaluate` | 미지원 | [성공 기준](#성공-기준) 참고 |
+| `05_agentic_strands`, `06_agentcore_deploy` | 미지원 | 에이전트 단계는 텍스트 코스 전용입니다 |
 
 학습 데이터를 S3에 올리는 채널도 없습니다. `train_mm.py`가 컨테이너 안에서 `load_dataset(seed_dataset, split="train")`으로 이미지를 직접 받으므로, `02` 노트북은 `input_data` 채널 없이 하이퍼파라미터만 넘깁니다.
 

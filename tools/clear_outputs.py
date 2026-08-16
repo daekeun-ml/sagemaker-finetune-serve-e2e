@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-r"""tools/clear_outputs.py — 노트북 셀 출력(outputs)·실행번호를 지운다.
+r"""노트북 셀 출력과 실행 번호를 제거합니다.
 
-왜: 테스트로 셀을 실행하면 출력이 파일에 박혀 (1) diff가 지저분해지고 (2) 이미지·모델 응답이
-    섞이면 파일이 수 MB로 커지고 (3) 엔드포인트 이름 같은 계정 정보가 남는다.
+출력은 diff와 파일 크기를 키우고 엔드포인트 이름 같은 계정 정보를 남길 수 있습니다.
 
 빌더(`tracks/*/_build_notebooks.py`, `tracks/build_all_tracks.py`)를 돌리면 노트북이 새로
 생성되므로 출력도 함께 사라진다. 이 스크립트는 **재빌드 없이** 출력만 지울 때 쓴다
@@ -48,7 +47,7 @@ def main() -> int:
     ap.add_argument("paths", nargs="*", default=None,
                     help="파일 또는 디렉토리(생략 시 리포 전체)")
     ap.add_argument("--check", action="store_true",
-                    help="지우지 않고 검사만 — 출력이 남아 있으면 exit 1")
+                    help="지우지 않고 검사만 수행하며 출력이 남아 있으면 exit 1")
     args = ap.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
@@ -56,8 +55,7 @@ def main() -> int:
     for p in (args.paths or [repo]):
         p = Path(p)
         targets.extend(sorted(p.rglob("*.ipynb")) if p.is_dir() else [p])
-    # 🔴 서드파티·사본은 건너뛴다. .venv 안에도 .ipynb가 있어(설치된 패키지의 샘플)
-    #    전체 스캔 시 남의 파일을 수정하게 된다(실측: sagemaker 패키지 튜토리얼 2개).
+    # 서드파티와 사본 디렉토리는 검사하지 않습니다.
     SKIP = {".venv", "venv", ".git", ".ipynb_checkpoints", "node_modules", "__pycache__"}
     targets = [t for t in targets if not (SKIP & set(t.parts))]
 
@@ -73,15 +71,15 @@ def main() -> int:
                 shown = t.relative_to(repo)
             except ValueError:
                 shown = t
-            print(f"  {verb}: {shown}  ({n}개 셀, {saved:.0f}KB)")
+            print(f"  {verb}: {shown}  (셀 {n}개, {saved:.0f}KB)")
 
     if not dirty:
-        print(f"✅ {len(targets)}개 노트북 모두 clean (출력 없음)")
+        print(f"노트북 {len(targets)}개에 출력이 없습니다.")
         return 0
     if args.check:
-        print(f"\n🔴 {dirty}개 노트북에 출력이 남아 있습니다 — `python tools/clear_outputs.py` 로 정리하세요.")
+        print(f"\n노트북 {dirty}개에 출력이 남아 있습니다. `python tools/clear_outputs.py`를 실행하세요.")
         return 1
-    print(f"\n✅ {dirty}개 노트북 정리 완료 ({total_saved:.0f}KB 절약)")
+    print(f"\n노트북 {dirty}개를 정리했습니다. 절약한 용량: {total_saved:.0f}KB")
     return 0
 
 

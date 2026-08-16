@@ -1,5 +1,5 @@
 """
-tests/prepare_dryrun_data.py — dry-run용 소량 학습 JSONL 생성 (Bedrock 합성 없이).
+Bedrock 합성 없이 dry-run용 소량 학습 JSONL을 생성합니다.
 
 GPU dry-run은 '파이프라인이 도는가'만 검증하므로 합성 데이터가 필요 없다. 시드 데이터셋에서
 few-shot 만 뽑아 messages JSONL 을 만든다. (ungated 시드/모델이면 HF 토큰 불필요.)
@@ -51,7 +51,7 @@ def main() -> None:
     with open(args.out, "w", encoding="utf-8") as f:
         for s in seeds:
             msgs = td.to_messages(s)
-            # must have no system role (Gemma contract) — defensive check
+            # Gemma 입력에는 system 역할을 남기지 않습니다.
             assert "system" not in [m["role"] for m in msgs], "Gemma does not support the system role"
             f.write(json.dumps({"messages": msgs}, ensure_ascii=False) + "\n")
     print(f"Wrote {len(seeds)} examples -> {args.out}")

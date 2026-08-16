@@ -1,12 +1,6 @@
-"""
-tracks/_shared_build.py — 4개 트랙 공용 노트북 빌더 (중복 제거의 핵심)
+"""텍스트 트랙의 공통 노트북 빌더.
 
-각 트랙은 TrackSpec만 정의하고 build_track(spec)을 호출하면 00~05,99 노트북 7종이 생성된다.
-트랙 간 차이는 데이터 어댑터(track_data.py)와 몇 개 문자열(task 이름/프롬프트/예시)뿐이므로
-이를 TrackSpec으로 파라미터화한다. 노트북 본문 로직(설치·설정·학습·배포·agentic·cleanup)은 공유.
-
-규약(aws-ml-lab-code): 상단 TL;DR/Why/Pain → 설치(pin) → 설정(플레이스홀더/env) →
-데이터 → 학습/배포 → CloudWatch 링크 → 결과확인 → 🔴 cleanup.
+트랙별 데이터, 프롬프트, 실행값은 ``TrackSpec``으로 받고 나머지 셀은 공유합니다.
 """
 from __future__ import annotations
 
@@ -23,72 +17,42 @@ class TrackSpec:
     endpoint_prefix: str     # endpoint 이름 prefix (gemma-extraction 등)
     max_seq_length: int
     use_qlora: bool
-    # agentic 예시
+    # 에이전트 예시
     tool_name: str           # Strands @tool 함수명
     tool_doc: str            # tool docstring
-    # 🔴 프롬프트는 영어로만 유지한다. 05 노트북의 LANG이 " Reply in {LANG}."을 덧붙여 응답 언어를
-    #    바꾸므로 번역본을 따로 관리할 필요가 없다(언어를 늘려도 프롬프트는 그대로).
+    # 응답 언어는 05 노트북의 LANG으로 지정하므로 프롬프트는 영어 원문만 관리합니다.
     agent_system: str        # 오케스트레이터 system prompt (영어)
     smoke_user: str          # 05 에이전트 스모크 사용자 입력 (영어)
     deploy_smoke_user: str   # 03 endpoint 스모크 사용자 입력
-    # 🔴 02b 로컬 서빙 예시 입력. deploy_smoke_user보다 '학습 데이터와 같은 형태'로 준다
-    #    (추출=tool 스키마 포함, 분류=라벨 후보 포함 등). 비우면 deploy_smoke_user를 쓴다.
-    #    실측 교훈: system prompt와 스키마를 빼면 파인튜닝 모델이 일반 챗봇처럼 답해
-    #    "학습이 안 된 것처럼" 보인다(같은 모델이 스키마를 주면 정확한 JSON을 냄).
+    # 학습 데이터와 같은 형식의 로컬 서빙 예시입니다. 비우면 deploy_smoke_user를 사용합니다.
     serve_example_user: str = ""
-    # 🔴 서빙 컨텍스트 길이. 학습 길이(max_seq_length)와 **분리**해야 한다(실측 2026-07-30).
-    #    학습은 "입력+정답"이 max_seq_length에 들어가도록 자르지만, 서빙은 "입력 + 새로 생성할 토큰"이
-    #    모두 컨텍스트에 들어가야 한다. 둘을 같은 값으로 묶으면 긴 입력 트랙에서 평가가 죽는다:
-    #    03_summarization 실측 — held-out 프롬프트 median 1370 / max 2006 토큰인데 학습값 2048을
-    #    서빙 컨텍스트로 쓰면 (2006 + 256) > 2048 → vLLM이 400(context length exceeded)로 거부.
-    #    0이면 max_seq_length * 2 를 쓴다(입력만큼 생성 여유를 둔다는 뜻).
+    # 서빙 컨텍스트에는 입력과 생성 토큰이 모두 들어갑니다. 0이면 학습 길이의 2배를 사용합니다.
     serve_max_model_len: int = 0
-    # 🔴 평가·추론 시 생성할 최대 토큰. 정답이 이보다 길면 예측이 잘려 지표가 구조적으로 과소 측정된다.
-    #    03_summarization 실측 — 정답 요약 median 209 / p90 475 / max 964 토큰이라 256으로는
-    #    held-out 40%(20/50건)가 잘려 ROUGE-L이 실제보다 낮게 나온다.
+    # 평가와 추론에서 생성할 최대 토큰 수입니다.
     gen_max_tokens: int = 256
     eval_kind: str = "rouge_judge"  # extraction | classification | summarization | domain_qa
-    dataset_blurb: str = ""  # 01 노트북에 표시할 시드 데이터셋 설명(이름·라이선스·원본 포맷·파싱)
+    dataset_blurb: str = ""  # 01 노트북에 표시할 시드 데이터셋 설명
     grpo_reward_kind: str = ""  # 비어있지 않으면 GRPO 노트북 생성(extraction|classification). reward가 명확한 트랙만.
-    # 🔴 02b(로컬 서빙 검증) 노트북이 있는 트랙인지. 05_multimodal은 없으므로 99_cleanup에서
-    #    '로컬 모델 정리' 섹션을 빼야 한다(없는 스크립트를 안내하면 안 됨).
+    # 로컬 서빙 노트북이 없으면 99_cleanup에서도 관련 절을 제외합니다.
     has_local_serve: bool = True
-    # 🔴 00_setup 마지막에 안내할 다음 노트북 파일명. 05_multimodal은 합성 단계가 없어
-    #    01_data_and_synthetic 대신 01_data_explore 로 이어지므로 트랙별로 달라야 한다
-    #    (하드코딩하면 존재하지 않는 파일을 안내하게 된다). 비우면 _next_after_setup()이 정한다.
+    # 00_setup 다음 노트북입니다. 비우면 트랙 종류에 따라 결정합니다.
     next_after_setup: str = ""
 
 
 def _next_after_setup(s: "TrackSpec") -> str:
-    """00_setup 다음 노트북 파일명.
-
-    🔴 하드코딩하면 안 되는 이유: 05_multimodal 트랙은 합성 단계가 없어 01 노트북 이름이
-       01_data_explore.ipynb 이다. 01_data_and_synthetic.ipynb 로 고정 안내하면 존재하지 않는
-       파일로 이어져 링크가 깨진다. spec에 값이 있으면 그것을, 없으면 트랙 키로 정한다.
-    """
+    """00_setup 다음 노트북 파일명을 반환합니다."""
     if s.next_after_setup:
         return s.next_after_setup
     return "01_data_explore.ipynb" if s.key == "mm_extraction" else "01_data_and_synthetic.ipynb"
 
 
 def _md_var(s: "TrackSpec") -> str:
-    """이 트랙 전용 model_data %store 키(`endpoint_name`과 같은 이유 — _ep_var 독스트링 참고).
-
-    🔴 model_data도 트랙마다 값이 다르다(트랙별로 다른 학습 잡의 산출물). 전역 키만 쓰면
-       마지막에 학습한 트랙의 아티팩트가 다른 트랙 배포/평가에 쓰인다.
-    """
+    """다른 트랙의 학습 산출물과 충돌하지 않는 ``model_data`` 저장 키입니다."""
     return f"md_{s.key}"
 
 
 def _resume_cells(s: "TrackSpec") -> list[dict]:
-    """세션이 끊긴 뒤 '호출 단계부터' 다시 시작하기 위한 독립 실행 셀.
-
-    🔴 왜 필요한가: 03 노트북은 배포(§1)가 위에 있고 호출(§2~§3)이 아래에 있다. 커널이 끊기면
-       아래 셀만 돌릴 수 없다 — import·config·endpoint_name이 전부 사라져 NameError가 난다.
-       위 배포 셀을 다시 실행하면 되지만, 그 셀은 model_data/role 해석까지 하므로 불필요하게
-       무겁고 (LMI 분기에서는) 엔드포인트를 또 만들 위험도 있다. 그래서 **호출에 필요한 것만**
-       모은 셀을 둔다: path·import·config·endpoint_name 복구 + InService 확인.
-    """
+    """세션 재시작 후 호출에 필요한 상태만 복구하는 셀입니다."""
     return [
         md(
             "### ⏸️ 세션이 끊겼다면 — 여기서부터 이어서 실행\n"
@@ -124,40 +88,56 @@ def _resume_cells(s: "TrackSpec") -> list[dict]:
 
 
 def _ep_var(s: "TrackSpec") -> str:
-    """이 트랙 전용 endpoint_name %store 키.
-
-    🔴 왜 필요한가 (실측 2026-07-31): `%store`는 트랙·커널·리전을 넘어 공유되는 전역 저장소다.
-       여러 트랙을 돌리면 마지막 트랙의 `endpoint_name`이 값을 덮어써, 다른 노트북이 엉뚱한
-       엔드포인트를 호출한다. 증상이 배포 문제처럼 보여 진단이 어렵다 — 요약 노트북이 멀티모달
-       엔드포인트(max_model_len=2048)를 불러 "maximum context length is 2048" 400 에러가 났다
-       (요약 엔드포인트는 4096이라 정상인데도). 트랙별로 키를 분리하면 충돌이 구조적으로 불가능하다.
-       (같은 이유로 train_path는 %store를 아예 쓰지 않고 트랙 로컬 파일을 쓴다.)
-    """
+    """다른 트랙의 엔드포인트와 충돌하지 않는 ``endpoint_name`` 저장 키입니다."""
     return f"ep_{s.key}"
 
 
 def _stream_default(s: "TrackSpec") -> bool:
-    """실시간 추론 셀에서 스트리밍을 기본으로 켤지.
-
-    🔴 스트리밍이 이득인 건 '긴 자유서술'(요약·QA)이다. 추출(JSON)·분류(라벨)는 응답이
-       완성돼야 파싱/사용이 가능하고 애초에 짧아서, 조각을 흘려도 체감 이득이 없다.
-       기준은 gen_max_tokens — 트랙별 정답 길이 분포에서 정한 값이라 그대로 쓸 수 있다.
-    """
+    """긴 서술형 응답을 생성하는 트랙에서 스트리밍을 기본으로 사용합니다."""
     return s.eval_kind in ("summarization", "domain_qa", "rouge_judge")
 
 
 def _serve_len(s: "TrackSpec") -> int:
-    """서빙 컨텍스트 길이. 지정 없으면 학습 길이의 2배(입력만큼 생성 여유).
-
-    🔴 학습 길이를 그대로 쓰면 안 되는 이유: 학습은 '입력+정답'을 자르지만 서빙은 '입력+생성'이
-       컨텍스트에 함께 들어간다. 긴 입력 트랙(요약)에서 (프롬프트 + max_tokens) > 컨텍스트가 되어
-       vLLM이 400(context length exceeded)으로 거부한다(실측).
-    """
+    """서빙 컨텍스트 길이를 반환합니다."""
     return s.serve_max_model_len or s.max_seq_length * 2
 
 
 # ---- 셀 헬퍼 (nbformat 없이 표준 .ipynb JSON) ----
+_NOTEBOOK_TEXT_REPLACEMENTS = (
+    ("⚠️ ", "주의: "),
+    ("⚠️", "주의:"),
+    ("🔴 ", ""),
+    ("🔴", ""),
+    ("✅ ", ""),
+    ("✅", ""),
+    ("💳 ", ""),
+    ("💳", ""),
+    ("🔄 ", ""),
+    ("🔄", ""),
+    ("ℹ️ ", ""),
+    ("ℹ️", ""),
+    ("⏸️ ", ""),
+    ("⏸️", ""),
+    (" — ", ": "),
+    ("—", "-"),
+    (" – ", " - "),
+    ("–", "-"),
+    (" · ", "/"),
+    ("·", "/"),
+    ("•", "-"),
+    ("…", "..."),
+)
+
+
+def _clean_notebook_text(text: str) -> str:
+    """노트북 문구에서 장식 기호와 번역체 구두점을 정리합니다."""
+    for old, new in _NOTEBOOK_TEXT_REPLACEMENTS:
+        text = text.replace(old, new)
+    return text
+
+
 def _src(text: str) -> list[str]:
+    text = _clean_notebook_text(text)
     parts = text.split("\n")
     return [p + "\n" for p in parts[:-1]] + [parts[-1]] if parts else [""]
 
@@ -192,7 +172,7 @@ SETUP_PATH = (
 
 
 def _pip_install_code(pkgs: list[str], comment: str = "") -> str:
-    """추가 패키지 설치 셀 소스 — uv 우선, pip 폴백 (00_setup과 동일 관용구).
+    """uv를 우선 사용하고 실패하면 pip를 사용하는 패키지 설치 셀을 만듭니다.
 
     %pip 매직 대신 subprocess로 현재 커널 인터프리터(sys.executable)에 설치한다.
     uv가 있으면 `uv pip install --python <interp>`(빠름), 없으면 `pip install`.
@@ -214,10 +194,10 @@ def _pip_install_code(pkgs: list[str], comment: str = "") -> str:
 def header(title: str, tldr: str, why: str, pain: str) -> dict:
     return md(
         f"# {title}\n\n"
-        f"**TL;DR** — {tldr}\n\n"
-        f"**Why** — {why}\n\n"
-        f"**기존 Pain Point** — {pain}\n\n"
-        "> 🔴 실제 실행 시 AWS 자격증명·GPU·엔드포인트 과금이 발생합니다. 먼저 `DRY_RUN=1`로 파이프라인을 검증하세요."
+        f"**요약**: {tldr}\n\n"
+        f"**목적**: {why}\n\n"
+        f"**배경**: {pain}\n\n"
+        "> 실제 실행에는 AWS 자격증명과 비용이 필요합니다. 먼저 `DRY_RUN=1`로 파이프라인을 검증하세요."
     )
 
 
@@ -260,11 +240,18 @@ def _c00(s: TrackSpec) -> list[dict]:
             "`setdefault`를 사용해 이미 설정된 값이 있으면 덮어쓰지 않습니다."
         ),
         code(
-            "# 리전 — GPU 용량 부족(InsufficientInstanceCapacity)이면 이 값만 바꿔 재시도.\n"
+            "# setdefault보다 먼저 저장소 루트의 .env를 읽습니다.\n"
+            "try:\n"
+            "    from dotenv import load_dotenv\n"
+            "    load_dotenv(os.path.join(REPO, '.env'))\n"
+            "except ImportError:\n"
+            "    print('python-dotenv가 없어 .env를 읽지 못했습니다. `uv sync`로 설치하세요.')\n"
+            "\n"
+            "# 셸과 .env에 값이 없을 때만 기본 리전을 사용합니다.\n"
             "os.environ.setdefault('AWS_REGION', 'us-west-2')\n"
-            "# 🔴 boto3는 AWS_REGION 을 '기본 세션'에서 읽지 않습니다 → 둘을 같이 세팅해야\n"
-            "#    SDK 내부가 ~/.aws/config 의 다른 리전으로 폴백하지 않습니다(실측).\n"
+            "# boto3 기본 세션도 같은 리전을 사용하도록 맞춥니다.\n"
             "os.environ['AWS_DEFAULT_REGION'] = os.environ['AWS_REGION']\n"
+            "print('AWS_REGION =', os.environ['AWS_REGION'])\n"
             "\n"
             "# 모델 크기 — 'E2B' | 'E4B'(기본, 단일 GPU) | '12B' | '26B-A4B' | '31B'\n"
             "os.environ.setdefault('MODEL_SIZE', 'E4B')\n"
@@ -434,7 +421,7 @@ def _c01(s: TrackSpec) -> list[dict]:
             "| **어휘 다양성** | distinct-1/2, 시작 3-gram 편중 | 도입부 템플릿 고착 해소 |\n"
             "| 클래스 균형 | 라벨 분포·소수 클래스 소실 | 소수 클래스 추가 생성 |\n"
             + ("| 출력 유효성 | JSON 파싱률·필수키 | validator 강화 |\n" if s.key == "extraction" else "")
-            # 🔴 절단 경고는 모든 트랙에 유효하지만, 예시는 트랙 출력 형태에 맞춰야 한다.
+            # 절단 경고의 예시는 트랙 출력 형식에 맞춥니다.
             #    (분류=단일 라벨, 요약=요약문, QA=자유형 답변에는 'JSON'이 등장하지 않는다.)
             + "\n🔴 **토큰 길이가 특히 중요합니다.** 학습이 자르는 단위는 문자가 아니라 토큰이고, "
             + ("한국어·JSON은 " if s.key == "extraction" else "한국어처럼 영어가 아닌 텍스트는 ")
@@ -563,8 +550,7 @@ def _c02(s: TrackSpec) -> list[dict]:
             "```"
         ),
         md(
-            # 🔴 H3로 둔다(§1의 하위 절). H2로 올려 번호를 매기면 뒤 절이 밀려 같은 노트북 안의
-            #    '§4' 상호참조 5곳(잡 이름 안내·재접속 셀·완료 대기 assert)이 어긋난다.
+            # 뒤 절의 번호와 상호 참조가 바뀌지 않도록 §1의 하위 절로 둡니다.
             #    내용도 '§1에서 읽은 그 스크립트를 로컬에서 그대로 돌려보기'라 하위 절이 자연스럽다.
             "### (선택) 로컬 GPU dry-run으로 먼저 검증 (권장)\n"
             "클라우드 학습 잡은 인스턴스 시간만큼 과금되므로, GPU 개발환경이 있다면 클라우드로 제출하기 전에\n"
@@ -1017,7 +1003,7 @@ def _c02b(s: TrackSpec) -> list[dict]:
 
 
 def _c02_grpo(s: TrackSpec) -> list[dict]:
-    """02 (대안) · GRPO 학습 — reward가 프로그램적으로 명확한 트랙(추출·분류)에만."""
+    """프로그램으로 보상을 채점할 수 있는 코스의 GRPO 학습 노트북을 만듭니다."""
     return [
         header(
             f"02-GRPO · SFT 다음 GRPO 정련 (RLHF) — {s.title}",
@@ -1855,7 +1841,7 @@ def _c99(s: TrackSpec) -> list[dict]:
             "        try: sm.delete_model(ModelName=n); print('deleted model:', n)\n"
             "        except Exception as e: print('skip model', n, str(e)[:80])"
         ),
-        # 🔴 02b가 있는 트랙만 이 섹션을 넣는다(05_multimodal은 02b가 없어 스크립트도 없음).
+        # 로컬 서빙 노트북이 있는 트랙에만 이 절을 추가합니다.
         *([
         md(
             f"## {2 if s.has_local_serve else 0}. (02b를 실행했다면) 로컬 리소스 정리 — 모델 파일·vLLM 프로세스\n"
@@ -1957,7 +1943,7 @@ def _c99(s: TrackSpec) -> list[dict]:
 
 
 def _c06(s: TrackSpec) -> list[dict]:
-    """04 · 평가 (held-out). 트랙별 메트릭. eval-notebook-design 워크플로우 근거."""
+    """학습에 쓰지 않은 데이터로 코스별 평가 노트북을 만듭니다."""
     # 트랙별 메트릭 셀
     if s.eval_kind == "extraction":
         metric_md = (
@@ -2136,4 +2122,4 @@ def build_track(spec: TrackSpec, tracks_root: str | None = None) -> None:
         path = os.path.join(track_dir, name)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(_notebook(builder(spec)), f, ensure_ascii=False, indent=1)
-    print(f"✅ {spec.dir_name}: {len(builders)} notebooks")
+    print(f"생성: {spec.dir_name} 노트북 {len(builders)}개")

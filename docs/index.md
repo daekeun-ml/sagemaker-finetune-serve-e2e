@@ -58,6 +58,7 @@ SageMaker AI는 Gemma 4를 지원하지만 학습 방식에 따라 지원 범위
 | 배포 | [04 SageMaker AI 추론](04_sagemaker_inference.md), [05 서빙 컨테이너](05_serving_containers.md) |
 | 활용 | [06 Agentic loop](06_agentic.md) |
 | 측정 | [속도 측정](benchmark.md): TTFT/TPOT/ITL. SageMaker AI Endpoint에는 `vllm bench serve`가 없습니다 |
+| 기록 | [실험 추적 (MLflow)](mlflow.md): 파이프라인 설정과 평가 결과를 Managed MLflow 또는 로컬 SQLite에 기록 |
 | 실행 | [E2E 실행 가이드](RUN_E2E.md) |
 | 참조 | [SDK V3](sdk_v3/index.md): V2에서 바뀐 것, [학습](sdk_v3/training.md), [배포](sdk_v3/serving.md) |
 

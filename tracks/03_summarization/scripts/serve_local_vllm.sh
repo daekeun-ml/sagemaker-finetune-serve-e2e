@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# serve_local_vllm.sh — 로컬 GPU에서 학습 산출 모델을 vLLM로 띄워 SageMaker 배포 전 프리플라이트.
+# 학습 산출물을 로컬 vLLM 서버로 실행합니다.
 #
-# 왜: DJL LMI/vLLM DLC 배포는 GPU 프로비저닝~컨테이너 pull로 수 분 걸린다. 그 전에 로컬 GPU에서
-#     같은 vLLM 엔진으로 몇 초 만에 "이 모델이 서빙되나?"를 검증한다(예: 멀티모달 base를 텍스트로
-#     저장했을 때 image-processor 에러가 로컬에서 즉시 재현/차단됨).
-#
-# 요구: vLLM >= 0.19 (gemma-4 지원). `pip install "vllm>=0.19"` 또는 vLLM DLC와 동일 버전.
-#       gemma-4 텍스트 re-export 모델(config model_type=gemma4_text)은 순수 텍스트로 로드된다.
+# Gemma 4를 지원하는 vLLM 0.19 이상이 필요합니다.
 #
 # 사용:
 #   # 텍스트 모델(re-export된 gemma4_text 또는 텍스트 전용): 그냥
@@ -23,9 +18,7 @@ MODEL_DIR="${1:?usage: serve_local_vllm.sh <model_dir> (env: TEXT_ONLY=1 | MULTI
 PORT="${PORT:-8000}"
 MAX_LEN="${MAX_LEN:-2048}"
 SERVED_NAME="${SERVED_NAME:-gemma-local}"
-# 🔴 24GB급 GPU(L4 등)에서의 CUDA OOM 방지. vLLM 기본 max-num-seqs=256은 샘플러 logits 버퍼를
-#    256 x vocab(262,144) x 4B = 256MiB 로 잡아, gemma-4 가중치(~15GB) + KV 캐시와 겹치면 터진다.
-#    로컬 검증은 동시 요청이 1~2건이라 32로 낮춰도 손실이 없다. 큰 GPU면 올려도 된다.
+# 24GB급 GPU에서 메모리 부족을 피하도록 동시 요청 수를 낮춥니다.
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-32}"
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.90}"
 
@@ -42,8 +35,7 @@ ARGS=(serve "$MODEL_DIR"
       --gpu-memory-utilization "$GPU_MEM_UTIL"
       --trust-remote-code)
 
-# 🔴 멀티모달 base를 '텍스트로만' 서빙: 모든 mm 모달리티 입력을 0으로. gemma-4 E계열/12B는 audio도 있으니 함께 0.
-#    (re-export된 gemma4_text 모델은 이미 텍스트 arch라 이 플래그가 불필요하지만, 줘도 무해.)
+# 텍스트 전용 모드에서는 이미지와 오디오 입력을 차단합니다.
 if [[ "${TEXT_ONLY:-0}" == "1" ]]; then
   echo "[serve] TEXT_ONLY: disabling image+audio inputs (--limit-mm-per-prompt image=0,audio=0)"
   ARGS+=(--limit-mm-per-prompt '{"image":0,"audio":0}')
@@ -54,5 +46,5 @@ elif [[ "${MULTIMODAL:-0}" == "1" ]]; then
 fi
 
 echo "[serve] vllm ${ARGS[*]}"
-echo "[serve] OpenAI-compatible server → http://localhost:${PORT}/v1  (Ctrl-C to stop)"
+echo "[serve] OpenAI-compatible server: http://localhost:${PORT}/v1  (Ctrl-C to stop)"
 exec vllm "${ARGS[@]}"

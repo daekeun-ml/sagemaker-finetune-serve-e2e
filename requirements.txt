@@ -1,32 +1,29 @@
-# Gemma E2E Toolkit — 로컬 오케스트레이션 의존성 (pip 폴백; uv 사용 시 pyproject.toml)
-# 버전 floor는 PyPI 실측 최신(2026-07-19). 업그레이드는 uv 권장 또는 pip install -U.
-# SageMaker 학습 컨테이너 내부 의존성은 tracks/*/scripts/requirements.txt 참조(별개 환경).
+# 로컬 실행 의존성입니다. uv를 사용하면 pyproject.toml을 설치하세요.
+# SageMaker 학습 컨테이너 의존성은 tracks/*/scripts/requirements.txt에 있습니다.
 #
-# ⚠️ litellm 은 여기 없음: litellm(현행)은 importlib-metadata>=8, sagemaker(sagemaker-core)는 <7 요구 →
-#    하드 충돌. litellm 게이트웨이가 필요하면 별도 환경에 설치: pip install 'litellm>=1.93.0'
-#    (또는 uv pip install -e '.[litellm]' — 호환성 확인 필요).
+# LiteLLM은 sagemaker와 의존성 충돌이 있어 별도 환경에 설치합니다.
 
-# --- AWS / SageMaker ---
+# AWS와 SageMaker
 sagemaker>=3.16.0
 boto3>=1.43.51
 
-# --- HuggingFace (로컬 데이터 준비 · 토크나이저 · dry-run 학습) ---
-transformers>=5.14.1
+# 로컬 데이터 준비와 dry-run 학습
+transformers==5.14.1
 datasets>=5.0.0
 huggingface_hub>=1.24.0
 
-# --- 로컬 GPU dry-run 학습 (train.py) ---
+# 로컬 GPU 학습
 trl>=1.8.0
 peft>=0.19.1
 accelerate>=1.14.0
 bitsandbytes>=0.49.2        # QLoRA(4bit)용
 
-# --- Agentic (Strands) ---
+# Strands
 strands-agents>=1.48.0
 strands-agents-tools>=0.8.4
 # bedrock-agentcore>=1.18.1        # AgentCore Runtime 배포 시 (05 노트북)
 # langchain-aws>=1.6.2             # LangGraph 옵션 사용 시
 
-# --- 노트북 ---
+# 노트북
 jupyterlab
 ipywidgets

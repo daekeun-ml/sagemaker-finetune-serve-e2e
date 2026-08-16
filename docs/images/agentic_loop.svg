@@ -2,9 +2,7 @@
      aria-label="Agentic loop의 왕복 흐름. 사용자 입력이 Bedrock Claude(reasoning)로 들어가고, Claude는 bedrock-runtime의 converse로 호출됩니다. Claude가 이건 추출 작업이라 판단하면 tool-use 요청을 냅니다. 그 요청이 extract_structured_json 도구로 가고, 이 도구는 sagemaker-runtime의 invoke_endpoint로 파인튜닝된 Gemma SLM endpoint를 호출합니다. 결과 JSON이 Claude로 돌아가고 Claude가 검증과 설명을 붙여 최종 응답을 만듭니다. 두 호출은 별개 서비스이고 별개 클라이언트입니다.">
   <title>Agentic loop: Claude가 판단하고 SLM이 추출합니다</title>
 
-  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
-       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
-       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <!-- SVG는 페이지 CSS를 상속하지 않으므로 색상 모드와 한글 폰트를 내부에서 설정합니다. -->
   <style>
     :root {
       --fg: #202124; --line: #868e96;

@@ -1,16 +1,6 @@
-"""
-agentcore/app.py — AgentCore Runtime 엔트리포인트 스캐폴드
+"""Strands 에이전트를 AgentCore Runtime에 호스팅하는 진입점입니다.
 
-Strands 에이전트(Bedrock Claude reasoning + 파인튜닝 SLM endpoint tool)를 AgentCore Runtime에
-호스팅하기 위한 HTTP 계약(/invocations POST + /ping GET, port 8080)을 제공한다.
-
-근거 (litellm/agentic 정찰 2026-07 검증):
-  - bedrock-agentcore SDK: BedrockAgentCoreApp() + @app.entrypoint + app.run().
-  - 현행 권장 배포 = @aws/agentcore npm CLI (agentcore create/dev/deploy/invoke).
-  - ARM64 컨테이너, /invocations + /ping, port 8080.
-
-⚠️ AgentCore·Strands·Bedrock 모델 ID는 빠르게 바뀜 → 배포 전 리전·GA·버전 재확인.
-🔴 시크릿·모델 ID·endpoint 이름은 환경변수로 주입 (하드코딩 금지).
+모델 ID, 리전, SageMaker 엔드포인트 이름은 환경변수로 전달합니다.
 """
 from __future__ import annotations
 
@@ -21,7 +11,7 @@ import boto3
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-# --- 환경변수 (배포 시 AgentCore/컨테이너 env로 주입) ---
+# 배포 환경변수
 ENDPOINT_NAME = os.environ["SLM_ENDPOINT_NAME"]                      # 파인튜닝 SLM endpoint
 BEDROCK_MODEL_ID = os.environ["BEDROCK_CLAUDE_MODEL_ID"]             # inference-profile ID (하드코딩 금지)
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -35,17 +25,12 @@ SYSTEM_PROMPT = (
 @tool
 def extract_structured_json(text: str) -> str:
     """Extract structured JSON from text using the fine-tuned Gemma SLM (SageMaker endpoint)."""
-    # 🔴 endpoint 호출 = sagemaker-runtime (Bedrock 아님).
-    # 🔴 messages 형식으로 보낸다 → endpoint 핸들러(inference.py)가 서버측에서 chat template을 적용.
-    #    raw 텍스트를 inputs로 직송하면 template 미적용 → degenerate/빈 응답(실측). 로컬 tokenizer 불필요.
+    # SageMaker Runtime에 messages 형식으로 보내 서버에서 채팅 템플릿을 적용합니다.
     rt = boto3.client("sagemaker-runtime", region_name=AWS_REGION)
     payload = {
         "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                      {"role": "user", "content": text}],
-        # 🔴 messages 스키마의 생성 한도 키는 max_tokens (OpenAI 호환).
-        #    max_new_tokens는 {"inputs","parameters"} 스키마 쪽 이름이라 vLLM/SGLang/LMI가 무시한다
-        #    → 한도가 걸리지 않는다. common/aws_utils.invoke_sagemaker_chat()과 같은 키를 쓴다.
-        #    256은 추출·분류 트랙 값(요약·도메인 QA는 512).
+        # OpenAI 호환 messages 스키마는 max_tokens를 사용합니다.
         "max_tokens": 256, "temperature": 0.1,
     }
     resp = rt.invoke_endpoint(
@@ -71,8 +56,7 @@ _agent = Agent(
 )
 
 
-# --- AgentCore Runtime 호스팅 ---
-# ⚠️ import 경로/데코레이터는 bedrock-agentcore SDK 버전에 맞춰 재확인 (# TODO verify).
+# AgentCore Runtime 호스팅
 try:
     from bedrock_agentcore import BedrockAgentCoreApp
 
@@ -83,7 +67,7 @@ try:
         """AgentCore Runtime이 호출하는 진입점. payload={'prompt': ...} 가정."""
         prompt = payload.get("prompt", "")
         result = _agent(prompt)
-        # Strands 결과 객체 → 문자열
+        # Strands 결과 객체를 문자열로 변환합니다.
         return {"result": str(result)}
 
     if __name__ == "__main__":

@@ -1,16 +1,4 @@
-"""
-tracks/01_extraction_to_json/track_data.py — 정보추출→JSON 트랙의 데이터 어댑터
-
-역할:
-  1. 시드 데이터셋(glaiveai/glaive-function-calling-v2, apache-2.0) 로드 + 스모크 샘플.
-  2. raw row → 표준 messages 포맷 (input=자연어 요청+스키마, output=구조화 JSON).
-  3. 합성 생성용 seed_texts / to_messages 어댑터 제공 (bedrock_synth에 주입).
-
-이 트랙의 "성공 기준": 주어진 텍스트에서 스키마에 맞는 JSON을 정확히 뽑는다 (JSON 유효성 + 필드 정확도).
-SLM=빠른 구조화 추출기 / Bedrock Claude=추론기 대비가 agentic 루프에서 가장 선명한 트랙.
-
-⚠️ 다른 트랙(02_classification 등)은 이 파일을 복제해 seed_dataset·프롬프트·파서만 교체.
-"""
+"""정보 추출 코스의 시드 로더와 messages 변환기를 제공합니다."""
 from __future__ import annotations
 
 import json
@@ -33,7 +21,7 @@ SYSTEM_PROMPT = (
 
 
 def _parse_glaive_row(row: dict[str, Any]) -> dict[str, str] | None:
-    """glaive-function-calling-v2 row → {"input","output"}.
+    """glaive-function-calling-v2 행을 입력과 출력으로 변환합니다.
 
     스키마: system(툴 JSON 스키마 포함), chat(멀티턴 텍스트; assistant가 <functioncall> JSON 방출).
     USER: ... ASSISTANT: <functioncall> {json} 형태를 파싱.
@@ -59,11 +47,7 @@ def _parse_glaive_row(row: dict[str, Any]) -> dict[str, str] | None:
 
 
 def to_messages(example: dict[str, str]) -> list[dict[str, str]]:
-    """{"input","output"} → 표준 messages.
-
-    🔴 Gemma instruct chat template은 system role을 거부(raise)하므로, system 지시문을 첫 user
-    턴에 병합한다(fold). 이렇게 해야 TRL SFTTrainer의 자동 chat-template 적용과 미리보기가 깨지지 않는다.
-    """
+    """system 지시문을 첫 user 턴에 병합해 표준 messages를 만듭니다."""
     return [
         {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{example['input']}"},
         {"role": "assistant", "content": example["output"]},

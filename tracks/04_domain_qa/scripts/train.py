@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-"""
-train.py — Gemma SFT+LoRA/QLoRA 학습 스크립트 (self-contained)
+"""Gemma SFT와 LoRA/QLoRA 학습 스크립트입니다.
 
-🔴 이 파일은 common/ 에 의존하지 않는다 (SageMaker는 source_dir만 컨테이너에 올리므로).
-   로컬 GPU dry-run 과 SageMaker HuggingFace estimator .fit() 양쪽에서 동일하게 실행.
+SageMaker가 ``source_dir``만 컨테이너에 올리므로 common 패키지에 의존하지 않습니다.
 
 로컬 dry-run (개발환경 GPU에서 파이프라인 검증):
     python train.py --dry_run \
@@ -15,31 +13,121 @@ SageMaker (HuggingFace estimator entry_point):
     hyperparameters={"model_id": "...", "epochs": 3, "use_qlora": True, ...}
     채널: SM_CHANNEL_TRAIN(=/opt/ml/input/data/train), 모델은 SM_MODEL_DIR(=/opt/ml/model)로.
 
-근거 (정찰 2026-07 검증):
-  - Gemma chat template은 -it 토크나이저에 내장 → TRL SFTTrainer가 conversational
-    ('messages') 데이터셋에 자동 적용. 수동 마커 조립 금지.
+구성:
+  - TRL SFTTrainer가 conversational ``messages`` 데이터에 chat template을 적용합니다.
   - LoRA: r=16/alpha=16/dropout=0.05, target_modules='all-linear',
     modules_to_save=['lm_head','embed_tokens'] (특수토큰 학습).
   - bf16 필수 (fp16는 Gemma에서 오버플로/NaN). gradient_checkpointing(use_reentrant=False).
   - attn_implementation='eager' 가 Gemma 안전 기본 (soft-cap/sliding-window 정합성).
   - gated 모델(gemma-3/2/3n)은 HF_TOKEN env 필요. gemma-4 계열은 불필요(apache-2.0/ungated).
 
-🔴 멀티모달 base(gemma-4 전부 · gemma-3 4b+) 텍스트 SFT (실측 검증 2026-07-21):
+멀티모달 base의 텍스트 SFT:
   - 로드: AutoModelForImageTextToText(멀티모달 전체). LoRA는 language_model 한정 target_modules.
   - 저장: 머지 후 language 서브모듈만 텍스트 arch(*ForCausalLM, model_type=*_text)로 re-export
-    → vLLM이 순수 텍스트 경로로 로드(image/audio processor 불필요). 안 그러면 서빙 시
-    "Can't load image processor" 로 죽는다. (_reexport_text_only 참고)
+    하여 vLLM이 텍스트 경로로 로드하도록 합니다.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 
-# 🔴 SageMaker training job으로 이식되므로 print 대신 logging.
-#    이 파일은 self-contained 진입점(common 미의존)이라 자체 로거를 쓴다. 단, 로깅 '구성'은
-#    import 시점이 아니라 main()에서 1회 수행한다(import 부작용 회피 = 라이브러리 위생).
+# SageMaker와 CloudWatch에서 수집할 수 있도록 logging을 사용합니다.
 logger = logging.getLogger("gemma_train")
+
+
+def _job_name() -> str:
+    """이 컨테이너가 속한 SageMaker 학습 잡 이름. 로컬 실행이면 빈 문자열.
+
+    SageMaker 가 TRAINING_JOB_NAME 을 넣어 준다(실측). 그게 없는 경우를 대비해 SM_TRAINING_ENV
+    JSON 의 job_name 도 본다. 둘 다 실제 컨테이너에서 값이 확인된 경로다.
+    """
+    name = (os.environ.get("TRAINING_JOB_NAME") or "").strip()
+    if name:
+        return name
+    try:
+        return str(json.loads(os.environ.get("SM_TRAINING_ENV") or "{}").get("job_name", "") or "")
+    except (ValueError, AttributeError):
+        return ""
+
+
+class _Mlflow:
+    """MLflow 추적을 준비합니다. 연결 실패 시 추적만 끄고 학습은 계속합니다.
+
+    파이프라인의 부모 run은 활성화하지 않고 자식 run만 만듭니다. Trainer의 MLflowCallback은
+    `MLFLOW_RUN_ID`를 이어받아 step metric을 기록합니다.
+    """
+
+    def __init__(self) -> None:
+        self.report_to = "none"
+        self.run_name = _job_name()  # 자식 run 이름
+        self._child = None           # 이 컨테이너가 만든 자식 run ID
+        self._mlflow = None
+
+        uri = os.environ.get("MLFLOW_TRACKING_URI")
+        if not uri:
+            return                   # 추적 비활성
+        try:
+            import mlflow
+        except ImportError:
+            logger.warning("[mlflow] MLFLOW_TRACKING_URI is set but mlflow is not installed; "
+                           "tracking disabled (add mlflow to scripts/requirements.txt).")
+            return
+
+        experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME") or ""
+        try:
+            # 학습 시작 전에 연결과 experiment 접근을 확인합니다.
+            mlflow.set_tracking_uri(uri)
+            exp = mlflow.set_experiment(experiment) if experiment else None
+        except Exception as e:       # noqa: BLE001. 권한, 삭제된 experiment, 네트워크 무엇이든
+            logger.warning("[mlflow] connection check failed; tracking disabled, training "
+                           "continues: %s: %s", type(e).__name__, e)
+            return
+
+        self._mlflow = mlflow
+        self.report_to = "mlflow"
+        logger.info("[mlflow] logging step metrics to %s (experiment=%s)",
+                    uri, experiment or "(default)")
+
+        # 부모 run이 있으면 자식 run을 미리 만듭니다.
+        parent_run_id = os.environ.get("MLFLOW_PARENT_RUN_ID")
+        if not parent_run_id:
+            return                   # 부모가 없으면 콜백이 최상위 run을 만듭니다.
+        if (os.environ.get("RANK") or "0") != "0":
+            return                   # 분산 학습이면 rank 0 만
+        try:
+            # 환경변수의 experiment를 우선하고, 없을 때만 부모 run의 experiment를 사용합니다.
+            client = mlflow.MlflowClient()
+            exp_id = exp.experiment_id if exp is not None else \
+                client.get_run(parent_run_id).info.experiment_id
+            child = client.create_run(
+                experiment_id=exp_id,
+                run_name=self.run_name or None,
+                tags={"mlflow.parentRunId": parent_run_id},
+            )
+            # MLflowCallback은 이 환경변수로 기존 run을 이어받습니다.
+            os.environ["MLFLOW_RUN_ID"] = child.info.run_id
+            self._child = child.info.run_id
+            logger.info("[mlflow] child run %s created under parent %s",
+                        self._child, parent_run_id)
+        except Exception as e:       # noqa: BLE001. 부모가 지워졌을 수도 있다
+            logger.warning("[mlflow] could not create a child run; logging to a top-level run "
+                           "instead: %s: %s", type(e).__name__, e)
+
+    def __enter__(self) -> _Mlflow:
+        return self
+
+    def __exit__(self, exc_type: object, *_rest: object) -> None:
+        """남아 있는 자식 run을 닫습니다. 부모 run은 파이프라인이 관리합니다."""
+        if self._mlflow is None or self._child is None:
+            return
+        try:
+            if self._mlflow.active_run() is not None:
+                self._mlflow.end_run(status="FAILED" if exc_type else "FINISHED")
+        except Exception as e:       # noqa: BLE001
+            logger.warning("[mlflow] failed to end the child run (ignored): %s: %s",
+                           type(e).__name__, e)
 
 
 def _configure_logging() -> None:
@@ -57,7 +145,7 @@ def _configure_logging() -> None:
 
 def _str2bool(v) -> bool:
     """SageMaker HuggingFace estimator는 모든 하이퍼파라미터를 `--key value`로 직렬화하므로
-    boolean도 `--use_qlora True` 형태로 전달된다. store_true는 값을 안 받아 크래시 → str2bool 사용."""
+    boolean도 `--use_qlora True` 형태로 전달됩니다."""
     return str(v).strip().lower() in ("1", "true", "yes", "y", "t")
 
 
@@ -75,7 +163,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--gradient_accumulation_steps", type=int, default=8)
     p.add_argument("--learning_rate", type=float, default=2e-4)
     p.add_argument("--max_seq_length", type=int, default=2048)
-    # boolean 플래그: nargs="?"+const=True → 로컬 bare-flag(`--dry_run`)와 SageMaker `--use_qlora True` 모두 지원
+    # 로컬 bare flag와 SageMaker의 명시적 boolean 값을 모두 지원합니다.
     p.add_argument("--packing", type=_str2bool, nargs="?", const=True, default=True)
     # LoRA / QLoRA
     p.add_argument("--lora_r", type=int, default=16)
@@ -85,67 +173,48 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--merge_adapter", type=_str2bool, nargs="?", const=True, default=True, help="학습 후 LoRA를 base에 머지(서빙용)")
     # attention
     p.add_argument("--attn_implementation", type=str, default="eager", choices=["eager", "sdpa", "flash_attention_2"])
-    # 학습 샘플 수 제한 (시간/비용 조절) — 데이터는 그대로 두고 앞 N건만 사용. 0/None이면 전체.
+    # 데이터 파일은 유지하고 앞 N건만 학습에 사용합니다.
     p.add_argument("--max_train_samples", type=int, default=None,
                    help="학습에 쓸 최대 샘플 수(앞에서부터). 미지정 시 train.jsonl 전체 사용.")
     # dry-run
-    p.add_argument("--dry_run", type=_str2bool, nargs="?", const=True, default=False, help="로컬 소량·짧은 학습으로 파이프라인 검증")
+    p.add_argument("--dry_run", type=_str2bool, nargs="?", const=True, default=False, help="소량의 짧은 학습으로 파이프라인 검증")
     return p.parse_args()
 
 
 def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -> int:
-    """KV-shared 레이어의 k_norm/k_proj/v_proj를 base 체크포인트에서 복원해 save_sd에 채운다.
+    """KV 공유 레이어의 서빙 검증용 텐서를 base 체크포인트에서 복원합니다.
 
-    🔴 왜 필요한가 (E2B/E4B에서만 발생. 12B/26B/31B는 num_kv_shared_layers=0이라 무관):
-       gemma-4 E계열은 뒤쪽 `num_kv_shared_layers`개 레이어가 앞 레이어의 KV를 재사용한다.
-       transformers는 그 레이어에 k_norm/k_proj/v_proj 모듈을 아예 만들지 않는다
-       (modeling_gemma4.py: "Layers sharing kv states don't need any weight matrices").
-       그래서 save_pretrained를 거치면 원본에 있던 그 텐서들이 **소실**된다.
-       반면 vLLM(Gemma4Attention)은 k_norm을 전 레이어에 등록하므로 로드 시
-       `ValueError: Following weights were not initialized from checkpoint: layers.24~41...k_norm`
-       으로 엔진 초기화가 실패한다 → vLLM/SGLang 서빙 불가.
-       실측(E4B, 42층 중 shared 18층): 소실 키 정확히 54개
-       = 레이어 24~41 × (k_norm.weight, k_proj.weight, v_proj.weight).
-
-    이 텐서는 **연산에 쓰이지 않는다**(shared 레이어는 forward에서 앞 레이어의 KV를 그대로 재사용:
-    modeling_gemma4.py `if self.is_kv_shared_layer: key_states, value_states = shared_kv_states[...]`).
-    LoRA(q/k/v/o_proj 타깃)도 그 레이어엔 모듈이 없어 학습되지 않는다. 따라서 base 값을 그대로
-    되살리는 것은 정확도에 무해하며, vLLM의 weight 검증만 통과시키는 목적이다.
-
-    참고: vLLM issue #44788 — "E4B는 vLLM 불가"가 아니라 "transformers가 저장한 E4B 체크포인트가
-    vLLM 불가"다. 원본 google/gemma-4-E4B-it 체크포인트는 이 54개 텐서를 모두 갖고 있어 그대로 뜬다.
-
-    Returns: 되살린 텐서 개수(0이면 해당 없음 — 12B+, model_id 미지정, 또는 이미 온전).
+    E2B와 E4B는 ``save_pretrained`` 과정에서 일부 미사용 텐서가 빠질 수 있지만 vLLM은 해당 키를
+    요구합니다. 연산에는 쓰이지 않으므로 base 값을 복원해도 학습 결과는 바뀌지 않습니다.
     """
     n_shared = int(getattr(text_cfg, "num_kv_shared_layers", 0) or 0)
     n_layers = int(getattr(text_cfg, "num_hidden_layers", 0) or 0)
     if n_shared <= 0 or n_layers <= 0:
-        return 0  # 12B/26B/31B 등: KV 공유 없음 → 소실도 없음
+        return 0  # KV 공유가 없는 모델
     # model_id는 문자열 또는 후보 목록(앞에서부터 시도). 로컬 디렉터리와 HF repo id 모두 가능.
     sources = [s for s in ([model_id] if isinstance(model_id, str) else list(model_id or [])) if s]
     if not sources:
-        logger.warning("KV-shared 복원 생략(model_id 미지정) — vLLM 서빙 시 weight 검증 실패 가능")
+        logger.warning("skipping KV-shared restore (no model_id); vLLM weight validation may fail")
         return 0
 
-    first = n_layers - n_shared  # E4B: 42-18=24 → 레이어 24~41이 shared
+    first = n_layers - n_shared
     want = [f"model.layers.{i}.self_attn.{n}.weight"
             for i in range(first, n_layers)
             for n in ("k_norm", "k_proj", "v_proj")]
     need = [k for k in want if k not in save_sd]
     if not need:
-        logger.info("KV-shared 텐서 이미 온전(%d개 확인) — 복원 불필요", len(want))
+        logger.info("KV-shared tensors already intact (%d found); no restore needed", len(want))
         return 0
 
-    # base 체크포인트에서 해당 텐서만 골라 읽는다(전체 로드 아님 → RAM 절약).
-    # base는 멀티모달 arch이므로 키가 model.language_model.layers.N... 형태다 → 텍스트 키로 매핑.
+    # base 체크포인트에서 필요한 텐서만 읽습니다.
     try:
         from safetensors import safe_open
         from transformers.utils import cached_file
     except ImportError as e:
-        logger.warning("KV-shared 복원 실패(safetensors/transformers 유틸 없음: %s)", e)
+        logger.warning("KV-shared restore failed (safetensors/transformers utils missing: %s)", e)
         return 0
 
-    # 텍스트 키 → base 키 후보(멀티모달 접두사 유무 양쪽)
+    # 멀티모달 접두사 유무를 모두 지원합니다.
     def _base_keys(tk):
         suffix = tk[len("model."):]                       # layers.N.self_attn.k_norm.weight
         return (f"model.language_model.{suffix}", f"language_model.{suffix}", tk)
@@ -155,7 +224,7 @@ def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -
     for src in sources:
         if not remaining:
             break
-        try:  # 샤딩된 경우: 인덱스에서 샤드 목록. 단일 파일이면 예외 → 폴백.
+        try:  # 샤딩 인덱스가 없으면 단일 파일을 사용합니다.
             import json as _json
             with open(cached_file(src, "model.safetensors.index.json", token=hf_token)) as f:
                 files = sorted(set(_json.load(f)["weight_map"].values()))
@@ -167,7 +236,7 @@ def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -
             try:
                 path = cached_file(src, fname, token=hf_token)
             except Exception:
-                continue  # 이 소스에 없음 → 다음 샤드/다음 소스로
+                continue  # 다음 샤드 또는 소스를 확인합니다.
             with safe_open(path, framework="pt", device="cpu") as f:
                 avail = set(f.keys())
                 for tk in list(remaining):
@@ -179,28 +248,19 @@ def _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger) -
                             break
 
     if remaining:
-        logger.warning("KV-shared 복원 불완전: %d/%d개 복원, %d개 실패(예: %s)",
+        logger.warning("KV-shared restore incomplete: %d/%d restored, %d failed (e.g. %s)",
                        revived, len(need), len(remaining), sorted(remaining)[:3])
     else:
-        logger.info("KV-shared 텐서 %d개 복원 완료(레이어 %d~%d) → vLLM/SGLang 서빙 가능",
+        logger.info("restored %d KV-shared tensors (layers %d-%d); vLLM/SGLang can serve this",
                     revived, first, n_layers - 1)
     return revived
 
 
 def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
                         model_id=None, hf_token=None, revive_kv_shared=True) -> None:
-    """멀티모달 머지 모델에서 language 서브모듈만 텍스트 arch(*ForCausalLM)로 re-export.
+    """멀티모달 머지 모델의 language 서브모듈을 텍스트 모델로 다시 저장합니다.
 
-    🔴 왜: 멀티모달 config(*ForConditionalGeneration)로 저장하면 vLLM이 image/audio processor를
-       찾다가 죽는다. text_config(model_type=*_text) + language_model 가중치만 저장하면 vLLM이
-       순수 텍스트 경로로 로드(vision/audio tower·processor 불필요).
-    실측(gemma-4 E4B/12B/26B): model.language_model.* → model.* 재키잉 + lm_head, 키 100% 매칭.
-    text 클래스는 arch에 'Unified'가 있으면 Gemma4UnifiedForCausalLM, 아니면 Gemma4ForCausalLM.
-
-    🔴 revive_kv_shared: E2B/E4B(num_kv_shared_layers>0)에서 transformers가 저장하지 않는
-       KV-shared 레이어의 k_norm/k_proj/v_proj를 base 체크포인트에서 복원해 함께 저장한다.
-       이게 없으면 vLLM/SGLang이 "weights not initialized" 로 엔진 초기화에 실패한다
-       (상세: _revive_kv_shared_from_base 독스트링, vLLM issue #44788).
+    필요하면 E2B와 E4B의 KV 공유 텐서도 base 체크포인트에서 복원합니다.
     """
     import torch
     import transformers as T
@@ -213,12 +273,12 @@ def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
         logger.warning("%s not found in transformers; falling back to AutoModelForCausalLM(text_config)", text_cls_name)
         from transformers import AutoModelForCausalLM as TextCls  # type: ignore
 
-    # language_model 서브트리 경로 자동 탐색 (…language_model.)
+    # language_model 서브트리 경로를 찾습니다.
     lm_prefix = next((n + "." for n, _ in merged.named_modules() if n.endswith("language_model")), None)
     if lm_prefix is None:
         raise RuntimeError("language_model submodule not found in merged multimodal model")
 
-    # language 서브트리 가중치만 추출(텐서는 merged와 공유 — 사본 아님).
+    # language 서브트리 가중치만 추출합니다.
     msd = merged.state_dict()
     text_sd = {}
     for k, v in msd.items():
@@ -227,13 +287,12 @@ def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
         elif k.startswith("lm_head."):
             text_sd[k] = v
 
-    # 🔴 OOM 방지: 빈 뼈대를 meta로 만들어(가중치 미할당) 사본을 안 만들고, load_state_dict(assign=True)로
-    #    merged의 텐서를 그대로 이식한다. TextCls(text_cfg)를 그냥 만들면 fp32 사본(+.to(bf16) 또 사본)이 생긴다.
+    # meta 모델에 기존 텐서를 할당해 추가 사본을 만들지 않습니다.
     import gc
     from accelerate import init_empty_weights
     with init_empty_weights():
         text_model = TextCls(text_cfg)
-    # assign=True: 새 파라미터를 할당(빈 meta 텐서를 text_sd의 실제 텐서로 대체) — 추가 사본 없음.
+    # assign=True로 meta 텐서를 실제 텐서로 교체합니다.
     missing, unexpected = text_model.load_state_dict(text_sd, strict=False, assign=True)
     if missing or unexpected:
         logger.warning("re-export key mismatch: missing=%d unexpected=%d", len(missing), len(unexpected))
@@ -241,9 +300,7 @@ def _reexport_text_only(merged, full_cfg, tokenizer, output_dir, logger,
             logger.warning("  missing: %s", k)
     text_model = text_model.to(torch.bfloat16)
 
-    # 🔴 저장 직전에 KV-shared 레이어의 dead weight를 base에서 복원해 명시 state_dict로 넘긴다.
-    #    save_pretrained(state_dict=...)를 쓰는 이유: text_model.state_dict()에는 그 모듈이 아예
-    #    없어(생성되지 않음) 모델을 고치는 방법으로는 채울 수 없다.
+    # 모델 객체에 없는 KV 공유 텐서는 명시적 state_dict에 추가합니다.
     save_sd = text_model.state_dict()
     if revive_kv_shared:
         n = _revive_kv_shared_from_base(save_sd, text_cfg, model_id, hf_token, logger)
@@ -269,17 +326,7 @@ def resolve_train_path(args) -> str:
 
 
 def _prune_artifact(output_dir: str, logger) -> None:
-    """서빙에 쓰이지 않는 것을 지운다. /opt/ml/model 전체가 tar.gz 로 S3 에 올라가기 때문이다.
-
-    🔴 실측: E4B 학습 산출물이 11.37GB 였고 업로드에 3분 14초가 걸렸다. 그 안에는
-       서빙이 절대 열지 않는 것들이 함께 들어 있었다.
-         checkpoint-*/  — optimizer.pt / rng_state.pth / scheduler.pt. 학습 재개용이고,
-                          이 kit 은 재개를 지원하지 않는다(save_total_limit=1 로 1개만 남겨도
-                          그 1개가 수 GB 다).
-         adapter/       — 머지 소스. 머지된 모델이 이미 루트에 있으므로 중복이다.
-       지우면 업로드 시간과 S3 요금이 함께 줄고, 배포 시 컨테이너가 받는 양도 줄어든다.
-       ⚠️ 학습을 이어서 하거나 adapter 만 따로 배포할 계획이면 이 함수를 부르지 말 것.
-    """
+    """서빙에 쓰이지 않는 체크포인트와 머지용 어댑터를 아티팩트에서 제거합니다."""
     import shutil
 
     removed = 0
@@ -292,9 +339,9 @@ def _prune_artifact(output_dir: str, logger) -> None:
                        for r, _, fs in os.walk(path) for f in fs)
             shutil.rmtree(path, ignore_errors=True)
             removed += size
-            logger.info("Pruned %s (%.2f GB) — 서빙에 쓰이지 않습니다", name, size / 1024**3)
+            logger.info("pruned %s (%.2f GB): not used for serving", name, size / 1024**3)
     if removed:
-        logger.info("아티팩트에서 %.2f GB 제거 — 업로드 시간과 S3 요금이 그만큼 줄어듭니다",
+        logger.info("removed %.2f GB from the artifact: shorter upload and lower S3 cost",
                     removed / 1024**3)
 
 
@@ -311,7 +358,7 @@ def main() -> None:
 
     hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
-    # 🔴 멀티모달 base 감지 (Gemma 4 전부 · Gemma 3 4b+). 텍스트 SFT라도 로더/타깃/저장이 달라진다.
+    # 멀티모달 base는 로더, LoRA 대상, 저장 경로가 다릅니다.
     #    - config에 vision_config/audio_config 또는 text_config가 있으면 멀티모달로 취급.
     #    - 로드: AutoModelForCausalLM은 멀티모달 arch(*ForConditionalGeneration)를 반환하므로,
     #      멀티모달이면 AutoModelForImageTextToText로 명시 로드(전체 모델). 텍스트 전용이면 CausalLM.
@@ -321,7 +368,7 @@ def main() -> None:
     logger.info("model_type=%s arch=%s multimodal=%s", _cfg.model_type,
                 (_cfg.architectures or ["?"])[0], is_multimodal)
 
-    # dry-run 오버라이드: 소량·1 step 수준으로
+    # dry-run에서는 소량 데이터와 짧은 시퀀스를 사용합니다.
     if args.dry_run:
         args.epochs = 1
         args.max_seq_length = min(args.max_seq_length, 512)
@@ -336,7 +383,7 @@ def main() -> None:
     elif args.max_train_samples and args.max_train_samples > 0:
         # 시간/비용 조절: 앞 N건만 사용(데이터 파일은 그대로). 예: --max_train_samples 100
         ds = ds.select(range(min(args.max_train_samples, len(ds))))
-        logger.info("max_train_samples=%d → using %d of %d rows", args.max_train_samples, len(ds), total)
+        logger.info("max_train_samples=%d: using %d of %d rows", args.max_train_samples, len(ds), total)
     logger.info("Training examples: %d  (file: %s)", len(ds), train_path)
 
     # ---- 토크나이저 ----
@@ -345,7 +392,7 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # ---- 모델 (bf16 필수, QLoRA면 4bit) ----
-    # transformers 5.x: torch_dtype → dtype 로 이름 변경(구 이름은 deprecation 경고).
+    # transformers 5에서는 dtype 인자를 사용합니다.
     model_kwargs = dict(
         attn_implementation=args.attn_implementation,
         dtype=torch.bfloat16,
@@ -366,12 +413,7 @@ def main() -> None:
         model = AutoModelForCausalLM.from_pretrained(args.model_id, **model_kwargs)
 
     # ---- LoRA target 결정 ----
-    # 🔴 멀티모달 gemma-4 실측(2026-07): language proj(q/k/v/o/gate/up/down_proj)는 평범한 nn.Linear지만,
-    #    vision/audio tower의 동명 proj는 커스텀 `Gemma4ClippableLinear`라 peft가 지원 안 함
-    #    (ValueError: Target module ... is not supported). 따라서 target_modules에 이름 리스트나
-    #    'all-linear'를 주면 vision/audio proj까지 매칭돼 크래시하거나 불필요 파라미터가 붙는다.
-    #    → **정규식으로 language_model 경로 한정**: language의 258개 nn.Linear만 매칭(ClippableLinear 0).
-    #    실측: get_peft_model OK, lora_A 516개 부착. 텍스트 서빙은 이후 language 서브모듈만 re-export.
+    # 멀티모달 모델은 지원되지 않는 vision/audio 선형층을 피하도록 language_model 경로만 선택합니다.
     if is_multimodal:
         lora_targets = r".*language_model\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
         # 멀티모달에서 embed/lm_head를 modules_to_save로 두면 vision 임베딩까지 얽힐 수 있어 생략(순수 텍스트 LoRA).
@@ -390,15 +432,16 @@ def main() -> None:
     )
 
     # ---- packing 안전장치 ----
-    # 🔴 packing은 여러 샘플을 한 시퀀스로 합치는데, flash-attention이 아니면 샘플 간
-    #    cross-contamination(교차 오염) 위험이 있다(TRL 경고). Gemma 안전 기본인 eager/sdpa에서는
-    #    packing을 끈다. flash_attention_2 일 때만 packing 허용.
+    # 샘플 간 교차 오염을 막기 위해 flash attention에서만 packing을 사용합니다.
     use_packing = args.packing and args.attn_implementation in (
         "flash_attention_2", "flash_attention_3",
     )
     if args.packing and not use_packing:
         logger.warning("packing disabled for attn_implementation='%s' (prevents cross-contamination); "
                        "packing is auto-enabled only with flash_attention_2.", args.attn_implementation)
+
+    # MLflow 연결 결과를 SFTConfig의 report_to에 반영합니다.
+    mlf = _Mlflow()
 
     # ---- SFTConfig ----
     sft_config = SFTConfig(
@@ -409,17 +452,17 @@ def main() -> None:
         learning_rate=args.learning_rate,
         max_length=args.max_seq_length,
         packing=use_packing,
-        bf16=True,                      # 🔴 fp16 금지 (Gemma NaN)
+        bf16=True,                      # Gemma는 fp16에서 NaN이 발생할 수 있습니다.
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         optim="adamw_torch_fused",
         logging_steps=5 if args.dry_run else 10,
         save_strategy="no" if args.dry_run else "epoch",
-        # 🔴 중간 체크포인트는 1개만 유지한다. 이 디렉토리(=/opt/ml/model)는 그대로 model.tar.gz로
-        #    업로드되므로, epoch마다 쌓이면 아티팩트가 커져 업로드가 길어진다(실측: checkpoint 3개
-        #    = 0.7GB, 서빙엔 불필요 — 서빙은 머지된 루트만 읽는다). 업로드 시간도 MaxRuntime에 포함된다.
+        # 업로드 아티팩트가 불필요하게 커지지 않도록 체크포인트 하나만 유지합니다.
         save_total_limit=1,
-        report_to="none",
+        report_to=mlf.report_to,
+        # SageMaker 학습 Job 이름으로 MLflow run과 CloudWatch 로그를 연결합니다.
+        run_name=mlf.run_name or None,
         dataset_kwargs={"skip_prepare_dataset": False},
     )
 
@@ -433,15 +476,13 @@ def main() -> None:
     )
 
     logger.info("Starting training...")
-    trainer.train()
+    # 컨텍스트 종료 시 남아 있는 자식 run을 정리합니다.
+    with mlf:
+        trainer.train()
 
     # ---- 저장 ----
-    # 🔴 서빙 루트(SM_MODEL_DIR=/opt/ml/model)에는 '완전한 HF 모델'(config.json + 가중치)이 와야 한다.
-    #    vLLM/LMI는 HF_MODEL_ID=/opt/ml/model 루트의 config.json으로 엔진을 감지한다.
-    #    ⚠️ 멀티모달 base를 텍스트로 서빙할 때: config가 멀티모달(*ForConditionalGeneration)로 남으면
-    #       vLLM이 image/audio processor를 찾다가 "Can't load image processor"로 죽는다(실측). 그래서
-    #       머지 후 **language 서브모듈만 텍스트 arch(*ForCausalLM)로 re-export**한다(gemma4→gemma4_text).
-    #       실측 검증(E4B/12B/26B): model.language_model.* → model.* 재키잉 + lm_head, 키 100% 매칭.
+    # 서빙 루트에는 config.json과 가중치를 포함한 완전한 HF 모델을 저장합니다.
+    # 멀티모달 base는 language 서브모듈만 텍스트 모델로 다시 저장합니다.
     if args.merge_adapter and not args.dry_run:
         adapter_dir = os.path.join(args.output_dir, "adapter")
         trainer.save_model(adapter_dir)
@@ -450,14 +491,13 @@ def main() -> None:
 
         logger.info("Merging LoRA adapter into base model...")
         from peft import PeftModel
-        # 🔴 OOM 방지: merge는 학습 모델 + base(bf16 full) + merged + (re-export시) text_model 사본이
-        #    호스트 RAM에 겹쳐 쌓인다(8B면 각 ~16GB). 학습이 끝난 trainer/model을 먼저 해제해 RAM을 회수한다.
+        # 병합 전에 학습 모델을 해제해 호스트 메모리를 확보합니다.
         import gc
         del trainer, model
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        # base는 CPU에 bf16로 로드(GPU 불필요 — merge/save는 CPU에서). low_cpu_mem_usage로 사본 최소화.
+        # 병합용 base는 CPU에 bf16으로 로드합니다.
         _loader = AutoModelForImageTextToText if is_multimodal else AutoModelForCausalLM
         base = _loader.from_pretrained(
             args.model_id, dtype=torch.bfloat16, low_cpu_mem_usage=True,
@@ -467,7 +507,7 @@ def main() -> None:
         gc.collect()
 
         if is_multimodal:
-            # 멀티모달 머지 모델 → 텍스트 전용으로 re-export (vLLM 텍스트 서빙용).
+            # 멀티모달 머지 모델을 텍스트 전용 모델로 다시 저장합니다.
             # model_id/hf_token: KV-shared dead weight를 base에서 복원하는 데 필요(E2B/E4B).
             _reexport_text_only(merged, _cfg, tokenizer, args.output_dir, logger,
                                 model_id=args.model_id, hf_token=hf_token)
@@ -476,19 +516,19 @@ def main() -> None:
             merged.save_pretrained(args.output_dir, safe_serialization=True)
             tokenizer.save_pretrained(args.output_dir)
             logger.info("Merged text model saved to serving root: %s", args.output_dir)
-        # ⚠️ Gemma 라이선스: gemma-4=apache-2.0(제약 없음), gemma-3/2/3n=Gemma Terms 준수.
+        # gemma-3/2/3n을 사용하면 해당 Gemma Terms를 준수해야 합니다.
     else:
         # 머지 안 함(또는 dry-run): 어댑터를 루트에 저장.
         trainer.save_model(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
         logger.info("Adapter saved (no merge): %s", args.output_dir)
 
-    # 🔴 /opt/ml/model 전체가 tar.gz 로 올라간다. 서빙이 열지 않는 것을 먼저 지운다.
+    # 서빙에 쓰이지 않는 파일은 업로드 전에 제거합니다.
     if not args.dry_run:
         _prune_artifact(args.output_dir, logger)
 
     if args.dry_run:
-        logger.info("DRY-RUN complete — pipeline OK. Run without --dry_run for real training.")
+        logger.info("DRY-RUN complete: pipeline OK. Run without --dry_run for real training.")
 
 
 if __name__ == "__main__":

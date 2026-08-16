@@ -1,18 +1,6 @@
-"""
-common/gemma_format.py — Gemma chat 포맷 유틸 (4개 트랙 공용)
+"""Gemma 학습과 추론에 사용할 표준 messages 형식을 만듭니다.
 
-핵심 원칙 (정찰 2026-07 검증):
-  - Gemma는 <start_of_turn>user ... <end_of_turn> / <start_of_turn>model ... <end_of_turn>
-    턴 기반 chat template을 -it 토크나이저에 내장하고 있다. 출력 role은 'assistant'가 아니라 'model'.
-  - 🔴 수동으로 <start_of_turn> 마커를 문자열 조립하지 말 것.
-    tokenizer.apply_chat_template()에 위임한다 (TRL SFTTrainer는 conversational
-    'messages' 데이터셋을 받으면 자동으로 chat template을 적용한다).
-  - 초기 Gemma instruct는 전용 system role이 없어, system 프롬프트를 첫 user 턴에 병합하는
-    템플릿이 많다. 정확한 처리는 각 모델의 tokenizer_config에 따르므로 apply_chat_template에 맡긴다.
-
-따라서 이 모듈은 "마커를 만든다"가 아니라 각 트랙의 raw row를 **표준 messages 포맷**
-( [{"role": "system"/"user"/"assistant", "content": "..."}] )으로 바꾸는 어댑터를 제공한다.
-학습 데이터는 이 messages 리스트를 담은 컬럼("messages")으로 저장하면 SFTTrainer가 알아서 처리.
+채팅 마커는 직접 조립하지 않고 토크나이저의 `apply_chat_template`에 맡깁니다.
 """
 from __future__ import annotations
 
@@ -24,7 +12,7 @@ def build_messages(
     assistant_content: str,
     system_content: str | None = None,
 ) -> list[dict[str, str]]:
-    """단일 turn (system?)+user+assistant → 표준 messages 리스트.
+    """단일 학습 예시를 표준 messages 리스트로 만듭니다.
 
     SFT 학습용. tokenizer.apply_chat_template(messages, tokenize=False)에 넣으면
     Gemma 턴 마커가 자동 렌더링된다. role 이름은 표준(user/assistant/system)을 쓰고,
@@ -42,7 +30,7 @@ def build_inference_messages(
     user_content: str,
     system_content: str | None = None,
 ) -> list[dict[str, str]]:
-    """추론용 messages (assistant 턴 없음). endpoint 호출 프롬프트 조립에 사용."""
+    """assistant 턴이 없는 추론용 messages를 만듭니다."""
     messages: list[dict[str, str]] = []
     if system_content:
         messages.append({"role": "system", "content": system_content})

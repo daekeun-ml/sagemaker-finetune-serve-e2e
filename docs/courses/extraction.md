@@ -68,7 +68,7 @@ You are a helpful assistant with access to the following functions. Use them if 
     |---|---|
     | system 없음, 스키마 없음 | `"I do not have real-time access to weather..."`: 일반 챗봇처럼 답합니다 |
     | system 있음, 스키마 없음 | `{"name": "get_current_weather", ...}`: 함수명을 추측합니다 |
-    | system + 스키마 | `{"name": "get_weather", "arguments": {...}}` ✅ 정확 |
+    | system + 스키마 | `{"name": "get_weather", "arguments": {...}}`: 정확 |
 
     배포 후 호출부(`04_evaluate`, `05_agentic_strands`)는 모두 세 번째 형태로 보냅니다. 스키마를 빼고 테스트한 뒤 "학습이 안 됐다"고 판단하는 것이 이 코스에서 가장 흔한 오진입니다.
 

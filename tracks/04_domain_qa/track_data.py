@@ -1,9 +1,6 @@
-"""
-tracks/04_domain_qa/track_data.py — 도메인 QA / instruction 트랙 데이터 어댑터
+"""도메인 QA 코스의 시드 로더와 messages 변환기를 제공합니다.
 
-시드: databricks/databricks-dolly-15k (cc-by-sa-3.0, ungated) — instruction+context+response+category.
-성공 기준: (context 있으면 근거해) instruction에 정확·유용하게 응답.
-⚠️ CC-BY-SA: 파생물 share-alike 의무 — 배포 시 라이선스 전파.
+시드 데이터는 CC BY-SA 3.0이므로 파생물 배포 시 라이선스 조건을 확인해야 합니다.
 """
 from __future__ import annotations
 
@@ -19,7 +16,7 @@ SYSTEM_PROMPT = (
 
 
 def to_messages(example: dict[str, str]) -> list[dict[str, str]]:
-    # 🔴 Gemma는 system role 거부 → system 지시문을 첫 user 턴에 병합(fold).
+    # system 지시문을 첫 user 턴에 병합합니다.
     return [
         {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{example['input']}"},
         {"role": "assistant", "content": example["output"]},

@@ -1,12 +1,4 @@
-"""
-_build_notebooks.py — 멀티모달 추출(이미지→JSON) 트랙 노트북 생성기.
-
-텍스트 트랙과 다른 점:
-  - 합성 데이터 단계 없음(이미지 합성은 별개) → 01은 시드 탐색만.
-  - 학습은 train_mm.py(AutoModelForImageTextToText + processor, vision freeze + language LoRA).
-  - 서빙은 멀티모달 그대로(텍스트 re-export 안 함) — vLLM이 이미지 입력을 받음.
-셀 헬퍼(header/md/code/_notebook)는 _shared_build에서 재사용.
-"""
+"""멀티모달 정보 추출 트랙의 노트북 생성기."""
 from __future__ import annotations
 
 import json
@@ -27,7 +19,7 @@ def write(name: str, cells: list[dict]) -> None:
     path = os.path.join(HERE, name)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(_notebook(cells), f, ensure_ascii=False, indent=1)
-    print(f"✅ {name}")
+    print(f"생성: {name}")
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +400,7 @@ def build_99():
         endpoint_prefix=ENDPOINT_PREFIX, max_seq_length=MAX_LEN, use_qlora=True,
         eval_kind="extraction", tool_name="", tool_doc="", agent_system="",
         smoke_user="", deploy_smoke_user="",
-        # 🔴 이 트랙엔 02b(로컬 서빙 검증)가 없다 → 99_cleanup의 '로컬 모델 정리' 섹션을 넣지 않는다.
+        # 이 트랙에는 로컬 서빙 노트북이 없습니다.
         has_local_serve=False,
     )
     write("99_cleanup.ipynb", _c99(spec))
@@ -420,4 +412,4 @@ if __name__ == "__main__":
     build_02()
     build_03()
     build_99()
-    print("done (00,01,02,03,99) — multimodal track")
+    print("완료: 멀티모달 노트북 5개")

@@ -88,8 +88,8 @@ assistant: "Shields a business entity from civil liability ..."  ← 1,561자
 
 | 지표 | 구현 | 무엇을 잡나 | 무엇을 못 잡나 |
 |---|---|---|---|
-| **ROUGE-L**(primary) | `eval_utils.eval_rouge()`: `rouge_score`, stemmer 사용, rouge1/2/L의 F-measure 평균 | 참조 요약과의 표면적 겹침. 값이 싸고 결정론적 | ❌ 원문에 없는 사실을 넣었는지(faithfulness) |
-| **LLM-judge** | `eval_utils.llm_judge()`: Bedrock Converse, `groundedness`/`coverage` 각 1~5점 | 원문 근거 여부와 핵심 누락 | ❌ 무료가 아님: 호출 과금, judge 편향 |
+| **ROUGE-L**(primary) | `eval_utils.eval_rouge()`: `rouge_score`, stemmer 사용, rouge1/2/L의 F-measure 평균 | 참조 요약과의 표면적 겹침. 값이 싸고 결정론적 | 원문에 없는 사실을 넣었는지는 판단하지 못함 |
+| **LLM-judge** | `eval_utils.llm_judge()`: Bedrock Converse, `groundedness`/`coverage` 각 1~5점 | 원문 근거 여부와 핵심 누락 | 호출 비용과 평가 모델 편향이 있음 |
 
 요약은 정답이 하나가 아니어서 exact match가 성립하지 않고, 반대로 ROUGE만 보면 "원문 문구를 많이 베낀 요약"이 유리해집니다. 그래서 자동 지표를 주 지표로 두고 judge를 보완으로 붙이는 조합입니다. judge는 비용 때문에 held-out **앞 20건**에만 돌리고, 프롬프트에 넣는 원문은 4,000자로 잘립니다(`eval_utils.py`).
 

@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "MlflowTrackingFromTrainingContainer",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker-mlflow:GetExperimentByName",
+        "sagemaker-mlflow:CreateExperiment",
+        "sagemaker-mlflow:CreateRun",
+        "sagemaker-mlflow:GetRun",
+        "sagemaker-mlflow:UpdateRun",
+        "sagemaker-mlflow:LogBatch",
+        "sagemaker-mlflow:LogMetric",
+        "sagemaker-mlflow:LogParam",
+        "sagemaker-mlflow:SetTag",
+        "sagemaker-mlflow:GetMetricHistory"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,25 +1,7 @@
-"""
-inference.py — HF PyTorch Inference DLC용 커스텀 핸들러 (transformers.generate 서빙).
+"""Hugging Face PyTorch Inference DLC용 생성 핸들러입니다.
 
-🔴 왜 이 핸들러가 필요한가:
-  gemma-4 E2B/E4B는 num_kv_shared_layers>0(KV-sharing)이라 vLLM/TGI가 로드 실패
-  (vLLM 이슈 #44788: KV-shared 레이어 k_norm 미초기화, 버전 무관). transformers는 정상 로드/생성.
-  → HF PyTorch Inference DLC(transformers>=5.5.3, gemma4 포함) 위에서 이 핸들러가
-    AutoModelForCausalLM.generate로 직접 서빙한다(연속배칭 없는 단건 추론).
-
-배치: 이 파일을 model.tar.gz 안의 code/inference.py 로 넣으면 SageMaker HF Inference Toolkit이
-  자동 인식한다. (배포 노트북이 model_data에 code/를 주입 — 03 노트북 참고.)
-계약(SageMaker HuggingFace Inference Toolkit): model_fn / input_fn / predict_fn / output_fn.
-호출: sagemaker-runtime invoke_endpoint, ContentType/Accept = application/json.
-  요청 예: {"messages":[{"role":"user","content":"..."}], "max_new_tokens":256, "temperature":0.2}
-       또는 {"inputs":"<이미 렌더된 프롬프트>", "parameters":{...}}
-응답: {"generated_text": "..."}
-
-🔴 토큰 스트리밍은 이 DLC에선 불가(재시도 금지):
-  HF Inference Toolkit의 handler_service.handle()가 transform_fn 결과를 `return [response]`로
-  '완성본 한 번에' 버퍼링해 반환한다(소스 확인, 2026-07). 여기에 TextIteratorStreamer를 넣어도
-  invoke_endpoint_with_response_stream은 단일 청크만 받는다. E4B 스트리밍이 필요하면 12B+로
-  vLLM DLC 배포(native 스트리밍) 또는 커스텀 컨테이너(FastAPI+SSE) 필요. 배경: docs/05_serving_containers.md 「응답 스트리밍」.
+messages 또는 렌더링된 입력을 받아 `transformers.generate`로 응답합니다.
+이 경로는 완성된 응답을 한 번에 반환하며 토큰 스트리밍을 지원하지 않습니다.
 """
 from __future__ import annotations
 
@@ -28,7 +10,7 @@ import os
 
 
 def model_fn(model_dir, context=None):
-    """엔드포인트 기동 시 1회: 모델+토크나이저 로드. gemma-4 KV-sharing은 transformers가 처리."""
+    """엔드포인트 기동 시 모델과 토크나이저를 로드합니다."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 

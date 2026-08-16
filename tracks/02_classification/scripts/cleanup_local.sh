@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
-# cleanup_local.sh — 02b(로컬 서빙 검증)가 남긴 로컬 리소스 정리.
-#
-# 왜: AWS 리소스(endpoint 등)는 99_cleanup이 지우지만, 02b는 **로컬**에 다음을 남긴다:
-#   - vLLM 서버 프로세스        → GPU 메모리를 계속 점유(다음 학습/서빙이 OOM)
-#   - local_model/              → 모델 압축 해제본. E4B가 약 15GB
-#   - _model.tar.gz             → 다운로드한 아티팩트(보통 해제 후 자동 삭제되지만 중단되면 남음)
-#   - bench/, req.json          → 벤치마크 결과, curl payload
-#   과금은 없지만 디스크와 GPU를 먹으므로 실습을 마쳤으면 정리한다.
+# 로컬 서빙 검증이 남긴 프로세스와 파일을 정리합니다.
 #
 # 사용:
-#   bash scripts/cleanup_local.sh              # 목록만 보여줌(안전 기본값)
+#   bash scripts/cleanup_local.sh              # 목록만 표시
 #   bash scripts/cleanup_local.sh --yes        # 실제 삭제
-#   KEEP_MODEL=1 bash scripts/cleanup_local.sh --yes   # 모델은 남기고 나머지만(재검증 예정일 때)
-#
-# 🔴 vLLM 종료는 kill <pid>로 정밀하게 한다('pkill -f vllm'은 실행 중인 셸/노트북까지 죽일 수 있음).
+#   KEEP_MODEL=1 bash scripts/cleanup_local.sh --yes   # 모델은 유지
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"      # 트랙 디렉토리(scripts의 부모)
@@ -35,8 +26,8 @@ if [ "${#PIDS[@]}" -gt 0 ]; then
       pgrep -f 'vllm (serve|bench)|vllm\.entrypoints' >/dev/null 2>&1 || break
     done
     pgrep -f 'vllm (serve|bench)|vllm\.entrypoints' >/dev/null 2>&1 \
-      && err "  일부 프로세스가 남았습니다 — 확인: pgrep -af vllm" \
-      || log "  vLLM 종료 확인 ✅"
+      && err "  일부 프로세스가 남았습니다. 확인: pgrep -af vllm" \
+      || log "  vLLM 종료 확인"
   fi
 else
   log "실행 중인 vLLM 프로세스 없음"
@@ -56,10 +47,10 @@ for t in "${TARGETS[@]}"; do
     FOUND=1
   fi
 done
-[ "$FOUND" = "0" ] && log "    (없음 — 이미 정리됨)"
+[ "$FOUND" = "0" ] && log "    (이미 정리됨)"
 
 if [ "${KEEP_MODEL:-0}" = "1" ]; then
-  log "KEEP_MODEL=1 → local_model 은 유지합니다(다시 검증할 때 재다운로드 없이 사용)"
+  log "KEEP_MODEL=1이므로 local_model을 유지합니다."
 fi
 
 # --- 3) 실행 ---
@@ -72,6 +63,6 @@ for t in "${TARGETS[@]}"; do
 done
 
 log "완료."
-log "🔴 AWS 리소스(endpoint/config/model)는 이 스크립트가 건드리지 않습니다 → 99_cleanup.ipynb 를 실행하세요."
+log "AWS 엔드포인트와 관련 리소스는 99_cleanup.ipynb에서 삭제하세요."
 nvidia-smi --query-gpu=memory.used --format=csv,noheader 2>/dev/null \
   | sed 's/^/[cleanup-local] GPU 사용량: /' || true

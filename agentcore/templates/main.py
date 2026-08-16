@@ -1,12 +1,6 @@
-"""
-main.py — AgentCore 에이전트 엔트리포인트 (이 kit용: Bedrock Claude reasoning + SLM endpoint tool).
+"""Bedrock Claude와 SageMaker SLM 도구를 사용하는 AgentCore 진입점입니다.
 
-create_agent.sh가 `agentcore create` 스캐폴딩 생성 후, 이 파일을 app/<agent>/main.py 로 복사한다.
-CLI 기본 스캐폴딩의 데모 tool(add_numbers)을, 파인튜닝 SLM(SageMaker endpoint)을 호출하는
-extract_structured_json tool로 교체한 버전이다.
-
-🔴 모델 ID·endpoint 이름은 하드코딩 금지 → env로 주입:
-   SLM_ENDPOINT_NAME, AWS_REGION, BEDROCK_CLAUDE_MODEL_ID (model/load.py 참고).
+`create_agent.sh`가 생성된 프로젝트에 이 파일을 복사합니다.
 """
 from typing import Any
 import json
@@ -26,13 +20,13 @@ You orchestrate. When the user gives text needing structured extraction, call
 extract_structured_json to get the JSON from the fine-tuned SLM, then validate/explain it.
 """
 
-# 🔴 SLM에 보낼 때 쓰는 system 프롬프트(학습 때와 동일해야 함). endpoint의 chat template로 렌더된다.
+# SLM 학습에 사용한 system 프롬프트를 그대로 전달합니다.
 SLM_SYSTEM_PROMPT = (
     "You are a precise information-extraction engine. Read the user text and the available "
     'tool schema, then output ONLY a valid JSON object {"name": ..., "arguments": {...}}.'
 )
 
-# --- 환경변수 (배포 시 AgentCore/컨테이너 env로 주입; 하드코딩 금지) ---
+# 배포 환경변수
 SLM_ENDPOINT_NAME = os.environ.get("SLM_ENDPOINT_NAME", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
@@ -40,18 +34,14 @@ tools = []
 _INLINE_FUNCTION_NAMES = set()
 
 
-# 🔴 파인튜닝 SLM(SageMaker endpoint)을 tool로 래핑. endpoint 호출 = sagemaker-runtime(Bedrock 아님).
-#    🔴 messages 형식으로 보낸다 → endpoint 핸들러(inference.py)가 서버측에서 chat template을 적용한다.
-#    (raw 텍스트를 inputs로 직송하면 template 미적용 → degenerate/빈 응답. 로컬 tokenizer/torch 불필요.)
+# SageMaker Runtime에 messages 형식으로 보내 서버에서 채팅 템플릿을 적용합니다.
 @tool
 def extract_structured_json(text: str) -> str:
     """Extract structured JSON from text using the fine-tuned Gemma SLM (SageMaker endpoint)."""
     if not SLM_ENDPOINT_NAME:
         return '{"error": "SLM_ENDPOINT_NAME env not set"}'
     rt = boto3.client("sagemaker-runtime", region_name=AWS_REGION)
-    # 🔴 messages 스키마의 생성 한도 키는 max_tokens (OpenAI 호환). max_new_tokens는
-    #    {"inputs","parameters"} 스키마 쪽 이름이라 vLLM/SGLang/LMI가 무시한다 → 한도가 안 걸린다.
-    #    256은 추출·분류 트랙 값(요약·도메인 QA는 512).
+    # OpenAI 호환 messages 스키마는 max_tokens를 사용합니다.
     payload = {"messages": [{"role": "system", "content": SLM_SYSTEM_PROMPT},
                             {"role": "user", "content": text}],
                "max_tokens": 256, "temperature": 0.1}

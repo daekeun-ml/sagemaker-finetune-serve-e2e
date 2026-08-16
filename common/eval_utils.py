@@ -1,14 +1,6 @@
-"""
-common/eval_utils.py — 트랙별 평가 메트릭 (held-out 세트로 파인튜닝 품질 측정)
+"""코스별 파인튜닝 품질을 평가하는 지표를 제공합니다.
 
-설계 근거(eval-notebook-design 워크플로우, 4트랙 confidence=high):
-  - 추출→JSON : arg_f1(micro) + valid_json_rate + name_accuracy (순수 python, 모델호출 없음)
-  - 분류      : macro-F1 + accuracy (예측 라벨을 닫힌 라벨셋에 정규화, exact→fuzzy 폴백)
-  - 요약      : ROUGE-L(자동 overlap) + Bedrock LLM-judge(groundedness/coverage)
-  - 도메인QA  : Bedrock LLM-judge(correctness/helpfulness/groundedness 1-5) + ROUGE-L proxy
-
-🔴 held-out 원칙: 합성 데이터로 평가 금지(teacher 모방 측정됨). 시드의 test 스플릿 또는
-   합성 증강 '이전'에 결정론적으로 떼어낸 슬라이스로만 평가.
+평가에는 합성 데이터나 학습 데이터를 쓰지 않고 별도로 분리한 시드 데이터만 사용합니다.
 """
 from __future__ import annotations
 
@@ -37,7 +29,7 @@ def extract_json_obj(text: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# 추출→JSON: valid_json_rate / name_accuracy / arg_f1 (micro)
+# JSON 추출: valid_json_rate, name_accuracy, arg_f1
 # ---------------------------------------------------------------------------
 def _norm_val(v: Any) -> Any:
     if isinstance(v, (dict, list)):
@@ -91,7 +83,7 @@ def eval_extraction(pairs: list[tuple[str, dict]]) -> dict:
 # 분류: 예측 라벨 정규화 + accuracy/macro-F1
 # ---------------------------------------------------------------------------
 def normalize_label(pred_text: str, label_set: list[str]) -> str:
-    """모델 자유텍스트 출력 → 닫힌 라벨셋 매칭. exact(정규화) → substring → fuzzy(rapidfuzz) 폴백."""
+    """자유 형식 출력을 정규화해 닫힌 라벨 집합에 매칭합니다."""
     p = pred_text.strip().strip(".").strip().lower().replace(" ", "_")
     lut = {l.lower(): l for l in label_set}
     if p in lut:
@@ -172,7 +164,7 @@ def llm_judge(
 
 
 def aggregate_judge(results: list[dict], axes: list[str]) -> dict:
-    """llm_judge 결과 리스트 → 축별 평균."""
+    """LLM 평가 결과의 축별 평균을 계산합니다."""
     n = max(1, len(results))
     out = {"n": len(results)}
     for a in axes:

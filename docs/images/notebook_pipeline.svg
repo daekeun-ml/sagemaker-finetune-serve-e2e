@@ -2,9 +2,7 @@
      aria-label="텍스트 코스의 노트북 파이프라인. task 정의에서 시작해 00_setup이 env, role, bucket, 의존성을 확인합니다. 01_data_and_synthetic이 오픈 시드를 로드하고 Bedrock Converse로 grounded 합성을 하며 common/synth/bedrock_synth.py가 messages JSONL을 만듭니다. 02_train_sft_sagemaker가 PyTorch DLC와 TRL SFTTrainer로 LoRA 또는 QLoRA 학습을 하고, JumpStart는 쓰지 않으며, tracks의 scripts/train.py가 로컬 dry-run과 SageMaker AI 학습 Job 양쪽에서 같은 파일로 돕니다. 여기서 선택 분기 두 개가 갈라집니다. 02a_train_grpo_sagemaker는 SFT 결과를 GRPO로 정련하고 추출과 분류 코스에만 있습니다. 02b_local_serve는 배포 전 로컬 vLLM 프리플라이트입니다. 이어서 03_deploy_endpoint가 real-time endpoint를 띄우고 vLLM DLC가 기본이며 SGLang과 DJL LMI를 고를 수 있고, 호출은 sagemaker-runtime의 invoke_endpoint로 Bedrock과 별개입니다. 04_evaluate가 held-out 세트로 성공 기준을 수치화하고 로컬에서 돌아 빠르고 저렴합니다. 05_agentic_strands가 Strands Agent를 만들며 reasoning은 Bedrock Claude, tool은 endpoint 호출입니다. 06_agentcore_deploy가 AgentCore Runtime에 ARM64로 배포합니다. 마지막으로 99_cleanup이 endpoint와 리소스를 삭제해 과금을 멈춥니다.">
   <title>텍스트 코스의 노트북 파이프라인</title>
 
-  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
-       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
-       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <!-- SVG는 페이지 CSS를 상속하지 않으므로 색상 모드와 한글 폰트를 내부에서 설정합니다. -->
   <style>
     :root {
       --fg: #202124; --line: #868e96;

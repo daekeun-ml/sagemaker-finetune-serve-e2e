@@ -150,7 +150,7 @@ export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID
 # export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만
 export DRY_RUN=1                  # 데이터 준비와 평가 규모를 줄여 먼저 검증
 ```
-`DRY_RUN=1`은 데이터 준비, 평가, 로컬 dry-run 규모를 줄입니다. SageMaker AI Training Job의 `MAX_TRAIN_SAMPLES`와 `EPOCHS`, endpoint 비용은 자동으로 줄이지 않습니다. 자세한 범위는 [DRY_RUN으로 먼저 검증하는 이유](RUN_E2E.md#dry_run으로-먼저-검증하는-이유)를 확인하세요.
+`DRY_RUN=1`은 데이터 준비, 평가, 로컬 dry-run 규모를 줄입니다. SageMaker AI Training Job의 `MAX_TRAIN_SAMPLES`와 `EPOCHS`, endpoint 비용은 자동으로 줄이지 않습니다. 자세한 범위는 [두 가지 검증 모드 구분](RUN_E2E.md#두-가지-검증-모드-구분)을 확인하세요.
 
 ??? tip "HF 토큰을 한 번만 저장하기 (gated 모델을 쓸 때)"
     `config.get_hf_token()`은 **env(`HF_TOKEN`) → `hf auth login` 저장 토큰** 순으로 조회하므로

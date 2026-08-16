@@ -1,20 +1,6 @@
-"""
-common/llm_gateway.py — LiteLLM 통합 게이트웨이 (Bedrock + SageMaker endpoint 단일 인터페이스)
+"""Bedrock과 SageMaker 엔드포인트를 LiteLLM 인터페이스로 호출합니다.
 
-왜 LiteLLM인가:
-  - Bedrock Claude(reasoning)와 SageMaker endpoint(파인튜닝 SLM)를 **하나의 OpenAI 호환
-    completion() 인터페이스**로 호출 → 프로바이더 교체가 model 문자열만 바꾸면 됨(이식성).
-  - 합성 데이터/평가/agentic에서 모델 백엔드를 통일.
-
-라우팅 규약 (LiteLLM 실측 검증 2026-07, docs.litellm.ai):
-  - Bedrock Claude : "bedrock/us.anthropic.claude-..."  (converse 강제: "bedrock/converse/us.anthropic...")
-                     geo prefix(us./eu./apac./global.)는 model 문자열에 인라인.
-  - SageMaker EP   : "sagemaker_chat/<endpoint>"  (endpoint가 messages/OpenAI 호환일 때 — 서버측 chat template)
-                     또는 "sagemaker/<endpoint>" + hf_model_name=... (클라이언트측 프롬프트 포매팅)
-  - creds/region  : env(AWS_ACCESS_KEY_ID/SECRET/AWS_REGION_NAME) 또는 completion() 파라미터(aws_region_name 등).
-
-⚠️ litellm은 빠르게 바뀜(검증 시 1.93.0, 1.94 프리릴리스 존재) → requirements에서 pin, 실행 전 재확인.
-🔴 Bedrock 모델 ID는 하드코딩 금지 — inference-profile ID를 env/param으로.
+Bedrock 모델 ID와 리전은 호출부에서 전달하며 코드에 고정하지 않습니다.
 """
 from __future__ import annotations
 

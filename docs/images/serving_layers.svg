@@ -2,9 +2,7 @@
      aria-label="서빙 스택의 세 레이어. 가장 바깥은 SageMaker AI real-time endpoint로 오토스케일, IAM, CloudWatch를 담당하는 인프라 레이어입니다. 그 안에 서빙 컨테이너 레이어가 있고 HTTP와 ping과 invocations 규약, 연속 배칭을 맡습니다. 컨테이너 자리에는 DJL LMI(AWS 관리), HF TGI(HF 관리), vLLM DLC 또는 BYOC 세 가지가 들어갈 수 있고, 각 컨테이너 안의 엔진 레이어에는 각각 vLLM 또는 TensorRT-LLM, 자체 백엔드, vLLM이 들어갑니다. 세 선택지 모두 endpoint 레이어는 같고 컨테이너와 엔진만 갈아끼우는 문제입니다.">
   <title>서빙 스택의 세 레이어</title>
 
-  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
-       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
-       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <!-- SVG는 페이지 CSS를 상속하지 않으므로 색상 모드와 한글 폰트를 내부에서 설정합니다. -->
   <style>
     :root {
       --fg: #202124; --line: #868e96;

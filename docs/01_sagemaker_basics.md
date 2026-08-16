@@ -126,7 +126,7 @@ AWS는 이 방식을 [관리형 학습(how it works)](https://docs.aws.amazon.co
 
 **이것이 권한 부족이 제출 시점이 아니라 Job 중간에 드러나는 이유입니다.** `CreateTrainingJob`은 role ARN의 형식과 내 `iam:PassRole`만 확인하고 Job을 받아들입니다. 그림 오른쪽의 `s3:GetObject`, `s3:PutObject`, ECR pull은 클러스터가 뜬 **뒤에야** 시도되기 때문입니다.
 
-그래서 권한이 부족해도 Job 접수는 정상으로 보일 수 있습니다. 이후 `Downloading`이나 `Training` 단계에서 `Failed`로 바뀌며, 그전까지 인스턴스 준비 시간이 발생합니다. 원인은 노트북 출력이 아니라 CloudWatch 로그에서 확인하세요([E2E 실행 중 자주 발생하는 오류](RUN_E2E.md#e2e-실행-중-자주-발생하는-오류)의 "학습 Job이 시작 직후 실패" 항목 참고).
+그래서 권한이 부족해도 Job 접수는 정상으로 보일 수 있습니다. 이후 `Downloading`이나 `Training` 단계에서 `Failed`로 바뀌며, 그전까지 인스턴스 준비 시간이 발생합니다. 원인은 노트북 출력이 아니라 CloudWatch 로그에서 확인하세요([E2E 실행에서 자주 막히는 곳](RUN_E2E.md#e2e-흐름에서-자주-막히는-곳)의 "학습 Job이 시작 직후 실패" 항목 참고).
 
 그림의 Permissions 목록에 x 표시가 함께 있는 것도 그대로 읽어야 합니다. role이 **있다**는 것과 role에 **필요한 권한이 붙어 있다**는 것은 다릅니다. `resolve_sagemaker_role()`은 role을 네 단계로 찾는데, 뒤의 두 단계에 각각 함정이 있습니다.
 

@@ -15,9 +15,9 @@ vLLM을 직접 띄우면 `vllm bench serve` 한 줄로 TTFT, TPOT, ITL이 나옵
 
 | Tool | Metrics | Token-level |
 |---|---|---|
-| `vllm bench serve` | TTFT / TPOT / ITL / E2EL, goodput, ramp-up | ✅ |
-| SageMaker Inference Recommender | `ModelLatency`, `MaxInvocations`, `CostPerHour`, `CostPerInference`, CPU, 메모리 사용률 | ❌ |
-| CloudWatch endpoint 지표 | `ModelLatency`, `OverheadLatency`, `Invocations` | ❌ |
+| `vllm bench serve` | TTFT / TPOT / ITL / E2EL, goodput, ramp-up | 포함 |
+| SageMaker Inference Recommender | `ModelLatency`, `MaxInvocations`, `CostPerHour`, `CostPerInference`, CPU, 메모리 사용률 | 미포함 |
+| CloudWatch endpoint 지표 | `ModelLatency`, `OverheadLatency`, `Invocations` | 미포함 |
 
 Inference Recommender는 인스턴스 타입과 컨테이너 설정을 바꿔 가며 **어느 조합이 싸고 빠른지**를
 골라 줍니다. 그 판단에는 요청 단위(`ModelLatency`)와 비용 단위(`CostPerInference`) 지표가 맞습니다.
@@ -65,7 +65,7 @@ python pipelines/run_benchmark.py --course classification --print-command
 
 ## 측정 지표
 
-[![스트리밍 응답의 네 가지 지연 지표를 요청 처리 파이프라인 위에 표시한 다이어그램. 위쪽에 네 지표의 정의가 나열된다: Time to First Token(TTFT)은 요청을 보낸 후 첫 토큰을 생성하는 데 걸리는 시간, Inter-Token Latency(ITL)는 연속된 두 토큰 사이의 실제 시간 간격, Time per Output Token(TPOT)은 각 후속 토큰(보통 첫 토큰은 제외)을 생성하는 평균 시간 간격, End-to-End Latency(E2EL)는 요청을 보낸 시점부터 사용자 측에서 최종 토큰을 받을 때까지의 시간이다. 가운데 파이프라인은 입력 프롬프트에서 시작해 토큰화 → Prefill → Decode(T0, T1, T2, T3 네 토큰) → 디토큰화 → 최종 출력 토큰으로 이어지고, E2EL 화살표가 전체를 덮으며 TTFT 화살표는 토큰화와 Prefill 구간까지만 뻗어 첫 토큰 앞에서 끝난다. ITL 화살표는 Decode 안의 인접한 토큰 쌍 사이를 각각 가리킨다. 아래쪽 타임라인은 벤치마크 전체를 나타내며 T_start(벤치마크 시작)와 T_end(종료) 사이에 T_x(최초 요청 타임스탬프)와 T_y(마지막 요청의 마지막 응답 타임스탬프)가 있고, 그 사이에 요청별 E2EL 구간 L_1, L_2, …, L_n이 시차를 두고 겹쳐 놓여 있다. 각주: 단일 요청에서는 ITL=TPOT이지만, 여러 요청에 걸쳐서는 평균을 내는 방식이 다르다](images/latency.png)](images/latency.png)
+[![스트리밍 응답의 네 가지 지연 지표를 요청 처리 파이프라인 위에 표시한 다이어그램. 위쪽에 네 지표의 정의가 나열된다: Time to First Token(TTFT)은 요청을 보낸 후 첫 토큰을 생성하는 데 걸리는 시간, Inter-Token Latency(ITL)는 연속된 두 토큰 사이의 실제 시간 간격, Time per Output Token(TPOT)은 각 후속 토큰을 생성하는 평균 시간 간격, End-to-End Latency(E2EL)는 요청을 보낸 시점부터 최종 토큰을 받을 때까지의 시간이다. 가운데에는 입력 프롬프트, 토큰화, Prefill, Decode, 디토큰화, 최종 출력 순서가 표시되고 아래쪽에는 여러 요청의 지연 구간이 겹친 타임라인이 있다](images/latency.png)](images/latency.png)
 
 | Metric | Definition | What it tells you |
 |---|---|---|

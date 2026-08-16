@@ -2,9 +2,7 @@
      aria-label="같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고, epochs는 1, 시퀀스 길이는 512 이하, 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고, source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 커맨드라인 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다. 가운데 축은 같은 파일이 양쪽에서 그대로 돈다는 점입니다.">
   <title>같은 train.py, 두 실행 환경</title>
 
-  <!-- 🔴 img 태그로 삽입되면 SVG 가 독립 문서로 취급돼 페이지 CSS 를 상속받지 못합니다.
-       그래서 SVG 안에서 prefers-color-scheme 으로 직접 분기하고, 배경은 칠하지 않습니다.
-       폰트도 Arial 을 먼저 두면 한글만 폴백돼 자간이 어긋나므로 한글 폰트를 함께 지정합니다. -->
+  <!-- SVG는 페이지 CSS를 상속하지 않으므로 색상 모드와 한글 폰트를 내부에서 설정합니다. -->
   <style>
     :root {
       --fg: #202124; --line: #868e96;

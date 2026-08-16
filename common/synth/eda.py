@@ -1,25 +1,6 @@
-"""
-common/synth/eda.py — seed vs 합성 데이터 EDA (분포·다양성·품질·누출 점검)
+"""시드와 합성 데이터의 분포, 다양성, 품질, 누출을 점검합니다.
 
-합성 데이터가 seed 분포를 잘 따라갔는지, 학습에 넣기 전에 정량 점검한다.
-- 무거운 의존성 없이 동작(통계는 순수 python). 차트는 matplotlib, 근사중복은 rapidfuzz가 있으면 사용.
-- 노트북 01_data_and_synthetic 에서 seed 예시 리스트와 합성 결과(SynthExample)를 넘겨 호출.
-
-🔴 설계 원칙: "보고 나면 무엇을 바꿀지가 명확한 지표"만 넣는다. 숫자만 늘리는 지표는 판단을 흐린다.
-   각 함수는 문제를 발견하면 ⚠️ 와 함께 **구체적 조치**를 출력한다.
-
-제공 함수:
-  compare()              길이/중복 기본 통계 + 히스토그램         → 분포 이탈, 완전중복
-  token_length_report()  실제 토크나이저 기준 토큰 길이 + 절단 위험 → max_seq_length 결정
-  near_duplicate_report() 근사중복(rapidfuzz) + seed 표절          → temperature/seed 다양성, 누출
-  lexical_diversity()    distinct-n / 어휘 다양성 + 시작 n-gram 편중 → 프롬프트 템플릿 고착
-  label_balance()        라벨/클래스 분포 비교                     → 클래스 불균형
-  output_validity()      JSON 파싱률·스키마 준수(추출 트랙)        → 생성 품질
-  quick_report()         위 항목을 한 번에 실행(노트북 기본 경로)
-
-입력 형식:
-- seed_examples: [{"input": str, "output": str}, ...]  (track_data.load_seed_examples 결과)
-- synth_examples: [SynthExample, ...] 또는 [{"input","output"}] — messages에서 자동 추출 지원.
+길이, 중복, 토큰 절단, 클래스 균형, 출력 스키마를 확인하고 필요한 조치를 출력합니다.
 """
 from __future__ import annotations
 
@@ -29,7 +10,7 @@ from typing import Any
 
 
 def _pair_from(obj: Any) -> tuple[str, str]:
-    """SynthExample(messages) 또는 {"input","output"} → (input_text, output_text)."""
+    """지원하는 예시 형식을 입력과 출력 문자열 쌍으로 변환합니다."""
     if hasattr(obj, "messages"):
         msgs = obj.messages
         user = next((m["content"] for m in msgs if m["role"] == "user"), "")
@@ -96,21 +77,18 @@ def compare(seed_examples: list, synth_examples: list, *, plot: bool = True) -> 
     _row("output_dedup_rate", result["seed"]["output_dedup_rate"], result["synth"]["output_dedup_rate"])
     print("=" * 60)
 
-    # 간단 경고(휴리스틱)
-    # 🔴 절대 임계값만 쓰면 오탐이 난다: 인자 없는 함수 호출({"name":...,"arguments":{}})처럼
-    #    output이 원래 반복되는 데이터셋은 seed 자체의 중복률이 이미 높다(실측 0.53).
-    #    그래서 'seed 대비'로 판단한다 — seed보다 뚜렷히 나쁠 때만 경고.
+    # 원래 출력이 반복되는 데이터셋을 고려해 시드 대비 증가 폭으로 판단합니다.
     s_dup = result["seed"]["output_dedup_rate"]
     t_dup = result["synth"]["output_dedup_rate"]
     if t_dup > 0.3 and t_dup > s_dup + 0.15:
-        print(f"⚠️ 합성 output 중복률({t_dup})이 seed({s_dup})보다 뚜렷히 높습니다 "
-              "— seed 다양성/생성 temperature 점검 권장.")
+        print(f"합성 출력 중복률({t_dup})이 시드({s_dup})보다 높습니다. "
+              "시드 다양성과 생성 temperature를 확인하세요.")
     elif t_dup > 0.3:
-        print(f"ℹ️ output 중복률이 높지만(합성 {t_dup}) seed({s_dup})도 비슷합니다 "
-              "— 데이터셋 특성(인자 없는 함수 등)일 수 있어 경고로 보지 않습니다.")
+        print(f"출력 중복률이 높지만 합성({t_dup})과 시드({s_dup})가 비슷합니다. "
+              "데이터셋 특성일 수 있습니다.")
     sm, tm = result["seed"]["output_chars"]["mean"], result["synth"]["output_chars"]["mean"]
     if tm and sm and (tm > sm * 2 or tm < sm * 0.5):
-        print(f"⚠️ 합성 output 평균 길이({tm})가 seed({sm})와 크게 다릅니다 — 분포 이탈 가능.")
+        print(f"합성 출력 평균 길이({tm})가 시드({sm})와 크게 다릅니다. 분포를 확인하세요.")
 
     if plot:
         _plot_len_hist(seed_pairs, synth_pairs)
@@ -121,7 +99,7 @@ def _plot_len_hist(seed_pairs, synth_pairs) -> None:
     try:
         import matplotlib.pyplot as plt
     except Exception:  # noqa: BLE001
-        print("(matplotlib 미설치 — 차트 생략. pip install matplotlib 로 활성화)")
+        print("(matplotlib가 없어 차트를 생략합니다. `pip install matplotlib`로 설치하세요.)")
         return
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.5))
     for ax, idx, title in [(axes[0], 0, "input length (chars)"), (axes[1], 1, "output length (chars)")]:
@@ -139,19 +117,11 @@ def _plot_len_hist(seed_pairs, synth_pairs) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 1) 토큰 길이 — max_seq_length 결정에 직결 (문자 길이로는 알 수 없다)
+# 1) 토큰 길이
 # ---------------------------------------------------------------------------
 def token_length_report(seed_examples: list, synth_examples: list, tokenizer,
                         *, max_seq_length: int | None = None, plot: bool = True) -> dict:
-    """실제 토크나이저로 '학습에 들어갈 전체 프롬프트' 토큰 길이를 재고 절단 위험을 계산한다.
-
-    🔴 왜 문자 길이로 부족한가: 학습이 자르는 단위는 토큰이고, 한국어·JSON·코드는 문자당 토큰 수가
-       크게 다르다(한글은 문자당 ~1토큰, 영어는 ~0.25토큰). 문자 p90이 안전해 보여도 토큰으로는
-       max_seq_length를 넘어 **정답 뒷부분이 잘린 채 학습**될 수 있다 — 이러면 모델이 잘린 출력을
-       정답으로 배운다(끝나지 않는 JSON 등).
-
-    조치로 이어지는 출력: 절단 비율과 함께 권장 max_seq_length(p99 기준, 2의 거듭제곱 근사)를 제시.
-    """
+    """전체 학습 프롬프트의 토큰 길이와 절단 위험을 계산합니다."""
     def _lens(pairs):
         out = []
         for i, o in pairs:
@@ -194,17 +164,17 @@ def token_length_report(seed_examples: list, synth_examples: list, tokenizer,
         res.update({"max_seq_length": max_seq_length, "truncated": over_s + over_t,
                     "truncated_rate": rate})
         print("-" * 68)
-        print(f"max_seq_length={max_seq_length} → 절단 예시 {over_s + over_t}건 ({rate:.1%})")
+        print(f"max_seq_length={max_seq_length}, 절단 예시 {over_s + over_t}건 ({rate:.1%})")
         if rate > 0.02:
             # p99를 덮는 가장 작은 2의 거듭제곱(512 이상)을 권장
             need = res["p99_all"]
             rec = 512
             while rec < need:
                 rec *= 2
-            print(f"⚠️  절단률이 {rate:.1%}입니다(>2%). 잘린 출력을 정답으로 학습하면 모델이 미완성 응답을 배웁니다.\n"
-                  f"    조치: max_seq_length를 {rec}로 올리거나(메모리↑), 긴 예시를 제외/요약하세요.")
+            print(f"절단률이 {rate:.1%}입니다. max_seq_length를 {rec}로 올리거나 "
+                  "긴 예시를 제외하거나 요약하세요.")
         else:
-            print("✅ 절단 위험 낮음.")
+            print("절단 위험이 낮습니다.")
     print("=" * 68)
 
     if plot and all_tok:
@@ -227,20 +197,11 @@ def token_length_report(seed_examples: list, synth_examples: list, tokenizer,
 
 
 # ---------------------------------------------------------------------------
-# 2) 근사중복 + seed 표절 — 완전중복만 보면 놓친다
+# 2) 근사 중복과 시드 복제
 # ---------------------------------------------------------------------------
 def near_duplicate_report(seed_examples: list, synth_examples: list,
                           *, threshold: int = 90, sample: int = 400) -> dict:
-    """합성 내부 근사중복 + 합성이 seed를 거의 그대로 베낀 비율(표절)을 측정한다.
-
-    🔴 왜 완전중복(dedup_rate)으로 부족한가: LLM은 같은 문장을 토씨 하나만 바꿔 반복하는 경향이
-       있다("서울 날씨 알려줘" / "서울 날씨 알려 줘"). 완전중복은 0%로 나오지만 실질 다양성은 낮다.
-    🔴 seed 표절: 합성이 seed와 거의 같으면 데이터를 늘린 효과가 없고, 그 seed를 held-out으로
-       쓸 경우 **평가 누출**이 된다(점수가 부풀려짐).
-
-    threshold: token_set_ratio 유사도(0~100). 90 이상이면 사실상 같은 문장으로 본다.
-    sample: 비교 비용은 O(n²)이므로 이 개수까지만 샘플링(기본 400 → 16만 쌍, 수 초).
-    """
+    """합성 데이터 내부의 근사 중복과 시드 복제 비율을 측정합니다."""
     sp = [_pair_from(e) for e in seed_examples]
     tp = [_pair_from(e) for e in synth_examples]
     s_in = [i for i, _ in sp][:sample]
@@ -251,7 +212,7 @@ def near_duplicate_report(seed_examples: list, synth_examples: list,
     try:
         from rapidfuzz import fuzz, process
     except ImportError:
-        print("(rapidfuzz 미설치 — 근사중복 점검 생략. uv pip install rapidfuzz)")
+        print("(rapidfuzz가 없어 근사 중복 점검을 생략합니다. `uv pip install rapidfuzz`로 설치하세요.)")
         return {}
 
     import numpy as np
@@ -282,29 +243,22 @@ def near_duplicate_report(seed_examples: list, synth_examples: list,
     print(f"  합성 내부 근사중복 : {near_dup}건 ({near_rate:.1%})   평균 최고유사도 {res['mean_self_similarity']}")
     print(f"  seed 표절(거의 동일): {leak}건 ({leak_rate:.1%})")
     if near_rate > 0.15:
-        print(f"⚠️  합성끼리 너무 닮았습니다({near_rate:.1%} > 15%) — 실질 다양성이 낮습니다.\n"
-              "    조치: 생성 temperature를 올리거나, seed를 더 다양하게 샘플링하거나,\n"
-              "          프롬프트에 '이전 예시와 다른 상황/어휘를 쓰라'는 제약을 추가하세요.")
+        print(f"합성 데이터의 근사 중복률이 높습니다({near_rate:.1%} > 15%). "
+              "temperature, 시드 샘플링, 프롬프트의 다양성 조건을 조정하세요.")
     if leak_rate > 0.10:
-        print(f"⚠️  합성이 seed를 거의 그대로 베낀 비율이 높습니다({leak_rate:.1%} > 10%).\n"
-              "    조치: 증강 효과가 없고, 해당 seed를 held-out으로 쓰면 평가 누출이 됩니다.\n"
-              "          04_evaluate의 held-out은 합성에 쓰지 않은 슬라이스에서 고르세요.")
+        print(f"시드와 거의 같은 합성 데이터 비율이 높습니다({leak_rate:.1%} > 10%). "
+              "평가 데이터는 합성에 사용하지 않은 구간에서 분리하세요.")
     if near_rate <= 0.15 and leak_rate <= 0.10:
-        print("✅ 근사중복·표절 모두 허용 범위.")
+        print("근사 중복과 시드 복제 비율이 허용 범위입니다.")
     print("=" * 68)
     return res
 
 
 # ---------------------------------------------------------------------------
-# 3) 어휘 다양성 — distinct-n + 시작 n-gram 편중
+# 3) 어휘 다양성
 # ---------------------------------------------------------------------------
 def lexical_diversity(seed_examples: list, synth_examples: list, *, top: int = 5) -> dict:
-    """distinct-1/2(고유 n-gram 비율)와 '문장 시작 3-gram' 편중을 비교한다.
-
-    🔴 왜: LLM 합성은 같은 템플릿으로 시작하는 경향이 강하다("다음 텍스트에서...", "Please extract...").
-       이런 고착은 모델이 **특정 도입부에만 반응**하게 만들어, 실제 사용자 입력에서 성능이 떨어진다.
-       distinct-n이 seed보다 뚜렷히 낮으면 표현이 획일적이라는 신호다.
-    """
+    """고유 n-gram 비율과 문장 시작 표현의 편중을 비교합니다."""
     def _ngrams(texts, n):
         tot, uniq = 0, set()
         for t in texts:
@@ -339,29 +293,25 @@ def lexical_diversity(seed_examples: list, synth_examples: list, *, top: int = 5
     print("-" * 68)
     print(f"합성 시작 3-gram top{top}:")
     for g, c in t_head.most_common(top):
-        print(f"    {c:>5}건 ({c / max(1, len(t_in)):>5.1%})  '{g}...'")
+        print(f"    {c:>5}건 ({c / max(1, len(t_in)):>5.1%})  '{g}'")
     sd2, td2 = res["seed"]["distinct_2"], res["synth"]["distinct_2"]
     if sd2 and td2 and td2 < sd2 * 0.7:
-        print(f"⚠️  합성 distinct_2({td2})가 seed({sd2})의 70% 미만 — 표현이 획일적입니다.\n"
-              "    조치: temperature↑ 또는 프롬프트에 어휘/문체 변화를 명시 요구하세요.")
+        print(f"합성 distinct_2({td2})가 시드({sd2})의 70% 미만입니다. "
+              "temperature를 올리거나 프롬프트에 어휘와 문체 변화를 요구하세요.")
     if top_share > 0.3:
-        print(f"⚠️  합성의 {top_share:.0%}가 같은 3단어로 시작합니다 — 도입부 템플릿이 고착됐습니다.\n"
-              "    조치: 프롬프트에서 도입 문구를 다양화하거나, 생성 후 도입부를 다시 쓰세요.")
+        print(f"합성 데이터의 {top_share:.0%}가 같은 3단어로 시작합니다. "
+              "도입 문구를 다양화하세요.")
     if not (sd2 and td2 and td2 < sd2 * 0.7) and top_share <= 0.3:
-        print("✅ 어휘 다양성 양호.")
+        print("어휘 다양성이 양호합니다.")
     print("=" * 68)
     return res
 
 
 # ---------------------------------------------------------------------------
-# 4) 라벨/클래스 균형 — 분류 트랙에 특히 중요
+# 4) 라벨과 클래스 균형
 # ---------------------------------------------------------------------------
 def label_balance(seed_examples: list, synth_examples: list, *, plot: bool = True) -> dict:
-    """output을 라벨로 보고 클래스 분포를 비교한다(분류 트랙). 소수 클래스 소실을 잡는다.
-
-    🔴 왜: 합성이 다수 클래스로 쏠리면 모델이 그 클래스만 답하게 된다(정확도는 높아 보이지만
-       소수 클래스 recall이 0). output이 짧은 라벨 문자열인 트랙에서 의미가 있다.
-    """
+    """분류 데이터의 클래스 분포와 누락된 라벨을 확인합니다."""
     def _labels(pairs):
         c = Counter()
         for _, o in pairs:
@@ -373,8 +323,7 @@ def label_balance(seed_examples: list, synth_examples: list, *, plot: bool = Tru
     sp = [_pair_from(e) for e in seed_examples]
     tp = [_pair_from(e) for e in synth_examples]
 
-    # 🔴 라벨 트랙인지 먼저 판별한다. JSON/문장 출력을 라벨로 오인하면 의미 없는 표가 나온다.
-    #    기준: output이 JSON처럼 시작하지 않고, 서로 다른 값의 종류가 전체의 절반 미만(=반복되는 범주형).
+    # JSON이나 자유 서술 출력을 클래스 라벨로 오인하지 않도록 먼저 형식을 확인합니다.
     def _looks_categorical(pairs) -> bool:
         outs = [str(o).strip() for _, o in pairs if str(o).strip()]
         if not outs:
@@ -383,11 +332,11 @@ def label_balance(seed_examples: list, synth_examples: list, *, plot: bool = Tru
             return False                      # JSON 출력 트랙(추출)
         short = [o for o in outs if len(o) <= 40]
         if len(short) < len(outs) * 0.8:
-            return False                      # 긴 자유서술(요약·QA)
+            return False                      # 긴 자유 서술
         return len(set(o.lower() for o in short)) <= max(2, len(short) * 0.5)
 
     if not _looks_categorical(tp):
-        print("(output이 라벨 형태가 아니어서 클래스 균형 점검을 건너뜁니다 — 추출/요약/QA 트랙은 정상)")
+        print("(출력이 라벨 형식이 아니므로 클래스 균형 점검을 건너뜁니다.)")
         return {}
 
     s_c, t_c = _labels(sp), _labels(tp)
@@ -408,13 +357,13 @@ def label_balance(seed_examples: list, synth_examples: list, *, plot: bool = Tru
     print("-" * 68)
     print(f"클래스 수: seed={len(s_c)}, synth={len(t_c)} | 최다/최소 비율 {imbalance}x")
     if missing:
-        print(f"⚠️  합성에 없는 seed 클래스 {len(missing)}개: {missing[:5]}\n"
-              "    조치: 해당 클래스 seed를 명시적으로 지정해 추가 생성하세요(클래스별 목표 건수 설정).")
+        print(f"합성 데이터에 없는 시드 클래스 {len(missing)}개: {missing[:5]}. "
+              "해당 클래스를 지정해 추가 생성하세요.")
     if imbalance > 5:
-        print(f"⚠️  클래스 불균형이 {imbalance}x입니다 — 소수 클래스 recall이 낮아집니다.\n"
-              "    조치: 소수 클래스를 추가 생성하거나, 학습 시 클래스 가중치/오버샘플링을 고려하세요.")
+        print(f"클래스 불균형이 {imbalance}배입니다. 소수 클래스를 추가 생성하거나 "
+              "클래스 가중치와 오버샘플링을 검토하세요.")
     if not missing and imbalance <= 5:
-        print("✅ 클래스 균형 양호.")
+        print("클래스 균형이 양호합니다.")
     print("=" * 68)
 
     if plot:
@@ -436,15 +385,11 @@ def label_balance(seed_examples: list, synth_examples: list, *, plot: bool = Tru
 
 
 # ---------------------------------------------------------------------------
-# 5) 출력 유효성 — 학습 전에 '정답이 정답인지' 확인
+# 5) 출력 유효성
 # ---------------------------------------------------------------------------
 def output_validity(synth_examples: list, *, expect_json: bool = True,
                     required_keys: tuple[str, ...] = ("name", "arguments")) -> dict:
-    """합성 output이 목표 스키마를 지키는지 검사한다(추출→JSON 트랙).
-
-    🔴 왜: 깨진 JSON을 정답으로 학습하면 모델이 깨진 JSON을 생성하도록 배운다. 합성 파이프라인의
-       검증을 통과했더라도, 학습 직전에 한 번 더 보는 편이 값싸다.
-    """
+    """합성 출력이 목표 스키마를 지키는지 검사합니다."""
     tp = [_pair_from(e) for e in synth_examples]
     outs = [o for _, o in tp]
     if not outs:
@@ -470,12 +415,12 @@ def output_validity(synth_examples: list, *, expect_json: bool = True,
     if bad:
         print(f"  파싱 실패 예: {bad[:2]}")
     if rate < 0.98:
-        print(f"⚠️  파싱률이 {rate:.1%}입니다(<98%) — 깨진 정답으로 학습하면 모델도 깨진 JSON을 냅니다.\n"
-              "    조치: 합성 검증(validator)을 강화해 실패 예시를 버리거나, 생성 프롬프트에 스키마를 재명시하세요.")
+        print(f"JSON 파싱률이 {rate:.1%}입니다. 실패 예시를 제외하거나 "
+              "생성 프롬프트에 스키마를 다시 명시하세요.")
     elif miss:
-        print(f"⚠️  필수키({required_keys}) 누락 {miss}건 — 해당 예시를 제외하는 편이 안전합니다.")
+        print(f"필수 키({required_keys})가 누락된 예시 {miss}건을 제외하세요.")
     else:
-        print("✅ 출력 스키마 준수.")
+        print("출력 스키마를 준수합니다.")
     print("=" * 68)
     return {"n": len(outs), "json_ok": ok, "json_rate": rate, "missing_keys": miss}
 
@@ -488,7 +433,7 @@ def quick_report(seed_examples: list, synth_examples: list, *, tokenizer=None,
                  plot: bool = True) -> dict:
     """compare + 근사중복 + 어휘다양성 (+토크나이저/JSON 제공 시 해당 항목)을 순서대로 실행.
 
-    tokenizer/max_seq_length를 주면 토큰 길이·절단 위험까지 본다(권장 — 학습 설정에 직결).
+    tokenizer와 max_seq_length를 주면 토큰 길이와 절단 위험도 확인합니다.
     """
     out = {"basic": compare(seed_examples, synth_examples, plot=plot)}
     if tokenizer is not None:
@@ -505,10 +450,10 @@ def quick_report(seed_examples: list, synth_examples: list, *, tokenizer=None,
 
 
 # ---------------------------------------------------------------------------
-# 추출(→JSON) 트랙 전용: 함수명/인자 키 커버리지
+# JSON 추출 코스 전용 함수명과 인자 키 커버리지
 # ---------------------------------------------------------------------------
 def json_field_coverage(seed_examples: list, synth_examples: list) -> dict:
-    """output이 function-call JSON일 때, seed vs 합성의 함수명·인자 키 분포 비교."""
+    """함수 호출 JSON의 함수명과 인자 키 분포를 비교합니다."""
     import json
 
     def _names_keys(pairs):

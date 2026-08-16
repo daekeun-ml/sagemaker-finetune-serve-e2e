@@ -1,12 +1,10 @@
 #!/usr/bin/env python
-"""
-train_mm.py — Gemma-4 멀티모달 SFT (이미지→JSON) + LoRA. self-contained.
+"""Gemma 4 멀티모달 SFT와 LoRA 학습 스크립트입니다.
 
-🔴 텍스트 트랙(train.py)과의 차이:
-  - 입력에 '이미지'가 포함 → `AutoProcessor`(Gemma4Processor)로 pixel_values 생성.
+텍스트 트랙과의 차이:
+  - 입력 이미지는 `AutoProcessor`로 pixel_values를 생성.
   - 모델은 `AutoModelForImageTextToText`(멀티모달 전체). LoRA는 language_model 한정(regex).
-  - 🔴 서빙도 멀티모달로 하므로 **텍스트 re-export를 하지 않는다**(vision tower 유지).
-    → 배포 시 vLLM이 이미지 입력을 받도록 그대로 서빙.
+  - vision tower를 유지하고 멀티모달 모델 그대로 서빙.
   - TRL SFTTrainer가 processing_class=processor를 받으면 내장 VLM collator로 이미지를 자동 처리.
   - 데이터: {"messages":[{role:user, content:[{type:image},{type:text}]}, {role:assistant,...}]}
 
@@ -20,10 +18,104 @@ train_mm.py — Gemma-4 멀티모달 SFT (이미지→JSON) + LoRA. self-contain
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 
 logger = logging.getLogger("gemma_mm")
+
+
+def _job_name() -> str:
+    """이 컨테이너가 속한 SageMaker 학습 잡 이름. 로컬 실행이면 빈 문자열.
+
+    SageMaker 가 TRAINING_JOB_NAME 을 넣어 준다(실측). 그게 없는 경우를 대비해 SM_TRAINING_ENV
+    JSON 의 job_name 도 본다. 둘 다 실제 컨테이너에서 값이 확인된 경로다.
+    """
+    name = (os.environ.get("TRAINING_JOB_NAME") or "").strip()
+    if name:
+        return name
+    try:
+        return str(json.loads(os.environ.get("SM_TRAINING_ENV") or "{}").get("job_name", "") or "")
+    except (ValueError, AttributeError):
+        return ""
+
+
+class _Mlflow:
+    """MLflow 추적을 준비합니다. 연결 실패 시 추적만 끄고 학습은 계속합니다.
+
+    파이프라인의 부모 run은 활성화하지 않고 자식 run만 만듭니다. Trainer의 MLflowCallback은
+    `MLFLOW_RUN_ID`를 이어받아 step metric을 기록합니다.
+    """
+
+    def __init__(self) -> None:
+        self.report_to = "none"
+        self.run_name = _job_name()  # 자식 run 이름
+        self._child = None           # 이 컨테이너가 만든 자식 run ID
+        self._mlflow = None
+
+        uri = os.environ.get("MLFLOW_TRACKING_URI")
+        if not uri:
+            return                   # 추적 비활성
+        try:
+            import mlflow
+        except ImportError:
+            logger.warning("[mlflow] MLFLOW_TRACKING_URI is set but mlflow is not installed; "
+                           "tracking disabled (add mlflow to scripts/requirements.txt).")
+            return
+
+        experiment = os.environ.get("MLFLOW_EXPERIMENT_NAME") or ""
+        try:
+            # 학습 시작 전에 연결과 experiment 접근을 확인합니다.
+            mlflow.set_tracking_uri(uri)
+            exp = mlflow.set_experiment(experiment) if experiment else None
+        except Exception as e:       # noqa: BLE001. 권한, 삭제된 experiment, 네트워크 무엇이든
+            logger.warning("[mlflow] connection check failed; tracking disabled, training "
+                           "continues: %s: %s", type(e).__name__, e)
+            return
+
+        self._mlflow = mlflow
+        self.report_to = "mlflow"
+        logger.info("[mlflow] logging step metrics to %s (experiment=%s)",
+                    uri, experiment or "(default)")
+
+        # 부모 run이 있으면 자식 run을 미리 만듭니다.
+        parent_run_id = os.environ.get("MLFLOW_PARENT_RUN_ID")
+        if not parent_run_id:
+            return                   # 부모가 없으면 콜백이 최상위 run을 만듭니다.
+        if (os.environ.get("RANK") or "0") != "0":
+            return                   # 분산 학습이면 rank 0 만
+        try:
+            # 환경변수의 experiment를 우선하고, 없을 때만 부모 run의 experiment를 사용합니다.
+            client = mlflow.MlflowClient()
+            exp_id = exp.experiment_id if exp is not None else \
+                client.get_run(parent_run_id).info.experiment_id
+            child = client.create_run(
+                experiment_id=exp_id,
+                run_name=self.run_name or None,
+                tags={"mlflow.parentRunId": parent_run_id},
+            )
+            # MLflowCallback은 이 환경변수로 기존 run을 이어받습니다.
+            os.environ["MLFLOW_RUN_ID"] = child.info.run_id
+            self._child = child.info.run_id
+            logger.info("[mlflow] child run %s created under parent %s",
+                        self._child, parent_run_id)
+        except Exception as e:       # noqa: BLE001. 부모가 지워졌을 수도 있다
+            logger.warning("[mlflow] could not create a child run; logging to a top-level run "
+                           "instead: %s: %s", type(e).__name__, e)
+
+    def __enter__(self) -> _Mlflow:
+        return self
+
+    def __exit__(self, exc_type: object, *_rest: object) -> None:
+        """남아 있는 자식 run을 닫습니다. 부모 run은 파이프라인이 관리합니다."""
+        if self._mlflow is None or self._child is None:
+            return
+        try:
+            if self._mlflow.active_run() is not None:
+                self._mlflow.end_run(status="FAILED" if exc_type else "FINISHED")
+        except Exception as e:       # noqa: BLE001
+            logger.warning("[mlflow] failed to end the child run (ignored): %s: %s",
+                           type(e).__name__, e)
 
 
 def _configure_logging() -> None:
@@ -62,7 +154,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _simplify_gt(ground_truth: str) -> str:
-    """cord-v2 ground_truth → 간결 타깃 JSON (track_data._simplify_gt와 동일 로직, self-contained)."""
+    """cord-v2 ground_truth를 간결한 타깃 JSON으로 변환합니다."""
     import json
     try:
         gt = json.loads(ground_truth)
@@ -83,7 +175,7 @@ INSTRUCTION = ("You are a receipt-parsing engine. Extract the receipt into stric
 
 def _to_messages(example):
     """TRL VLM 포맷: messages는 텍스트만 + 별도 images 컬럼. collator가 이미지 placeholder를 주입한다.
-    (messages content 안에 {type:image}를 직접 넣으면 'images ≠ placeholders' 에러 — 실측 확인.)"""
+    messages content에는 이미지 placeholder를 직접 넣지 않습니다."""
     return {
         "images": [example["image"]],
         "messages": [
@@ -94,15 +186,7 @@ def _to_messages(example):
 
 
 def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int:
-    """KV-shared 레이어의 k_norm/k_proj/v_proj를 base에서 복원(멀티모달 키 접두사 버전).
-
-    🔴 gemma-4 E2B/E4B는 뒤쪽 num_kv_shared_layers개 레이어가 앞 레이어의 KV를 재사용하고,
-       transformers는 그 레이어에 k_norm/k_proj/v_proj 모듈을 만들지 않는다
-       (modeling_gemma4.py "Layers sharing kv states don't need any weight matrices").
-       → save_pretrained 시 원본에 있던 텐서가 소실(E4B 실측 54개 = 18층 × 3).
-       vLLM/SGLang은 k_norm을 전 레이어에 등록하므로 "weights not initialized" ValueError로
-       엔진 초기화 실패(vLLM issue #44788). 이 텐서는 연산에 쓰이지 않아(shared 레이어는 앞 레이어
-       KV 재사용) base 값 복원은 정확도에 무해하다. 12B/26B/31B는 shared=0이라 무관.
+    """멀티모달 키 경로에서 KV 공유 레이어의 서빙 검증용 텐서를 복원합니다.
 
     train.py의 동일 함수와 다른 점: 멀티모달 arch를 그대로 저장하므로 키가
     'model.language_model.layers.N...' 형태다(텍스트 re-export의 'model.layers.N...'이 아님).
@@ -117,7 +201,7 @@ def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int
     prefix = next((p for p in ("model.language_model.", "language_model.")
                    if any(k.startswith(p) for k in save_sd)), None)
     if prefix is None:
-        logger.warning("KV-shared 복원 생략: language_model 키 접두사를 찾지 못했습니다")
+        logger.warning("skipping KV-shared restore: could not find the language_model key prefix")
         return 0
     want = [f"{prefix}layers.{i}.self_attn.{n}.weight"
             for i in range(first, n_layers) for n in ("k_norm", "k_proj", "v_proj")]
@@ -128,7 +212,7 @@ def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int
         from safetensors import safe_open
         from transformers.utils import cached_file
     except ImportError as e:
-        logger.warning("KV-shared 복원 실패(safetensors 없음: %s)", e)
+        logger.warning("KV-shared restore failed (safetensors missing: %s)", e)
         return 0
     try:  # 샤딩 인덱스가 있으면 그 목록, 없으면 단일 파일
         import json as _json
@@ -155,26 +239,16 @@ def _revive_kv_shared_from_base(save_sd, cfg, model_id, hf_token, logger) -> int
                         remaining.discard(tk); revived += 1
                         break
     if remaining:
-        logger.warning("KV-shared 복원 불완전: %d/%d개(실패 예: %s)",
+        logger.warning("KV-shared restore incomplete: %d/%d (failure example: %s)",
                        revived, len(need), sorted(remaining)[:3])
     else:
-        logger.info("KV-shared 텐서 %d개 복원(레이어 %d~%d) → vLLM/SGLang 서빙 가능",
+        logger.info("restored %d KV-shared tensors (layers %d-%d); vLLM/SGLang can serve this",
                     revived, first, n_layers - 1)
     return revived
 
 
 def _prune_artifact(output_dir: str, logger) -> None:
-    """서빙에 쓰이지 않는 것을 지운다. /opt/ml/model 전체가 tar.gz 로 S3 에 올라가기 때문이다.
-
-    🔴 실측: E4B 학습 산출물이 11.37GB 였고 업로드에 3분 14초가 걸렸다. 그 안에는
-       서빙이 절대 열지 않는 것들이 함께 들어 있었다.
-         checkpoint-*/  — optimizer.pt / rng_state.pth / scheduler.pt. 학습 재개용이고,
-                          이 kit 은 재개를 지원하지 않는다(save_total_limit=1 로 1개만 남겨도
-                          그 1개가 수 GB 다).
-         adapter/       — 머지 소스. 머지된 모델이 이미 루트에 있으므로 중복이다.
-       지우면 업로드 시간과 S3 요금이 함께 줄고, 배포 시 컨테이너가 받는 양도 줄어든다.
-       ⚠️ 학습을 이어서 하거나 adapter 만 따로 배포할 계획이면 이 함수를 부르지 말 것.
-    """
+    """서빙에 쓰이지 않는 체크포인트와 머지용 어댑터를 아티팩트에서 제거합니다."""
     import shutil
 
     removed = 0
@@ -187,9 +261,9 @@ def _prune_artifact(output_dir: str, logger) -> None:
                        for r, _, fs in os.walk(path) for f in fs)
             shutil.rmtree(path, ignore_errors=True)
             removed += size
-            logger.info("Pruned %s (%.2f GB) — 서빙에 쓰이지 않습니다", name, size / 1024**3)
+            logger.info("pruned %s (%.2f GB): not used for serving", name, size / 1024**3)
     if removed:
-        logger.info("아티팩트에서 %.2f GB 제거 — 업로드 시간과 S3 요금이 그만큼 줄어듭니다",
+        logger.info("removed %.2f GB from the artifact: shorter upload and lower S3 cost",
                     removed / 1024**3)
 
 
@@ -210,7 +284,7 @@ def main() -> None:
 
     _cfg = AutoConfig.from_pretrained(args.model_id, token=hf_token)
     assert getattr(_cfg, "vision_config", None) is not None or getattr(_cfg, "text_config", None) is not None, (
-        f"{args.model_id} 은 멀티모달 모델이 아닙니다 — 이미지→JSON 트랙엔 gemma-4 등 멀티모달 base가 필요합니다.")
+        f"{args.model_id} 은 멀티모달 모델이 아닙니다. 이미지-JSON 트랙에는 멀티모달 base가 필요합니다.")
     logger.info("multimodal model_type=%s", _cfg.model_type)
 
     # ---- 데이터 (cord-v2: image + ground_truth) ----
@@ -218,7 +292,7 @@ def main() -> None:
     ds = load_dataset(args.seed_dataset, split="train", token=hf_token)
     if len(ds) > n:
         ds = ds.select(range(n))
-    ds = ds.map(_to_messages, remove_columns=list(ds.column_names))  # 원본(image, ground_truth) 제거 → images+messages만
+    ds = ds.map(_to_messages, remove_columns=list(ds.column_names))  # images와 messages만 남깁니다.
     logger.info("MM examples: %d (dataset: %s, cols=%s)", len(ds), args.seed_dataset, ds.column_names)
 
     # ---- processor / 모델 ----
@@ -238,14 +312,17 @@ def main() -> None:
             if "vision" in name.lower() or "audio" in name.lower():
                 param.requires_grad = False
                 frozen += 1
-        logger.info("froze %d vision/audio params (language LoRA만 학습)", frozen)
+        logger.info("froze %d vision/audio params (training language LoRA only)", frozen)
 
-    # ---- LoRA: language_model 한정 (텍스트 트랙과 동일 이유 — vision proj는 ClippableLinear라 제외) ----
+    # LoRA는 language_model 경로에만 적용합니다.
     peft_config = LoraConfig(
         r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=args.lora_dropout,
         bias="none", task_type="CAUSAL_LM",
         target_modules=r".*language_model\..*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$",
     )
+
+    # MLflow 연결 결과를 SFTConfig의 report_to에 반영합니다.
+    mlf = _Mlflow()
 
     sft_config = SFTConfig(
         output_dir=args.output_dir,
@@ -259,15 +336,16 @@ def main() -> None:
         gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=5 if args.dry_run else 10,
         save_strategy="no" if args.dry_run else "epoch",
-        # 🔴 체크포인트 1개만 유지 — /opt/ml/model 전체가 model.tar.gz로 업로드되므로 쌓이면
-        #    아티팩트가 커지고 업로드가 길어진다(업로드 시간도 MaxRuntime에 포함). 서빙엔 불필요.
+        # 업로드 아티팩트가 커지지 않도록 체크포인트 하나만 유지합니다.
         save_total_limit=1,
-        report_to="none",
+        report_to=mlf.report_to,
+        # SageMaker 학습 Job 이름으로 MLflow run과 CloudWatch 로그를 연결합니다.
+        run_name=mlf.run_name or None,
         dataset_kwargs={"skip_prepare_dataset": True},   # VLM: collator가 이미지 처리(사전 토크나이즈 스킵)
         remove_unused_columns=False,                     # image 컬럼 유지
     )
 
-    # 🔴 processing_class=processor → TRL 내장 VLM collator가 이미지를 pixel_values로 자동 변환.
+    # TRL VLM collator가 이미지를 pixel_values로 변환합니다.
     trainer = SFTTrainer(
         model=model,
         args=sft_config,
@@ -277,16 +355,17 @@ def main() -> None:
     )
 
     logger.info("Starting multimodal SFT...")
-    trainer.train()
+    # 컨텍스트 종료 시 남아 있는 자식 run을 정리합니다.
+    with mlf:
+        trainer.train()
 
-    # ---- 저장 (🔴 멀티모달 서빙 유지 — 텍스트 re-export 하지 않음) ----
+    # 멀티모달 서빙을 위해 텍스트 모델로 다시 저장하지 않습니다.
     if args.merge_adapter and not args.dry_run:
         adapter_dir = os.path.join(args.output_dir, "adapter")
         trainer.save_model(adapter_dir)
         processor.save_pretrained(adapter_dir)
         from peft import PeftModel
-        # 🔴 OOM 방지: 학습 모델/trainer 먼저 해제 후 base(bf16)를 CPU에 로드. 멀티모달 full 모델은
-        #    vision+audio 포함이라 특히 크다(호스트 RAM 여유 필요 — g6.4xlarge 이상 권장).
+        # 병합 전에 학습 모델을 해제하고 base를 CPU에 로드합니다.
         import gc
         del trainer, model
         gc.collect()
@@ -298,9 +377,7 @@ def main() -> None:
         merged = PeftModel.from_pretrained(base, adapter_dir).merge_and_unload()
         del base
         gc.collect()
-        # 멀티모달 전체 모델을 루트에 저장 → vLLM이 이미지 입력을 받는 멀티모달 endpoint로 서빙.
-        # 🔴 저장 직전에 KV-shared dead weight를 base에서 복원(E2B/E4B). 모델 객체엔 그 모듈이 아예
-        #    없으므로 명시 state_dict 전달이 유일한 방법이다. 상세: _revive_kv_shared_from_base.
+        # 멀티모달 전체 모델을 서빙 루트에 저장하고 필요한 KV 공유 텐서를 복원합니다.
         save_sd = merged.state_dict()
         _cfg = getattr(merged, "config", None)
         if _cfg is not None and _revive_kv_shared_from_base(
@@ -320,7 +397,7 @@ def main() -> None:
         _prune_artifact(args.output_dir, logger)
 
     if args.dry_run:
-        logger.info("DRY-RUN complete — multimodal pipeline OK.")
+        logger.info("DRY-RUN complete: multimodal pipeline OK.")
 
 
 if __name__ == "__main__":

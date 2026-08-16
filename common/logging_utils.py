@@ -1,9 +1,8 @@
-"""
-common/logging_utils.py — 로깅 설정 헬퍼 (앱/노트북 진입점에서 1회 호출)
+"""애플리케이션과 노트북 진입점에서 사용하는 로깅 설정 헬퍼입니다.
 
 파이썬 로깅 정석:
   - **라이브러리 모듈**(common/*)은 핸들러를 설정하지 않는다. `logging.getLogger(__name__)`만 쓰고,
-    출력 방식(핸들러·레벨·포맷) 결정은 **애플리케이션의 책임**으로 남긴다.
+    출력 방식 결정은 애플리케이션의 책임으로 남긴다.
     (common/__init__.py 가 패키지 루트에 NullHandler를 달아 import 부작용을 0으로 만든다.)
   - **앱/노트북/스크립트 진입점**만 여기 setup_logging()을 1회 호출해 핸들러를 구성한다.
 
@@ -30,9 +29,8 @@ _NOISY = ("botocore", "boto3", "urllib3", "s3transfer", "sagemaker", "httpx", "h
 _CONFIGURED = False
 
 
-# ── 컬러 ────────────────────────────────────────────────────────────────────
-# 🔴 터미널에서만 켠다. 파일로 리다이렉트하거나 CI 로그로 흘리면 ANSI 코드가
-#    그대로 남아 오히려 읽기 어려워진다. NO_COLOR 관례(https://no-color.org)도 따른다.
+# 색상
+# 터미널에서만 사용하며 NO_COLOR와 FORCE_COLOR 환경변수를 따릅니다.
 _RESET = "\033[0m"
 _COLORS = {
     "DEBUG": "\033[38;5;244m",    # 회색
@@ -56,7 +54,7 @@ class _ColorFormatter(logging.Formatter):
     """레벨과 부수 정보에만 색을 넣는다. 메시지 본문은 건드리지 않는다.
 
     본문에 색을 칠하면 로그를 복사해 붙일 때 코드가 섞이고, 메시지 안의 수치를
-    읽는 데 방해가 된다. 시간·로거명은 흐리게, 레벨만 색으로 구분한다.
+    읽는 데 방해가 된다. 시간과 로거명은 흐리게, 레벨만 색으로 구분한다.
     """
 
     def format(self, record: logging.LogRecord) -> str:
@@ -85,7 +83,7 @@ def setup_logging(
     level: 문자열("INFO")/정수/None(=env LOG_LEVEL, 기본 INFO).
     force: True면 이미 구성됐어도 핸들러를 교체(노트북에서 레벨 바꿔 재호출 시).
     color: None이면 터미널 여부로 자동 판단. NO_COLOR/FORCE_COLOR env를 따른다.
-    반환: 이 kit의 루트 로거(gemma_e2e) — 필요하면 직접 써도 됨.
+    반환: 이 프로젝트의 루트 로거(gemma_e2e).
     """
     global _CONFIGURED
     level = _resolve_level(level)
@@ -117,6 +115,19 @@ def setup_logging(
 def get_logger(name: str) -> logging.Logger:
     """kit 네임스페이스(gemma_e2e.<name>) 로거. 라이브러리 모듈이 __name__ 대신 써도 됨."""
     return logging.getLogger(f"{TOOLKIT_LOGGER}.{name}")
+
+
+def hyperlink(url: str, text: str = "") -> str:
+    """터미널에서 클릭되는 하이퍼링크(OSC 8). 터미널이 아니면 URL 문자열 그대로.
+
+    일부 터미널은 MLflow UI의 `#` fragment에서 URL 인식을 중단합니다. OSC 8로 전체 주소를
+    지정하되, 리다이렉트된 출력에는 escape sequence를 넣지 않습니다.
+    """
+    label = text or url
+    if not _color_enabled(sys.stderr):
+        return label
+    # ESC ] 8 ; ; <URL> ESC \  <text>  ESC ] 8 ; ; ESC \
+    return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
 
 
 def _resolve_level(level: str | int | None) -> int:

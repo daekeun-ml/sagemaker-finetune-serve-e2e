@@ -1,8 +1,8 @@
 """
-tests/test_smoke.py — 무거운 의존성 없이 순수 로직만 빠르게 검증하는 스모크 테스트.
+무거운 의존성 없이 순수 로직을 빠르게 검증하는 스모크 테스트입니다.
 
-목적: 개발환경 GPU에서 실제 학습/AWS 호출 전에, 데이터 어댑터·포맷터·합성 파서 같은
-      순수 파이썬 로직이 정상인지 수 초 내 확인. (boto3/torch/transformers 불필요)
+실제 학습이나 AWS 호출 전에 데이터 어댑터, 포맷터, 합성 파서를 확인합니다.
+boto3, torch, transformers는 필요하지 않습니다.
 
 실행:
     cd ~/sagemaker-finetune-serve-e2e
@@ -116,11 +116,11 @@ def test_all_track_adapters_importable():
         assert callable(mod.to_messages)
         assert callable(mod.load_seed_examples)
         assert callable(mod.seed_texts_for_synth)
-        # to_messages 계약: 🔴 Gemma는 system role 거부 → system 없이 user+assistant,
-        # system 지시문은 첫 user 턴에 folded 되어야 한다.
+        # Gemma 입력은 system 역할 없이 user와 assistant 역할만 사용합니다.
+        # system 지시문은 첫 user 턴에 병합합니다.
         msgs = mod.to_messages({"input": "in", "output": "out"})
         roles = [m["role"] for m in msgs]
-        assert "system" not in roles, f"{key}: Gemma는 system role 미지원 — fold 필요"
+        assert "system" not in roles, f"{key}: system 지시문을 user 턴에 병합해야 합니다"
         assert roles == ["user", "assistant"], f"{key}: {roles}"
         assert msgs[-1]["content"] == "out"
         # system 지시문이 user 턴에 병합됐는지
@@ -130,7 +130,7 @@ def test_all_track_adapters_importable():
 def test_multimodal_track_adapter():
     """멀티모달 트랙(05_multimodal_extraction)의 track_data.py 계약 검사.
 
-    텍스트 트랙과 인터페이스가 다르다: to_example → {"images","messages"} (TRL VLM 포맷).
+    텍스트 트랙과 달리 to_example은 images와 messages를 반환합니다.
     """
     import importlib.util
 
@@ -142,7 +142,7 @@ def test_multimodal_track_adapter():
     assert hasattr(mod, "INSTRUCTION") and mod.INSTRUCTION
     assert callable(mod.to_example)
     assert callable(mod.load_seed_examples)
-    # _simplify_gt: cord-v2 ground_truth → {menu:[{name,count,price}]}
+    # cord-v2 ground_truth를 menu 항목으로 단순화합니다.
     out = mod._simplify_gt('{"gt_parse": {"menu": [{"nm":"Coffee","cnt":"2 x","price":"5,000"}]}}')
     assert '"menu"' in out and "Coffee" in out
     # to_example 계약: images 컬럼(리스트) + messages(텍스트만, user+assistant)
@@ -153,7 +153,7 @@ def test_multimodal_track_adapter():
     assert isinstance(ex["images"], list) and len(ex["images"]) == 1
     roles = [m["role"] for m in ex["messages"]]
     assert roles == ["user", "assistant"], f"mm roles: {roles}"
-    # 🔴 messages content는 텍스트(문자열)여야 한다 — 이미지는 별도 images 컬럼(TRL VLM collator 계약)
+    # 메시지 본문은 문자열이며 이미지는 별도 images 컬럼에 둡니다.
     assert isinstance(ex["messages"][0]["content"], str)
 
 
@@ -182,10 +182,10 @@ def _run_all():
     for fn in fns:
         try:
             fn()
-            print(f"  ✅ {fn.__name__}")
+            print(f"  통과: {fn.__name__}")
             passed += 1
         except Exception as e:  # noqa: BLE001
-            print(f"  ❌ {fn.__name__}: {e}")
+            print(f"  실패: {fn.__name__}: {e}")
     print(f"\n{passed}/{len(fns)} passed")
     return passed == len(fns)
 
@@ -193,3 +193,38 @@ def _run_all():
 if __name__ == "__main__":
     ok = _run_all()
     sys.exit(0 if ok else 1)
+
+
+def test_mlflow_training_policy_json_matches_python():
+    """IAM 정책 JSON이 Python의 정책 정의와 일치하는지 확인합니다."""
+    from common.mlflow_utils import _same_policy, training_role_policy_document
+
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(repo, "iam", "mlflow-training-role-policy.json")
+    assert os.path.isfile(path), f"{path}가 없습니다"
+    with open(path, encoding="utf-8") as f:
+        on_disk = json.load(f)
+    assert _same_policy(on_disk, training_role_policy_document()), (
+        "iam/mlflow-training-role-policy.json이 training_role_policy_document()와 다릅니다.\n"
+        "  재생성 명령: python -c \"import json,sys; sys.path.insert(0,'.'); "
+        "from common.mlflow_utils import training_role_policy_document as d; "
+        "print(json.dumps(d(), indent=2))\" > iam/mlflow-training-role-policy.json"
+    )
+
+
+def test_mlflow_training_policy_actions_are_documented():
+    """정책 액션명이 AWS 개발자 가이드 목록에 있는지 확인합니다."""
+    from common.mlflow_utils import TRAINING_POLICY_ACTIONS
+
+    # 출처: AWS 개발자 가이드의 "IAM actions supported for MLflow" 목록
+    documented = {
+        "AccessUI", "CreateExperiment", "SearchExperiments", "GetExperiment",
+        "GetExperimentByName", "DeleteExperiment", "RestoreExperiment", "UpdateExperiment",
+        "CreateRun", "DeleteRun", "RestoreRun", "GetRun", "LogMetric", "LogBatch", "LogModel",
+        "LogInputs", "SetExperimentTag", "SetTag", "DeleteTag", "LogParam", "GetMetricHistory",
+        "SearchRuns", "ListArtifacts", "UpdateRun",
+    }
+    for action in TRAINING_POLICY_ACTIONS:
+        prefix, _, name = action.partition(":")
+        assert prefix == "sagemaker-mlflow", f"{action}: prefix가 sagemaker-mlflow가 아닙니다"
+        assert name in documented, f"{action}: 문서화된 액션 목록에 없습니다"

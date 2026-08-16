@@ -4,12 +4,7 @@ from strands.models.bedrock import BedrockModel
 
 
 def load_model() -> BedrockModel:
-    """Get Bedrock model client using IAM credentials.
-
-    🔴 모델 ID는 하드코딩하지 않고 env(BEDROCK_CLAUDE_MODEL_ID)에서 읽는다(kit 원칙).
-    env 미설정 시 kit 기본값(global.anthropic.claude-sonnet-5)로 폴백.
-    inference-profile prefix(us./global.) 필수 — 배포 리전에서 list_inference_profiles로 재확인.
-    """
+    """환경변수와 IAM 자격증명으로 Bedrock 모델 클라이언트를 만듭니다."""
     model_id = os.environ.get("BEDROCK_CLAUDE_MODEL_ID", "global.anthropic.claude-sonnet-5")
     region = os.environ.get("AWS_REGION")  # None이면 SDK가 기본 자격증명 리전 사용
     if region:

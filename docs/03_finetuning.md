@@ -73,7 +73,7 @@ SageMaker AI에서 Gemma를 처음 파인튜닝할 때는 다음 문제를 확�
 | 인터페이스 | `JumpStartEstimator` / 콘솔 | `sagemaker.train.model_trainer.ModelTrainer` + `SourceCode` |
 | 모델 커버리지 | 큐레이션된 목록(신규 릴리스 지연 가능) | HF Hub의 최신 Gemma 즉시 (`MODEL_SIZE`/`MODEL_ID`만 교체) |
 | 학습 로직 제어 | 제한적(정해진 레시피) | 완전 제어(LoRA 타깃 정규식, 텍스트 re-export, packing 안전장치, 머지) |
-| 커스텀 의존성 | 어려움 | `scripts/requirements.txt`로 자유롭게(`transformers>=5.14.1` 등) |
+| 커스텀 의존성 | 어려움 | `scripts/requirements.txt`에서 직접 관리(`transformers==5.14.1` 등) |
 | 로컬 == 클라우드 | 아니오 | 예: 동일 `train.py`가 `--dry_run`/학습 Job 겸용 |
 | 진입 난이도 | 낮음 | 중간(대신 투명, 이식성) |
 | 언제 고르나 | 표준 레시피로 충분, 빠른 baseline | 커스텀 로직 또는 최신 모델이 필요할 때 |
@@ -264,7 +264,7 @@ def _str2bool(v) -> bool:
 자세한 URI 규칙은 [DLC 이미지 URI 패턴](04_sagemaker_inference.md#dlc-이미지-uri-패턴)을 참고하세요.
 
 ??? info "더 읽을 거리: requirements.txt의 핀"
-    `scripts/requirements.txt`가 설치하는 것은 `transformers>=5.14.1` / `trl>=1.8.0` / `peft>=0.19.1` / `datasets>=5.0.0` / `accelerate>=1.0.0` / `bitsandbytes>=0.44.0`입니다.
+    `scripts/requirements.txt`가 설치하는 것은 `transformers==5.14.1` / `trl>=1.8.0` / `peft>=0.19.1` / `datasets>=5.0.0` / `accelerate>=1.0.0` / `bitsandbytes>=0.44.0`입니다.
     floor는 상한이 없으므로 컨테이너가 더 최신 버전을 받을 수 있고, 그 조합은 **실행 전 재확인** 대상입니다(그 파일 주석에 적어 둔 최신 조합은 transformers 5.14.1 / trl 1.9.0 / peft 0.19.1입니다).
 
 ### 텍스트 전용 re-export와 KV-shared 복원
@@ -350,7 +350,7 @@ def _str2bool(v) -> bool:
 | Pending (GPU 용량 대기) | 6분 | 6분 |
 | Downloading (DLC pull) | 3분 | 9분 |
 | Training: 189/189 step 전부 완료 | 55분 | 64분 |
-| ❌ 머지 도중 강제 종료 | - | 1시간 한도 도달 |
+| 머지 도중 강제 종료 | - | 1시간 한도 도달 |
 
 `train_runtime=3306s`로 학습은 정상 종료됐고 `Adapter saved` → `Merging LoRA adapter...` 로그까지 남았습니다.
 그런데 artifact `model.tar.gz`(542MB)에는 `adapter/`와 `checkpoint-*/`만 있고 **루트에 머지 모델이 없어**(정상 Job은 11.7GB) 서빙이 불가능했습니다.
@@ -493,9 +493,9 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 | 코스 | 프로그램적 채점 | GRPO 노트북 |
 |---|---|---|
-| 추출(JSON) | ✅ 가능: JSON 유효성 + 함수명/인자 F1 | ✅ 제공 (`02a_train_grpo_sagemaker`) |
-| 분류 | ✅ 가능: 라벨 정확 일치 | ✅ 제공 (`02a_train_grpo_sagemaker`) |
-| 요약, 도메인 QA | ❌ 불가: "좋은 요약"을 규칙으로 채점 불가 | ❌ 없음 |
+| 추출(JSON) | 가능: JSON 유효성 + 함수명/인자 F1 | 제공 (`02a_train_grpo_sagemaker`) |
+| 분류 | 가능: 라벨 정확 일치 | 제공 (`02a_train_grpo_sagemaker`) |
+| 요약, 도메인 QA | 불가: "좋은 요약"을 규칙으로 채점 불가 | 없음 |
 
 요약과 QA는 LLM-judge를 reward로 쓸 수는 있지만, rollout마다 judge를 호출해야 해 비용과 시간이 급증하고 judge 편향이 학습에 섞이므로 이 프로젝트에서는 제외했습니다.
 

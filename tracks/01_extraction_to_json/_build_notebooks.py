@@ -1,15 +1,4 @@
-"""
-_build_notebooks.py — 플래그십 트랙(정보추출→JSON) 튜토리얼 노트북 생성기.
-
-노트북 JSON을 손으로 쓰면 깨지기 쉬워, 셀 목록을 파이썬으로 정의하고 nbformat 없이
-표준 .ipynb JSON으로 직렬화한다. (nbformat 있으면 그걸 쓰지만 없어도 동작.)
-
-생성물: 00_setup, 01_data_and_synthetic, 02_train_sft_sagemaker, 03_deploy_endpoint,
-       04_evaluate, 05_agentic_strands, 06_agentcore_deploy, 99_cleanup.
-       (추출·분류 트랙은 02a_train_grpo_sagemaker 추가.)
-규약(aws-ml-lab-code): 상단 TL;DR/Why/Pain → 설치(pin) → 설정(플레이스홀더/env) →
-데이터 → 학습/배포 → CloudWatch 링크 → 결과확인 → 🔴 cleanup.
-"""
+"""정보 추출 트랙의 노트북 생성기."""
 from __future__ import annotations
 
 import json
@@ -17,8 +6,10 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# tracks/ 를 path에 추가 → 공유 빌더(_shared_build) import 가능 (00/02/03/06은 여기 위임)
+# 공유 빌더를 불러올 수 있도록 tracks/를 경로에 추가합니다.
 sys.path.insert(0, os.path.dirname(HERE))
+
+from _shared_build import _clean_notebook_text  # noqa: E402
 
 
 def md(*lines: str) -> dict:
@@ -30,7 +21,7 @@ def code(*lines: str) -> dict:
 
 
 def _src(lines) -> list[str]:
-    text = "\n".join(lines)
+    text = _clean_notebook_text("\n".join(lines))
     parts = text.split("\n")
     return [p + "\n" for p in parts[:-1]] + [parts[-1]]
 
@@ -51,21 +42,21 @@ def write(name: str, cells: list[dict]) -> None:
     path = os.path.join(HERE, name)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(notebook(cells), f, ensure_ascii=False, indent=1)
-    print(f"✅ {name}")
+    print(f"생성: {name}")
 
 
-# 공통 헤더 헬퍼
+# 공통 헤더
 def header(title: str, tldr: str, why: str, pain: str) -> dict:
     return md(
         f"# {title}",
         "",
-        f"**TL;DR** — {tldr}",
+        f"**요약**: {tldr}",
         "",
-        f"**Why** — {why}",
+        f"**목적**: {why}",
         "",
-        f"**기존 Pain Point** — {pain}",
+        f"**배경**: {pain}",
         "",
-        "> 🔴 실제 실행 시 AWS 자격증명·GPU·엔드포인트 과금이 발생합니다. 먼저 `DRY_RUN=1`로 파이프라인을 검증하세요.",
+        "> 실제 실행에는 AWS 자격증명과 비용이 필요합니다. 먼저 `DRY_RUN=1`로 파이프라인을 검증하세요.",
     )
 
 
@@ -87,16 +78,14 @@ def _flagship_spec():
         endpoint_prefix="gemma-extraction", max_seq_length=2048, use_qlora=True,
         eval_kind="extraction", grpo_reward_kind="extraction",
         tool_name="extract_structured_json",
-        # 🔴 아래 3개는 05_agentic(_c04)이 쓴다. 예전엔 비워 두고 이 트랙만 05를 따로 하드코딩했는데,
-        #    그러다 공유 빌더 개선(track_data reload 등)이 이 트랙에 반영되지 않았다 → 값을 채워 위임한다.
+        # 공유 에이전트 노트북에서 사용하는 트랙별 값입니다.
         tool_doc="Extract structured JSON (function call / key-values) from text using the fine-tuned Gemma SLM.",
         agent_system=("You orchestrate. When the user gives text needing structured extraction, call "
                       "extract_structured_json, then explain/validate the JSON. Keep the JSON itself verbatim."),
         smoke_user=('Please extract a structured tool call from: "Book a table for 4 at 7pm at Nonna '
                     'restaurant". Available tool: book_table(restaurant, party_size, time).'),
         deploy_smoke_user="What's the weather in Busan tomorrow?",
-        # 🔴 02b 로컬 서빙 예시: 학습 데이터(glaive-function-calling)와 같은 '스키마 + 요청' 형태.
-        #    스키마를 빼면 모델이 함수명을 추측하고, system prompt까지 빼면 일반 챗봇처럼 답한다(실측).
+        # 학습 데이터와 같은 도구 스키마 및 요청 형식을 사용합니다.
         serve_example_user=(
             'Available tools: [{"name": "get_weather", "description": "Get the weather forecast for a location", '
             '"parameters": {"type": "object", "properties": {"location": {"type": "string"}, '
@@ -149,7 +138,7 @@ def build_02():
 
 
 # ---------------------------------------------------------------------------
-# 02b_local_serve (선택 — 로컬 vLLM 프리플라이트)
+# 02b_local_serve: 선택적 로컬 vLLM 검증
 # ---------------------------------------------------------------------------
 def build_02b():
     import sys
@@ -159,7 +148,7 @@ def build_02b():
 
 
 # ---------------------------------------------------------------------------
-# 02a_train_grpo_sagemaker (추출 트랙 — reward가 명확, SFT 다음)
+# 02a_train_grpo_sagemaker: SFT 다음에 실행하는 선택적 GRPO 학습
 # ---------------------------------------------------------------------------
 def build_02_grpo():
     import sys
@@ -182,7 +171,7 @@ def build_03():
         eval_kind="extraction",
         tool_name="extract_structured_json", tool_doc="", agent_system="",
         smoke_user="", deploy_smoke_user="What's the weather in Busan tomorrow?",
-        # 🔴 02b 로컬 서빙 예시: 학습 데이터(glaive-function-calling)와 같은 '스키마 + 요청' 형태.
+        # 학습 데이터와 같은 스키마와 요청 형식의 로컬 서빙 예시입니다.
         #    스키마를 빼면 모델이 함수명을 추측하고, system prompt까지 빼면 일반 챗봇처럼 답한다(실측).
         serve_example_user=(
             'Available tools: [{"name": "get_weather", "description": "Get the weather forecast for a location", '
@@ -198,23 +187,12 @@ def build_03():
 # 05_agentic_strands
 # ---------------------------------------------------------------------------
 def build_04():
-    """05_agentic_strands — 공유 빌더(_shared_build._c04)에 위임.
-
-    tool_doc/agent_system/smoke_user 를 spec에 채웠으므로 공유 본문이 이 트랙 값으로 생성된다.
-    (하드코딩을 유지하면 공유 쪽 개선이 이 트랙에만 빠진다 — track_data reload 누락이 그 예.)
-    """
+    """공유 빌더로 에이전트 노트북을 생성합니다."""
     from _shared_build import _c04
     write("05_agentic_strands.ipynb", _c04(_flagship_spec()))
 # ---------------------------------------------------------------------------
 def build_05():
-    """06_agentcore_deploy 노트북.
-
-    본문(0~3절: 사전 준비 → 프로젝트 생성 → 로컬 검증 → 배포)은 02~04 트랙과 같은
-    공유 빌더 `_shared_build._c05`에 위임한다. 예전에는 이 트랙만 전체를 하드코딩해
-    공유 빌더와 서로 다른 방향으로 어긋났다(01에만 app.py 미리보기·boto3 대안이 있고,
-    공유 쪽에만 verify_local.sh 내부 동작·독립 프로젝트 생성 절이 있는 상태).
-    → 공통 본문은 한 곳에서만 관리하고, 이 트랙에만 필요한 내용은 아래 두 절로 덧붙인다.
-    """
+    """공통 본문에 정보 추출 트랙 전용 참고 절을 추가합니다."""
     from _shared_build import _c05
 
     cells = _c05(_flagship_spec())
@@ -248,7 +226,7 @@ def build_05():
     ]
     # 공유 본문의 마지막 '정리' 절 바로 앞에 삽입한다(정리는 항상 노트북 끝에 와야 함).
     at = next(
-        (i for i, c in enumerate(cells) if "".join(c["source"]).startswith("## 🔴 정리")),
+        (i for i, c in enumerate(cells) if "".join(c["source"]).startswith("## 정리")),
         len(cells),
     )
     write("06_agentcore_deploy.ipynb", cells[:at] + extra + cells[at:])
@@ -258,17 +236,13 @@ def build_05():
 # 99_cleanup
 # ---------------------------------------------------------------------------
 def build_99():
-    """99_cleanup — 공유 빌더(_shared_build._c99)에 위임.
-
-    예전에는 이 트랙만 전체를 하드코딩해, 공유 빌더의 개선(트랙 전용 %store 키, 정리 확인 셀의
-    '내 트랙 vs 다른 트랙' 구분)이 반영되지 않았다 → 실측으로 오진단 메시지가 나왔다.
-    """
+    """공유 빌더로 정리 노트북을 생성합니다."""
     from _shared_build import _c99
     write("99_cleanup.ipynb", _c99(_flagship_spec()))
 
 
 # ---------------------------------------------------------------------------
-# 04_evaluate — 공유 빌더(_shared_build._c06) 재사용 (중복 방지)
+# 04_evaluate는 공유 빌더를 재사용합니다.
 # ---------------------------------------------------------------------------
 def build_06():
     import sys

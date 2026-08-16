@@ -1,18 +1,6 @@
-"""
-common/model_inspect.py — 로컬 모델 디렉토리 준비 + 서빙 가능 여부 점검
+"""로컬 모델을 준비하고 vLLM 서빙 가능 여부를 검사합니다.
 
-02b_local_serve 노트북이 쓰는 두 가지 일을 담당한다(노트북 셀을 짧게 유지하기 위해 분리):
-  1) prepare_local_model()  — 검증할 로컬 모델 디렉토리를 확보(로컬 산출물 or S3 아티팩트 해제)
-  2) inspect_servability()  — 이 체크포인트가 vLLM으로 뜰 수 있는지 '실제 텐서 키'로 판정
-
-🔴 왜 config만 보고 판단하면 안 되는가 (실측 2026-07-30):
-   gemma-4 E2B/E4B는 num_kv_shared_layers>0이고, transformers는 KV-shared 레이어에
-   k_norm/k_proj/v_proj 모듈을 아예 만들지 않는다("Layers sharing kv states don't need any
-   weight matrices"). 그래서 save_pretrained를 거치면 원본에 있던 그 텐서가 소실된다(E4B 54개).
-   vLLM은 k_norm을 전 레이어에 등록하므로 없으면 'weights not initialized' ValueError로
-   엔진 초기화가 실패한다(vLLM issue #44788).
-   → config의 num_kv_shared_layers 값만으로는 "복원됐는지"를 알 수 없다. 그래서 safetensors
-     헤더에서 키를 직접 읽어 확인한다(가중치는 읽지 않으므로 빠르다).
+KV 공유 텐서 복원 여부는 config만으로 알 수 없으므로 safetensors 헤더의 실제 키를 확인합니다.
 """
 from __future__ import annotations
 
@@ -23,7 +11,7 @@ import struct
 
 
 # ---------------------------------------------------------------------------
-# 1) 체크포인트 키 읽기 (헤더만 — 가중치 로드 없음)
+# 1) 체크포인트 키 읽기
 # ---------------------------------------------------------------------------
 def checkpoint_keys(model_dir: str) -> set[str]:
     """모델 디렉토리의 텐서 키 집합. 샤딩(index.json)과 단일 파일 모두 지원.
@@ -61,7 +49,7 @@ def inspect_servability(model_dir: str, *, verbose: bool = True) -> dict:
     Returns dict:
       arch, model_type, is_text_only, kv_shared, n_layers, vllm_ok, missing(list), engine
 
-    engine: 'vllm'(뜬다) | 'transformers'(KV-shared 텐서 누락 → vLLM 거부)
+    engine: 'vllm' 또는 KV 공유 텐서가 누락된 경우 'transformers'
     """
     cfg_path = os.path.join(model_dir, "config.json")
     if not os.path.isfile(cfg_path):
@@ -70,7 +58,7 @@ def inspect_servability(model_dir: str, *, verbose: bool = True) -> dict:
     with open(cfg_path) as f:
         cfg = json.load(f)
 
-    # 🔴 텍스트 서빙이면 model_type이 *_text (예 gemma4_text)라 vision/audio 없이 로드된다.
+    # *_text 모델은 vision과 audio 모듈 없이 로드됩니다.
     model_type = str(cfg.get("model_type", ""))
     is_text_only = model_type.endswith("_text") or "vision_config" not in cfg
 
@@ -80,7 +68,7 @@ def inspect_servability(model_dir: str, *, verbose: bool = True) -> dict:
     missing: list[str] = []
     if kv_shared > 0 and n_layers > 0:
         keys = checkpoint_keys(model_dir)
-        first = n_layers - kv_shared          # E4B: 42-18=24 → 레이어 24~41이 shared
+        first = n_layers - kv_shared          # E4B에서는 레이어 24~41이 공유됩니다.
         missing = [k for k in (
             f"model.layers.{i}.self_attn.{n}.weight"
             for i in range(first, n_layers) for n in ("k_norm", "k_proj", "v_proj")
@@ -110,19 +98,17 @@ def print_servability(info: dict, model_dir: str = "") -> None:
     print("model_type:", info["model_type"])
     print("text-only servable:", info["is_text_only"])
     print(f"num_kv_shared_layers: {info['kv_shared']} / {info['n_layers']} layers"
-          f"  →  vLLM 서빙: " + ("가능 ✅" if info["vllm_ok"] else "불가 🔴"))
+          f"  |  vLLM 서빙: " + ("가능" if info["vllm_ok"] else "불가"))
 
     if info["missing"]:
-        print(f"🔴 KV-shared 텐서 {len(info['missing'])}개 누락 → 이 체크포인트는 vLLM이 거부합니다(#44788).")
-        print(f"   예: {info['missing'][:2]}")
-        print("   해결: 최신 train.py로 다시 학습/re-export → 저장 시 자동 복원됩니다.")
-        print("         (train.py의 _revive_kv_shared_from_base가 base에서 그 텐서를 되살립니다)")
-        print("   🔴 이미 재학습했는데 이 메시지가 보이면, 로컬 캐시가 옛 아티팩트일 수 있습니다")
-        print("      → prepare_local_model(force=True) 로 다시 내려받으세요.")
+        print(f"KV-shared 텐서 {len(info['missing'])}개가 없어 vLLM이 체크포인트를 거부합니다.")
+        print(f"예: {info['missing'][:2]}")
+        print("현재 train.py로 다시 저장하면 base 모델에서 누락된 텐서를 복원합니다.")
+        print("재학습 후에도 같으면 prepare_local_model(force=True)로 캐시를 갱신하세요.")
     elif info["kv_shared"] > 0:
-        print("KV-shared 텐서가 체크포인트에 있습니다 → vLLM으로 서빙됩니다.")
+        print("KV-shared 텐서가 있어 vLLM으로 서빙할 수 있습니다.")
     else:
-        print("KV-sharing 없음(12B/26B/31B) → vLLM으로 서빙됩니다.")
+        print("KV-sharing을 사용하지 않는 모델이므로 vLLM으로 서빙할 수 있습니다.")
 
 
 # ---------------------------------------------------------------------------
@@ -134,16 +120,13 @@ _STAMP = ".source_model_data"   # 이 디렉토리가 어느 S3 아티팩트에�
 def prepare_local_model(model_data: str | None, region: str, *,
                         local_out: str = "out", cache_dir: str = "local_model",
                         force: bool = False) -> str:
-    """검증에 쓸 로컬 모델 디렉토리를 확보해 경로를 반환한다.
+    """검증에 사용할 로컬 모델 디렉토리를 반환합니다.
 
     우선순위:
-      (A) local_out('out')에 config.json이 있으면 그것을 사용(로컬 dry-run 산출물).
-      (B) 없으면 model_data(S3 아티팩트)를 cache_dir에 내려받아 압축 해제.
+      1) local_out에 config.json이 있으면 로컬 산출물을 사용합니다.
+      2) 없으면 model_data를 cache_dir에 내려받아 압축을 풉니다.
 
-    🔴 캐시 무효화: cache_dir 안에 어떤 아티팩트를 풀었는지 `.source_model_data`로 기록하고,
-       model_data가 달라지면 **자동으로 다시 내려받는다**. 이게 없으면 재학습 후에도 옛 체크포인트를
-       계속 검증하게 되어(실측) "왜 아직 KV-shared 텐서가 없지?" 하는 혼란이 생긴다.
-       force=True면 기록과 무관하게 강제로 다시 받는다.
+    model_data가 바뀌거나 force=True이면 캐시를 다시 만듭니다.
     """
     import shutil
     import tarfile
@@ -156,7 +139,7 @@ def prepare_local_model(model_data: str | None, region: str, *,
     if not (model_data and str(model_data).startswith("s3://")):
         raise ValueError(
             f"로컬 '{local_out}'도 없고 model_data도 유효한 S3 URI가 아닙니다({model_data!r}).\n"
-            "  → 02_train_sft_sagemaker를 먼저 완료하거나, MODEL_DIR을 서빙 가능한 로컬 폴더로 직접 지정하세요.")
+            "02_train_sft_sagemaker를 먼저 완료하거나 MODEL_DIR을 직접 지정하세요.")
 
     import boto3
 
@@ -169,21 +152,20 @@ def prepare_local_model(model_data: str | None, region: str, *,
 
     fresh = os.path.isfile(os.path.join(cache_dir, "config.json"))
     if fresh and not force and prev == model_data:
-        print("로컬 캐시 재사용:", cache_dir)
-        print("  (source:", model_data, ")")
+        print("로컬 캐시 사용:", cache_dir)
+        print("원본:", model_data)
         return cache_dir
 
     if fresh:
         why = "force=True" if force else f"아티팩트가 바뀜\n    이전: {prev}\n    현재: {model_data}"
-        print(f"🔄 캐시를 다시 만듭니다 — {why}")
+        print(f"캐시 재생성: {why}")
         shutil.rmtree(cache_dir, ignore_errors=True)
 
     os.makedirs(cache_dir, exist_ok=True)
     bucket, key = model_data.replace("s3://", "").split("/", 1)
-    # 🔴 tar는 cache_dir '안'에 받는다(밖에 두면 여러 트랙/실행이 같은 파일을 덮어써 혼동이 생김).
-    #    해제 후 지우므로 디스크에 12GB가 두 벌 남지 않는다.
+    # 여러 실행이 같은 파일을 덮어쓰지 않도록 tar 파일도 cache_dir에 저장합니다.
     tar_path = os.path.join(cache_dir, "_model.tar.gz")
-    print(f"downloading {model_data} ...  (수 GB — 처음엔 몇 분 걸립니다)")
+    print(f"다운로드 중: {model_data} (처음에는 몇 분 걸릴 수 있습니다)")
     boto3.client("s3", region_name=region).download_file(bucket, key, tar_path)
     print("압축 해제 중...")
     with tarfile.open(tar_path) as t:
@@ -191,5 +173,5 @@ def prepare_local_model(model_data: str | None, region: str, *,
     os.remove(tar_path)                     # 해제 후 tar 삭제(디스크 절약)
     with open(stamp_path, "w") as f:
         f.write(model_data)
-    print("압축 해제 완료:", cache_dir)
+    print("준비 완료:", cache_dir)
     return cache_dir
