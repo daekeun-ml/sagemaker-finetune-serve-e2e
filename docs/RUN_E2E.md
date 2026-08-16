@@ -1,6 +1,6 @@
 # E2E 실행 가이드: 한 코스를 처음부터 끝까지 완주하기
 
-!!! info "문서 범위"
+!!! info "Scope"
     한 코스를 **클라우드에서 한 번에 완주**하려는 분을 위한 실행 문서입니다.
     - **선행 조건**: AWS 계정, Amazon SageMaker AI 실행 역할, Bedrock 모델 접근 권한이 필요합니다. 설치와 스모크 테스트는 [시작하기](getting_started.md), 기본 개념은 [SageMaker AI 기초](01_sagemaker_basics.md)에서 확인할 수 있습니다.
     - **다루는 내용**: 실행 순서, 단계별 준비물, 단계 간 결과 전달, 비용과 다음 단계로 넘어가기 전 확인 사항입니다.
@@ -97,7 +97,7 @@ USE_MLFLOW=1 MLFLOW_TRACKING_URI=local \
 USE_MLFLOW=1 python pipelines/run_extraction.py --stages all
 ```
 
-관리형 환경은 루트의 `mlflow_setup.ipynb`에서 준비합니다. App을 찾지 못하면 로컬 SQLite로 전환되며, 설정 우선순위와 기록 범위는 [MLflow로 파인튜닝 실험 비교하기](mlflow.md)에 정리돼 있습니다.
+관리형 환경은 루트의 `mlflow_setup.ipynb`에서 준비합니다. App을 찾지 못하면 로컬 SQLite로 전환되며, 설정 우선순위와 기록 범위는 [SageMaker Managed MLflow로 파인튜닝 실험 비교](mlflow.md)에 정리돼 있습니다.
 
 파이프라인의 자세한 사용법은 [`pipelines/README.md`](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e/blob/master/pipelines/README.md)에 있습니다. 아래 절은 **노트북 경로**를 기준으로 설명합니다.
 

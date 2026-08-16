@@ -1,4 +1,7 @@
-# MLflow로 파인튜닝 실험 비교
+# SageMaker Managed MLflow로 파인튜닝 실험 비교
+
+!!! info "Scope"
+    SageMaker Managed MLflow를 중심으로 파인튜닝 실험의 설정, 학습 지표와 평가 결과를 기록하고 비교하는 방법을 다룹니다.
 
 파인튜닝을 한두 번 실행할 때는 터미널 로그와 결과 파일만으로도 충분하지만, 데이터셋, 기반 모델, LoRA 설정, 학습률, 에포크를 바꾸며 여러 번 실행하면 어떤 설정이 현재 점수를 만들었는지 추적하기 어려워집니다. MLflow는 각 실행의 설정, 지표, 결과 위치와 상태를 하나의 `run`으로 묶어 저장하고 비교할 수 있게 합니다.
 
@@ -32,7 +35,7 @@ MLflow가 기록하는 핵심 정보는 다음과 같습니다.
 
 모델 파일 자체는 MLflow에 중복 업로드하지 않습니다. SageMaker가 생성한 모델의 S3 URI만 기록하므로 기존 모델 저장 흐름과 비용 구조를 유지할 수 있습니다.
 
-## 오픈소스 MLflow와의 차이점
+## SageMaker Managed MLflow와 오픈소스 MLflow의 차이점
 
 MLflow 자체는 오픈소스 실험 추적 도구입니다. `mlflow.start_run()`, `mlflow.log_param()`, `mlflow.log_metric()` 같은 클라이언트 API와 MLflow UI는 직접 구축한 서버와 SageMaker 관리형 환경에서 동일하게 사용할 수 있습니다.
 
@@ -53,7 +56,7 @@ SageMaker Managed MLflow에서는 `sagemaker-mlflow` 플러그인이 ARN 형식�
 
 직접 운영하는 MLflow가 더 적합한 경우도 있습니다. AWS 외부 환경과 동일한 서버를 공유해야 하거나, 서버 플러그인과 데이터베이스를 세밀하게 제어해야 하거나, AWS가 지원하지 않는 MLflow 버전과 배포 구성이 필요하면 자체 서버가 더 적합할 수 있습니다.
 
-## MLflow App과 Tracking Server 비교
+## SageMaker MLflow App과 Tracking Server 비교
 
 SageMaker에는 MLflow를 제공하는 두 관리형 리소스가 있습니다. 최신 방식은 MLflow App이며, 기존 방식은 MLflow Tracking Server입니다. AWS는 새로운 워크플로에는 MLflow App 사용을 권장합니다.
 
@@ -159,9 +162,9 @@ MLFLOW_TRACKING_URI=arn:aws:sagemaker:<region>:<account-id>:mlflow-app/app-XXXXX
 
 App ARN의 마지막 값은 사용자가 정한 App 이름이 아니라 AWS가 생성한 ID입니다. ARN을 직접 조립하지 말고 `mlflow_setup.ipynb`나 SageMaker 콘솔에서 조회한 값을 사용하십시오.
 
-## Managed MLflow 사용 순서
+## SageMaker Managed MLflow 사용 순서
 
-Managed MLflow 사용은 최초 설정과 반복 실행으로 나뉩니다. MLflow App 준비와 연결 설정은 처음 한 번 수행하고, 이후 파이프라인을 실행할 때마다 상위 run, 학습 하위 run과 평가 결과가 순서대로 기록됩니다.
+SageMaker Managed MLflow 사용은 최초 설정과 반복 실행으로 나뉩니다. MLflow App 준비와 연결 설정은 처음 한 번 수행하고, 이후 파이프라인을 실행할 때마다 상위 run, 학습 하위 run과 평가 결과가 순서대로 기록됩니다.
 
 ![MLflow App을 준비하고 연결한 뒤 파이프라인 상위 실행, 학습 하위 실행, 평가 결과를 기록하고 UI에서 비교하는 흐름](images/managed-mlflow-workflow.svg)
 

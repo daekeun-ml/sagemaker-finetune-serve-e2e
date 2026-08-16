@@ -43,14 +43,14 @@
                    "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
                    Helvetica, Arial, sans-serif;
     }
-    .title { font-size: 24px; font-weight: 700; }
-    .subtitle { font-size: 13px; fill: var(--muted); }
-    .section-label { font-size: 13px; font-weight: 700; fill: var(--muted); }
-    .box-title { font-size: 17px; font-weight: 700; }
-    .box-body { font-size: 12px; }
-    .box-note { font-size: 11px; fill: var(--muted); }
-    .app-title { font-size: 21px; font-weight: 700; }
-    .chip-text { font-size: 11px; font-weight: 700; }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: var(--muted); }
+    .section-label { font-size: 18px; font-weight: 700; fill: var(--muted); }
+    .box-title { font-size: 22px; font-weight: 700; }
+    .box-body { font-size: 17px; }
+    .box-note { font-size: 15px; fill: var(--muted); }
+    .app-title { font-size: 26px; font-weight: 700; }
+    .chip-text { font-size: 14px; font-weight: 700; }
     .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
     .source { fill: var(--source-fill); stroke: var(--source-stroke); stroke-width: 2; }
     .client { fill: var(--client-fill); stroke: var(--client-stroke); stroke-width: 2; }
@@ -80,7 +80,7 @@
 
   <rect class="source" x="620" y="153" width="450" height="94" rx="12"/>
   <text class="text box-title" x="845" y="181" text-anchor="middle">SageMaker 학습 작업</text>
-  <text class="text box-body" x="845" y="205" text-anchor="middle">학습 파라미터, 손실, 처리량, 시스템 지표</text>
+  <text class="text box-body" x="845" y="205" text-anchor="middle">파라미터, 손실, 처리량, 시스템 지표</text>
   <text class="text box-note" x="845" y="227" text-anchor="middle">상위 실행 ID로 파이프라인 기록과 연결</text>
 
   <path class="flow" d="M600 275 V307" marker-end="url(#arrow)"/>
@@ -114,13 +114,13 @@
 
   <rect class="output" x="130" y="684" width="280" height="88" rx="12"/>
   <text class="text box-title" x="270" y="716" text-anchor="middle">MLflow UI</text>
-  <text class="text box-body" x="270" y="743" text-anchor="middle">실험 검색, 실행 비교, 상세 조회</text>
+  <text class="text box-body" x="270" y="743" text-anchor="middle">실험 검색과 실행 비교</text>
 
   <rect class="output" x="460" y="684" width="280" height="88" rx="12"/>
   <text class="text box-title" x="600" y="716" text-anchor="middle">관리형 메타데이터</text>
-  <text class="text box-body" x="600" y="743" text-anchor="middle">실행, 파라미터, 지표, 태그</text>
+  <text class="text box-body" x="600" y="743" text-anchor="middle">파라미터, 지표와 태그</text>
 
   <rect class="output" x="790" y="684" width="280" height="88" rx="12"/>
   <text class="text box-title" x="930" y="716" text-anchor="middle">사용자 S3 버킷</text>
-  <text class="text box-body" x="930" y="743" text-anchor="middle">평가 결과, 리포트, 아티팩트</text>
+  <text class="text box-body" x="930" y="743" text-anchor="middle">평가 결과와 아티팩트</text>
 </svg>

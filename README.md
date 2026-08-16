@@ -80,7 +80,7 @@ python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
 
 - **처음이라면:** [`docs/getting_started.md`](docs/getting_started.md)에서 설치, 스모크 테스트, 로컬 dry-run, 노트북 실행 순서를 확인하세요.
 - **설정을 바꾸려면:** [`config.yaml`](config.yaml)에서 모델 크기, 인스턴스, 서빙 엔진을 변경하세요.
-- **실험 추적이 필요하면:** [`docs/mlflow.md`](docs/mlflow.md)에서 로컬 SQLite와 Managed MLflow 설정을 확인하세요.
+- **실험 추적이 필요하면:** [`docs/mlflow.md`](docs/mlflow.md)에서 로컬 SQLite와 SageMaker Managed MLflow 설정을 확인하세요.
 - **SDK v2에서 옮겨 왔다면:** [SageMaker Python SDK V3](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/sdk_v3/)에서 차이를 확인하세요.
 
 ---

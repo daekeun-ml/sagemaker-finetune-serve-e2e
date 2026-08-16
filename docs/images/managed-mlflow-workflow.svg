@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
-  <title id="title">Managed MLflow 사용 흐름</title>
+  <title id="title">SageMaker Managed MLflow 사용 흐름</title>
   <desc id="desc">MLflow App 준비와 연결 설정은 처음 한 번 수행하고, 파이프라인 실행마다 상위 실행, 학습 하위 실행, 평가 결과를 기록한 뒤 UI에서 비교합니다.</desc>
 
   <style>
@@ -39,19 +39,19 @@
                    "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
                    Helvetica, Arial, sans-serif;
     }
-    .title { font-size: 24px; font-weight: 700; }
-    .subtitle { font-size: 13px; fill: var(--muted); }
-    .section-label { font-size: 13px; font-weight: 700; fill: var(--muted); }
-    .card-title { font-size: 16px; font-weight: 700; }
-    .card-body { font-size: 12px; }
-    .card-note { font-size: 11px; fill: var(--muted); }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: var(--muted); }
+    .section-label { font-size: 18px; font-weight: 700; fill: var(--muted); }
+    .card-title { font-size: 21px; font-weight: 700; }
+    .card-body { font-size: 18px; }
+    .card-note { font-size: 16px; fill: var(--muted); }
     .mono {
-      font-size: 12px;
+      font-size: 17px;
       font-family: SFMono-Regular, Consolas, Menlo, monospace;
     }
     .step-number {
       fill: var(--number-fg);
-      font-size: 12px;
+      font-size: 16px;
       font-weight: 700;
     }
     .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
@@ -71,7 +71,7 @@
     </marker>
   </defs>
 
-  <text class="text title" x="600" y="46" text-anchor="middle">Managed MLflow 사용 흐름</text>
+  <text class="text title" x="600" y="46" text-anchor="middle">SageMaker Managed MLflow 사용 흐름</text>
   <text class="text subtitle" x="600" y="74" text-anchor="middle">최초 한 번 연결한 뒤 파이프라인 실행마다 실험 기록이 쌓입니다</text>
 
   <rect class="panel" x="100" y="104" width="1000" height="176" rx="16"/>
@@ -102,8 +102,8 @@
   <circle class="run-number" cx="97" cy="420" r="15"/>
   <text class="text step-number" x="97" y="425" text-anchor="middle">3</text>
   <text class="text card-title" x="190" y="425" text-anchor="middle">상위 실행 시작</text>
-  <text class="text card-body" x="190" y="461" text-anchor="middle">파이프라인 설정과 단계 상태</text>
-  <text class="text card-note" x="190" y="486" text-anchor="middle">AWS 리소스 위치 기록</text>
+  <text class="text card-body" x="190" y="461" text-anchor="middle">설정과 단계 상태</text>
+  <text class="text card-note" x="190" y="486" text-anchor="middle">AWS 리소스 기록</text>
 
   <path class="flow" d="M310 467 H338" marker-end="url(#arrow)"/>
 
@@ -129,6 +129,6 @@
   <circle class="compare-number" cx="937" cy="420" r="15"/>
   <text class="text step-number" x="937" y="425" text-anchor="middle">6</text>
   <text class="text card-title" x="1030" y="425" text-anchor="middle">UI에서 비교</text>
-  <text class="text card-body" x="1030" y="461" text-anchor="middle">설정, 점수, 학습 지표 비교</text>
-  <text class="text card-note" x="1030" y="486" text-anchor="middle">선택한 모델 S3 URI 확인</text>
+  <text class="text card-body" x="1030" y="461" text-anchor="middle">설정과 지표 비교</text>
+  <text class="text card-note" x="1030" y="486" text-anchor="middle">모델 S3 URI 확인</text>
 </svg>

@@ -78,7 +78,7 @@ nav:
       - 04 SageMaker AI 추론: 04_sagemaker_inference.md
       - 05 서빙 컨테이너: 05_serving_containers.md
       - 06 Agentic loop: 06_agentic.md
-  - 태스크별 실습 코스:
+  - 유스케이스별 실습 코스:
       - 추출 → JSON: courses/extraction.md
       - 분류: courses/classification.md
       - 요약: courses/summarization.md
@@ -88,7 +88,7 @@ nav:
       - 노트북으로 완주 (JupyterLab): RUN_E2E.md
       - 스크립트로 실행 (Python): pipelines.md
   - 실험 관리와 측정:
-      - 실험 추적 (MLflow): mlflow.md
+      - 실험 추적 (SageMaker Managed MLflow): mlflow.md
       - 속도 측정 (TTFT, TPOT, ITL): benchmark.md
   - SageMaker SDK V3:
       - V2에서 바뀐 것: sdk_v3/index.md
