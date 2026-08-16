@@ -381,9 +381,9 @@ HF 토큰은 env보다 `hf auth login`(파일 저장)을 권장합니다. `confi
 | [04 SageMaker AI 추론](04_sagemaker_inference.md) `[CORE]` | 추론 4옵션, endpoint 3층 구조와 호출(sagemaker-runtime), 서빙 컨테이너, DLC 이미지 | `03_deploy_endpoint` | `common/aws_utils.py`, `common/dlc.py` |
 | [05 서빙 컨테이너](05_serving_containers.md) | vLLM / SGLang / DJL LMI 비교, KV-shared 복원, OOM, 절단 대응 | `03_deploy_endpoint`, `02b_local_serve` | `common/dlc.py`, `common/model_inspect.py` |
 | [06 Agentic loop](06_agentic.md) | Strands(Bedrock reasoning + SLM tool) → AgentCore Runtime | `05_agentic_strands`, `06_agentcore_deploy` | `agentcore/app.py`, `common/llm_gateway.py` |
-| [속도 측정](benchmark.md) | TTFT/TPOT/ITL/E2EL을 `vllm bench serve` 규약으로. Inference Recommender는 토큰 단위 지표를 주지 않습니다 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
-| [실험 추적 (MLflow)](mlflow.md) | 파이프라인 설정과 평가 결과를 Managed MLflow 또는 로컬 SQLite에 기록 | 배포 전후 | `common/mlflow_utils.py` |
 | [E2E 실행 가이드](RUN_E2E.md) | 단계별 핸드오프, 비용 안내, 완료 기준 | 전 단계 | - |
+| [실험 추적 (MLflow)](mlflow.md) | 파이프라인 설정과 평가 결과를 Managed MLflow 또는 로컬 SQLite에 기록 | 학습과 평가 | `common/mlflow_utils.py` |
+| [속도 측정](benchmark.md) | TTFT/TPOT/ITL/E2EL을 `vllm bench serve` 규약으로. Inference Recommender는 토큰 단위 지표를 주지 않습니다 | 배포 이후(노트북에는 없음) | `pipelines/run_benchmark.py` |
 | [SDK V3](sdk_v3/index.md) | V2→V3 매핑, metapackage 4레이어, 마이그레이션 함정 | 전 단계 | `sagemaker` 3.16.0 |
 
 위 표의 가이드는 **주제별**(데이터, 학습, 배포, 에이전트)이라 5개 코스에 공통으로 적용됩니다. **코스별**로 무엇이 다른지는 코스 문서 5개가 따로 다루며, [5개 독립 코스와 공통 레이어](#5개-독립-코스와-공통-레이어)의 표에서 연결됩니다.

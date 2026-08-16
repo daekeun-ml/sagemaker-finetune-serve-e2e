@@ -1,97 +1,126 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 790" role="img" aria-labelledby="title desc">
-  <title id="title">SageMaker Managed MLflow architecture</title>
-  <desc id="desc">Clients connect through the MLflow client and AWS plugin to managed MLflow resources, S3, Model Registry, and endpoints.</desc>
-  <rect width="1200" height="790" fill="#0f1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 840" role="img" aria-labelledby="title desc">
+  <title id="title">SageMaker Managed MLflow 구성</title>
+  <desc id="desc">파이프라인과 SageMaker 학습 작업이 인증된 MLflow 클라이언트를 통해 MLflow App에 실험을 기록하고, 사용자는 UI와 관리형 메타데이터, S3 아티팩트를 조회합니다.</desc>
 
-  <text x="600" y="42" fill="#f8fafc" font-family="Courier New, monospace" font-size="20" font-weight="700" text-anchor="middle">SageMaker Managed MLflow architecture</text>
-  <text x="600" y="66" fill="#94a3b8" font-family="Courier New, monospace" font-size="11" text-anchor="middle">Studio provides access; SageMaker AI manages the MLflow resource</text>
-
-  <rect x="40" y="88" width="1120" height="130" rx="8" fill="#151923" stroke="#475569" stroke-width="1.5"/>
-  <text x="62" y="112" fill="#94a3b8" font-family="Courier New, monospace" font-size="11" font-weight="700">WORK SURFACES AND CLIENTS</text>
-
-  <rect x="70" y="130" width="300" height="64" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
-  <text x="220" y="155" fill="#93c5fd" font-family="Courier New, monospace" font-size="13" font-weight="700" text-anchor="middle">SageMaker AI Studio</text>
-  <text x="220" y="176" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Create/manage App | Open MLflow UI</text>
-
-  <rect x="450" y="130" width="300" height="64" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
-  <text x="600" y="155" fill="#93c5fd" font-family="Courier New, monospace" font-size="13" font-weight="700" text-anchor="middle">SageMaker Unified Studio</text>
-  <text x="600" y="176" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Connect existing App | Project role</text>
-
-  <rect x="830" y="130" width="300" height="64" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
-  <text x="980" y="155" fill="#93c5fd" font-family="Courier New, monospace" font-size="13" font-weight="700" text-anchor="middle">Local / Training / CI</text>
-  <text x="980" y="176" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Notebook | Job | Pipeline | Application</text>
-
-  <path d="M220 194 V248 H480" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
-  <path d="M600 194 V248" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
-  <path d="M980 194 V248 H720" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
-
-  <rect x="350" y="248" width="500" height="88" rx="8" fill="#2d1b4e" stroke="#a78bfa" stroke-width="2"/>
-  <text x="600" y="276" fill="#c4b5fd" font-family="Courier New, monospace" font-size="14" font-weight="700" text-anchor="middle">MLflow Python client + sagemaker-mlflow</text>
-  <text x="600" y="299" fill="#e2e8f0" font-family="Courier New, monospace" font-size="11" text-anchor="middle">Tracking URI = SageMaker MLflow ARN</text>
-  <text x="600" y="319" fill="#94a3b8" font-family="Courier New, monospace" font-size="10" text-anchor="middle">boto3 credentials | IAM authorization | SigV4 signing</text>
-
-  <rect x="150" y="382" width="900" height="220" rx="8" fill="#151923" stroke="#10b981" stroke-width="2"/>
-  <text x="174" y="410" fill="#6ee7b7" font-family="Courier New, monospace" font-size="12" font-weight="700">SAGEMAKER AI MANAGED MLFLOW RESOURCES</text>
-
-  <path d="M600 336 V424 H390 V442" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow-purple)"/>
-  <path d="M600 336 V424 H810 V442" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow-purple)"/>
-
-  <rect x="210" y="442" width="360" height="112" rx="8" fill="#0f2d1e" stroke="#10b981" stroke-width="2.5"/>
-  <text x="390" y="470" fill="#6ee7b7" font-family="Courier New, monospace" font-size="15" font-weight="700" text-anchor="middle">MLflow App</text>
-  <text x="390" y="493" fill="#e2e8f0" font-family="Courier New, monospace" font-size="11" text-anchor="middle">Tracking server role | No size to pick | Auto update</text>
-  <rect x="310" y="512" width="160" height="24" rx="5" fill="#064e3b" stroke="#34d399"/>
-  <text x="390" y="528" fill="#a7f3d0" font-family="Courier New, monospace" font-size="10" font-weight="700" text-anchor="middle">RECOMMENDED</text>
-
-  <rect x="630" y="442" width="360" height="112" rx="8" fill="#3b1f1f" stroke="#fb923c" stroke-width="2"/>
-  <text x="810" y="470" fill="#fed7aa" font-family="Courier New, monospace" font-size="15" font-weight="700" text-anchor="middle">MLflow Tracking Server</text>
-  <text x="810" y="493" fill="#e2e8f0" font-family="Courier New, monospace" font-size="11" text-anchor="middle">Provisioned size | Start/stop | Legacy offering</text>
-  <rect x="730" y="512" width="160" height="24" rx="5" fill="#431407" stroke="#fb923c"/>
-  <text x="810" y="528" fill="#fed7aa" font-family="Courier New, monospace" font-size="10" font-weight="700" text-anchor="middle">EXISTING WORKLOADS</text>
-
-  <text x="600" y="582" fill="#94a3b8" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Managed compute and backend metadata stay inside the SageMaker AI service boundary</text>
-
-  <path d="M390 554 V632 H165 V650" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <path d="M390 554 V618 H455 V650" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <path d="M390 554 V606 H745 V650" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <path d="M810 554 V632 H165 V650" fill="none" stroke="#fb923c" stroke-width="1.8" marker-end="url(#arrow-orange)"/>
-  <path d="M810 554 V618 H455 V650" fill="none" stroke="#fb923c" stroke-width="1.8" marker-end="url(#arrow-orange)"/>
-  <path d="M810 554 V632 H780 V650" fill="none" stroke="#fb923c" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#arrow-orange)"/>
-
-  <rect x="55" y="650" width="220" height="82" rx="8" fill="#1c2d20" stroke="#34d399" stroke-width="2"/>
-  <text x="165" y="679" fill="#6ee7b7" font-family="Courier New, monospace" font-size="12" font-weight="700" text-anchor="middle">Managed metadata</text>
-  <text x="165" y="700" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Experiments | Runs | Metrics</text>
-  <text x="165" y="717" fill="#94a3b8" font-family="Courier New, monospace" font-size="9" text-anchor="middle">Operated by SageMaker AI</text>
-
-  <rect x="345" y="650" width="220" height="82" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
-  <text x="455" y="679" fill="#e2e8f0" font-family="Courier New, monospace" font-size="12" font-weight="700" text-anchor="middle">Customer Amazon S3</text>
-  <text x="455" y="700" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Models | Charts | Reports</text>
-  <text x="455" y="717" fill="#94a3b8" font-family="Courier New, monospace" font-size="9" text-anchor="middle">Customer account and policies</text>
-
-  <rect x="635" y="650" width="220" height="82" rx="8" fill="#2d1b4e" stroke="#a78bfa" stroke-width="2"/>
-  <text x="745" y="679" fill="#c4b5fd" font-family="Courier New, monospace" font-size="12" font-weight="700" text-anchor="middle">Model Registry</text>
-  <text x="745" y="700" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">Opt-in model sync</text>
-  <text x="745" y="717" fill="#94a3b8" font-family="Courier New, monospace" font-size="9" text-anchor="middle">Support varies by resource/version</text>
-
-  <path d="M855 691 H925" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow-purple)"/>
-  <rect x="925" y="650" width="220" height="82" rx="8" fill="#0f2d1e" stroke="#10b981" stroke-width="2"/>
-  <text x="1035" y="679" fill="#6ee7b7" font-family="Courier New, monospace" font-size="12" font-weight="700" text-anchor="middle">SageMaker endpoint</text>
-  <text x="1035" y="700" fill="#cbd5e1" font-family="Courier New, monospace" font-size="10" text-anchor="middle">ModelBuilder / deployment</text>
-  <text x="1035" y="717" fill="#94a3b8" font-family="Courier New, monospace" font-size="9" text-anchor="middle">Separate compute charges apply</text>
-
-  <text x="600" y="766" fill="#64748b" font-family="Courier New, monospace" font-size="9" text-anchor="middle">Solid arrows show the main API and artifact flow.</text>
+  <style>
+    :root {
+      --fg: #202124;
+      --muted: #5f6368;
+      --panel-fill: #f8f9fa;
+      --panel-stroke: #adb5bd;
+      --source-fill: #e7f0ff;
+      --source-stroke: #4c6ef5;
+      --client-fill: #f3e8ff;
+      --client-stroke: #7c3aed;
+      --app-fill: #d3f9d8;
+      --app-stroke: #2f9e44;
+      --chip-fill: #ebfbee;
+      --output-fill: #e7f0ff;
+      --output-stroke: #4c6ef5;
+      --arrow: #4c6ef5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --muted: #a8b2c1;
+        --panel-fill: #172033;
+        --panel-stroke: #475569;
+        --source-fill: #1d2d5a;
+        --source-stroke: #60a5fa;
+        --client-fill: #352154;
+        --client-stroke: #a78bfa;
+        --app-fill: #0d3b30;
+        --app-stroke: #34d399;
+        --chip-fill: #065f46;
+        --output-fill: #1d2d5a;
+        --output-stroke: #60a5fa;
+        --arrow: #60a5fa;
+      }
+    }
+    .text {
+      fill: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+                   Helvetica, Arial, sans-serif;
+    }
+    .title { font-size: 24px; font-weight: 700; }
+    .subtitle { font-size: 13px; fill: var(--muted); }
+    .section-label { font-size: 13px; font-weight: 700; fill: var(--muted); }
+    .box-title { font-size: 17px; font-weight: 700; }
+    .box-body { font-size: 12px; }
+    .box-note { font-size: 11px; fill: var(--muted); }
+    .app-title { font-size: 21px; font-weight: 700; }
+    .chip-text { font-size: 11px; font-weight: 700; }
+    .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
+    .source { fill: var(--source-fill); stroke: var(--source-stroke); stroke-width: 2; }
+    .client { fill: var(--client-fill); stroke: var(--client-stroke); stroke-width: 2; }
+    .app { fill: var(--app-fill); stroke: var(--app-stroke); stroke-width: 2.5; }
+    .chip { fill: var(--chip-fill); stroke: var(--app-stroke); stroke-width: 1.2; }
+    .output { fill: var(--output-fill); stroke: var(--output-stroke); stroke-width: 2; }
+    .flow { fill: none; stroke: var(--arrow); stroke-width: 3; }
+    .arrow-head { fill: var(--arrow); }
+  </style>
 
   <defs>
-    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6"/>
-    </marker>
-    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#a78bfa"/>
-    </marker>
-    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#10b981"/>
-    </marker>
-    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#fb923c"/>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path class="arrow-head" d="M0 0 L12 6 L0 12 Z"/>
     </marker>
   </defs>
+
+  <text class="text title" x="600" y="46" text-anchor="middle">SageMaker Managed MLflow 구성</text>
+  <text class="text subtitle" x="600" y="74" text-anchor="middle">파이프라인과 학습 작업의 기록을 하나의 MLflow App에서 관리합니다</text>
+
+  <rect class="panel" x="100" y="105" width="1000" height="170" rx="16"/>
+  <text class="text section-label" x="128" y="135">실험 실행</text>
+
+  <rect class="source" x="130" y="153" width="450" height="94" rx="12"/>
+  <text class="text box-title" x="355" y="181" text-anchor="middle">파이프라인</text>
+  <text class="text box-body" x="355" y="205" text-anchor="middle">데이터, 학습, 배포, 평가</text>
+  <text class="text box-note" x="355" y="227" text-anchor="middle">설정, 단계 상태, 평가 점수 기록</text>
+
+  <rect class="source" x="620" y="153" width="450" height="94" rx="12"/>
+  <text class="text box-title" x="845" y="181" text-anchor="middle">SageMaker 학습 작업</text>
+  <text class="text box-body" x="845" y="205" text-anchor="middle">학습 파라미터, 손실, 처리량, 시스템 지표</text>
+  <text class="text box-note" x="845" y="227" text-anchor="middle">상위 실행 ID로 파이프라인 기록과 연결</text>
+
+  <path class="flow" d="M600 275 V307" marker-end="url(#arrow)"/>
+
+  <rect class="client" x="230" y="318" width="740" height="82" rx="14"/>
+  <text class="text box-title" x="600" y="350" text-anchor="middle">MLflow 클라이언트와 sagemaker-mlflow</text>
+  <text class="text box-body" x="600" y="377" text-anchor="middle">App ARN, IAM 권한, SigV4 서명</text>
+
+  <path class="flow" d="M600 400 V432" marker-end="url(#arrow)"/>
+
+  <rect class="app" x="300" y="443" width="600" height="150" rx="16"/>
+  <text class="text app-title" x="600" y="480" text-anchor="middle">SageMaker MLflow App</text>
+  <text class="text box-body" x="600" y="506" text-anchor="middle">실험과 실행을 한곳에서 관리</text>
+
+  <rect class="chip" x="340" y="532" width="120" height="34" rx="17"/>
+  <text class="text chip-text" x="400" y="554" text-anchor="middle">상위 실행</text>
+
+  <rect class="chip" x="473" y="532" width="120" height="34" rx="17"/>
+  <text class="text chip-text" x="533" y="554" text-anchor="middle">학습 하위 실행</text>
+
+  <rect class="chip" x="606" y="532" width="120" height="34" rx="17"/>
+  <text class="text chip-text" x="666" y="554" text-anchor="middle">파라미터와 지표</text>
+
+  <rect class="chip" x="739" y="532" width="120" height="34" rx="17"/>
+  <text class="text chip-text" x="799" y="554" text-anchor="middle">태그와 상태</text>
+
+  <path class="flow" d="M600 593 V625" marker-end="url(#arrow)"/>
+
+  <rect class="panel" x="100" y="636" width="1000" height="164" rx="16"/>
+  <text class="text section-label" x="128" y="666">저장 및 조회</text>
+
+  <rect class="output" x="130" y="684" width="280" height="88" rx="12"/>
+  <text class="text box-title" x="270" y="716" text-anchor="middle">MLflow UI</text>
+  <text class="text box-body" x="270" y="743" text-anchor="middle">실험 검색, 실행 비교, 상세 조회</text>
+
+  <rect class="output" x="460" y="684" width="280" height="88" rx="12"/>
+  <text class="text box-title" x="600" y="716" text-anchor="middle">관리형 메타데이터</text>
+  <text class="text box-body" x="600" y="743" text-anchor="middle">실행, 파라미터, 지표, 태그</text>
+
+  <rect class="output" x="790" y="684" width="280" height="88" rx="12"/>
+  <text class="text box-title" x="930" y="716" text-anchor="middle">사용자 S3 버킷</text>
+  <text class="text box-body" x="930" y="743" text-anchor="middle">평가 결과, 리포트, 아티팩트</text>
 </svg>

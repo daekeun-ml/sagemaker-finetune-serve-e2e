@@ -1,6 +1,6 @@
 # SageMaker AI Fine-tuning & Serving E2E
 
-[Quick start](#quick-start) | [Courses](#courses) | [Why this kit](#why-this-kit) | [Setup](#setup) | [Docs](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/) | [Cost & cleanup](#cost--cleanup)
+[Quick start](#quick-start) | [Courses](#courses) | [Why this kit](#why-this-kit) | [Docs](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/)
 
 Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 생성부터 파인튜닝, 서빙, 평가, 에이전트 연계까지** 다루는 한국어 실습 자료입니다.
 **태스크별 실습 코스** 5개가 각각 독립된 E2E로 동작하므로, 필요한 태스크 하나만 골라 처음부터 끝까지 돌릴 수 있습니다.
@@ -15,7 +15,25 @@ SageMaker AI가 처음이어도 읽을 수 있도록 개념부터 시작하고, 
 
 ## Quick start
 
-### 1) 설치
+### Requirements
+
+<details>
+<summary><b>준비 사항 8가지 펼쳐 보기</b></summary>
+
+| Item | Notes |
+|---|---|
+| AWS 계정 | SageMaker AI 학습 작업과 엔드포인트를 만들 수 있는 계정 (과금 발생) |
+| IAM 실행 역할 | `AmazonSageMaker-ExecutionRole-*` 또는 동급 권한. 없으면 코드가 IAM에서 자동 탐지 |
+| 서비스 쿼터 | 학습과 추론용 GPU 인스턴스 (기본 `ml.g6.2xlarge`). 신규 계정은 **쿼터가 0일 수 있어 미리 증설 신청**이 필요합니다 |
+| 리전 | `.env`의 `AWS_REGION`. GPU 용량과 Bedrock 모델 가용성이 리전마다 다릅니다. 리전을 바꾸면 이미지 URI의 리전도 함께 바꾸세요 |
+| Bedrock 모델 접근 | 합성 데이터 생성과 LLM-as-judge 평가에 Claude를 사용하므로 콘솔에서 모델 접근 권한을 설정해야 합니다 |
+| Python | 3.10 이상 (로컬은 노트북 실행용. 학습은 컨테이너 안에서 돕니다) |
+| 로컬 GPU | 선택. 있으면 학습 스크립트를 `--dry_run`으로 실행해 클라우드 제출 전에 검증할 수 있습니다 |
+| HF 토큰 | Gemma 4는 ungated라 불필요. gated 모델(Gemma 3 등)을 쓸 때만 `hf auth login` |
+
+</details>
+
+### 1) 설치와 설정
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh    # uv 미설치 시
@@ -24,19 +42,23 @@ cd sagemaker-finetune-serve-e2e
 uv sync && source .venv/bin/activate
 ```
 
-AWS 자격증명과 리전이 설정돼 있어야 합니다(`aws configure` 또는 환경변수). Gemma 4는 ungated라 HF 토큰이 필요 없습니다.
+AWS 자격증명을 설정하고 필요하면 `.env`의 `AWS_REGION`을 바꿉니다. 모델 크기, 인스턴스와 서빙 엔진은 [`config.yaml`](config.yaml)에서 변경합니다. Gemma 4는 HF 토큰이 필요 없습니다.
 
-### 2) 과금 없이 먼저 확인
+### 2) dry-run
 
 ```bash
 python pipelines/run_extraction.py --stages all --dry-run
 ```
 
-몇 초 안에 끝나며 **과금 리소스나 유료 API 호출을 만들지 않습니다.** 학습 작업, 엔드포인트, Bedrock 호출을 생략하므로 AWS 자격증명이 없어도 전 경로를 확인할 수 있습니다.
+AWS 리소스를 만들거나 Bedrock을 호출하지 않고 실행 흐름만 확인합니다.
 
 ### 3) 실제로 돌리기: 두 가지 방법
 
-**스크립트 (Python)**: 검증된 코스를 다시 돌릴 때, CI, 무인 실행
+**노트북 (JupyterLab)**: 처음 배울 때, 중간 산출물을 눈으로 볼 때
+
+`tracks/01_extraction_to_json/`을 열어 `00_setup.ipynb`부터 번호 순서대로 실행합니다. 단계별 핸드오프와 비용 가드는 [`docs/RUN_E2E.md`](docs/RUN_E2E.md)에 있습니다.
+
+**스크립트 (Python)**: 검증된 코스를 다시 돌릴 때
 
 ```bash
 python pipelines/run_extraction.py --stages all       # 데이터, 학습, 배포, 평가
@@ -50,14 +72,6 @@ python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
 
 코스별 지원 단계, 중단 후 재개, 상태 파일과 `--force` 사용법은 [`pipelines/README.md`](pipelines/README.md)에서 확인할 수 있습니다.
 
-**노트북 (JupyterLab)**: 처음 배울 때, 중간 산출물을 눈으로 볼 때
-
-```bash
-jupyter lab
-```
-
-`tracks/01_extraction_to_json/`을 열어 `00_setup.ipynb`부터 번호 순서대로 실행합니다. 단계별 핸드오프와 비용 가드는 [`docs/RUN_E2E.md`](docs/RUN_E2E.md)에 있습니다.
-
 > [!WARNING]
 > **실시간 엔드포인트는 삭제할 때까지 시간당 과금됩니다.** 요청이 없어도 인스턴스 비용이 발생합니다.
 > 실습을 마치면 `cleanup` 단계나 `99_cleanup.ipynb`를 **반드시** 실행하세요.
@@ -66,6 +80,7 @@ jupyter lab
 
 - **처음이라면:** [`docs/getting_started.md`](docs/getting_started.md)에서 설치, 스모크 테스트, 로컬 dry-run, 노트북 실행 순서를 확인하세요.
 - **설정을 바꾸려면:** [`config.yaml`](config.yaml)에서 모델 크기, 인스턴스, 서빙 엔진을 변경하세요.
+- **실험 추적이 필요하면:** [`docs/mlflow.md`](docs/mlflow.md)에서 로컬 SQLite와 Managed MLflow 설정을 확인하세요.
 - **SDK v2에서 옮겨 왔다면:** [SageMaker Python SDK V3](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/sdk_v3/)에서 차이를 확인하세요.
 
 ---
@@ -86,31 +101,10 @@ jupyter lab
 - 관리형 레시피가 **이미 지원하는 조합**이라면 SageMaker AI model customization 또는 SageMaker Recipes가 운영 부담이 적습니다.
 - 멀티노드 대규모 사전학습은 SageMaker HyperPod 영역입니다. 이 자료는 단일 GPU LoRA/QLoRA를 기준으로 합니다.
 
-전제 지식은 Python과 Jupyter 사용 경험 정도면 충분합니다. SageMaker AI와 Bedrock 개념은 노트북에서 설명합니다.
-
-## Requirements
-
-<details>
-<summary><b>준비 사항 8가지 펼쳐 보기</b></summary>
-
-| Item | Notes |
-|---|---|
-| AWS 계정 | SageMaker AI 학습 작업과 엔드포인트를 만들 수 있는 계정 (과금 발생) |
-| IAM 실행 역할 | `AmazonSageMaker-ExecutionRole-*` 또는 동급 권한. 없으면 코드가 IAM에서 자동 탐지 |
-| 서비스 쿼터 | 학습과 추론용 GPU 인스턴스 (기본 `ml.g6.2xlarge`). 신규 계정은 **쿼터가 0일 수 있어 미리 증설 신청**이 필요합니다 |
-| 리전 | `.env`의 `AWS_REGION`. GPU 용량과 Bedrock 모델 가용성이 리전마다 다릅니다. 리전을 바꾸면 이미지 URI의 리전도 함께 바꾸세요 |
-| Bedrock 모델 접근 | 합성 데이터 생성과 LLM-as-judge 평가에 Claude를 사용하므로 콘솔에서 모델 접근 권한을 설정해야 합니다 |
-| Python | 3.10 이상 (로컬은 노트북 실행용. 학습은 컨테이너 안에서 돕니다) |
-| 로컬 GPU | 선택. 있으면 학습 스크립트를 `--dry_run`으로 실행해 클라우드 제출 전에 검증할 수 있습니다 |
-| HF 토큰 | Gemma 4는 ungated라 불필요. gated 모델(Gemma 3 등)을 쓸 때만 `hf auth login` |
-
-</details>
 
 ## Why this kit
 
-**"SageMaker AI가 Gemma 4를 지원하지 않나?"** 지원합니다. 다만 **안 되는 조합이 꽤 있습니다.**
-
-AWS 관리형 방식(JumpStart, model customization, Recipes)은 지원 모델, 기법, 리전이 정해져 있고 같은 모델도 크기에 따라 지원 범위가 다릅니다. 이 자료는 해당 목록에 없는 조합을 다룹니다.
+AWS 관리형 방식은 간단하지만 지원 모델, 학습 기법과 리전이 제한됩니다. 이 저장소는 그 범위를 벗어나거나 학습 코드를 직접 수정해야 할 때 사용하는 커스텀 경로입니다.
 
 | Path | Fine-tuning | Notes |
 |---|---|---|
@@ -119,22 +113,9 @@ AWS 관리형 방식(JumpStart, model customization, Recipes)은 지원 모델, 
 | **SageMaker Recipes** (학습 작업 / HyperPod) | 가능 | 검증된 레시피로 SFT/DPO/GRPO. 지원 모델 목록에 의존 |
 | **이 자료 (BYOC, DLC + 커스텀 스크립트)** | 가능 | 모델, 기법, 하이퍼파라미터를 **직접 제어**. 대신 코드를 관리해야 함 |
 
-<details>
-<summary><b>이 방식을 선택한 이유와 주의점</b></summary>
+커스텀 경로에서는 LoRA 대상, 채팅 템플릿, 보상 함수, 컨테이너와 서빙 엔진을 직접 바꿀 수 있습니다. 대신 모델 저장과 서빙 엔진의 호환성, GPU 메모리와 작업 제한도 직접 관리해야 합니다.
 
-1. **지원 목록에 없는 조합을 쓸 수 있습니다.** AWS 관리형 방식은 지원 모델, 기법, 리전이 정해져 있고 자주 바뀝니다. 원하는 조합이 빠져 있으면 기다리는 수밖에 없습니다.
-2. **학습 코드가 열려 있습니다.** LoRA 대상, 채팅 템플릿, 패킹, 보상 함수까지 읽고 고칠 수 있습니다. 관리형은 노출된 하이퍼파라미터 범위 안에서만 조정됩니다.
-3. **운영 제약이 코드에 반영돼 있습니다.** 컨테이너를 직접 관리하면 AWS가 처리하던 문제도 직접 해결해야 합니다. 이 자료에는 실제 실행에서 확인한 문제와 해결 방법이 포함돼 있습니다.
-
-실행 과정에서 확인한 대표적인 문제는 **`save_pretrained`로 저장한 Gemma 4 E2B/E4B 체크포인트가 vLLM, SGLang과 LMI에서 로드되지 않는 것**입니다. KV-sharing 레이어의 가중치가 저장 과정에서 빠지기 때문입니다. `scripts/train.py`가 저장 직전에 이를 복원하므로 학습 결과를 vLLM으로 서빙할 수 있습니다. 자세한 내용은 [`docs/05_serving_containers.md`](docs/05_serving_containers.md)에서 확인할 수 있습니다.
-
-그 외에도 학습이 끝난 뒤 머지 단계에서 Job이 잘리는 문제, 24GB GPU에서의 서빙 OOM, 응답이 조용히 절단되는 문제 등을 `docs/`에 원인과 함께 정리해 두었습니다.
-
-</details>
-
-> 지원 범위와 리전 가용성은 빠르게 바뀝니다. 위 표는 방향을 잡기 위한 것이고, **실제 선택 전에 최신 문서와 콘솔에서 다시 확인**하세요. AWS 관리형 방식이 이미 지원하는 조합이라면 그쪽이 운영 부담이 적습니다.
-
----
+Gemma 4 KV-sharing 가중치 복원, 24GB GPU OOM과 응답 절단 대응은 코드와 [`서빙 컨테이너 가이드`](docs/05_serving_containers.md)에 반영돼 있습니다. 관리형 방식이 원하는 조합을 지원한다면 해당 방식을 사용하는 편이 단순합니다.
 
 ## What it does
 
@@ -249,71 +230,6 @@ sagemaker-finetune-serve-e2e/
 | `samples/` | 배포 검증용 영수증 2장과 정답 JSON (평가용 분리 데이터, 즉시 로드) |
 
 </details>
-
-## Setup
-
-### 1) 의존성 설치
-
-기본 설치는 위 [Quick start](#quick-start)에 있습니다. 그 외에 알아 둘 것:
-
-```bash
-uv lock --upgrade-package transformers    # 특정 패키지만 최신으로
-```
-
-pip만 쓸 경우: `pip install -r requirements.txt` (같은 floor 핀).
-
-로컬 `transformers` 버전과 SageMaker AI 컨테이너 안의 버전은 **별개**입니다. 컨테이너 쪽은 `tracks/*/scripts/requirements.txt`가 설치하고, 이미지 자체는 `.env`의 `DLC_IMAGE_URI`가 결정합니다.
-
-### 2) 설정과 시크릿
-
-**설정**은 파일에, **시크릿**은 환경변수에 둡니다.
-
-| | 어디에 | 예 |
-|---|---|---|
-| 모델 크기, 인스턴스, 서빙 엔진, 이미지 태그, 샘플 수, epoch | [`config.yaml`](config.yaml) (커밋됨) | `model.size: E4B` |
-| 같은 값들 (노트북 경로) | `.env` (커밋됨, 시크릿 없음) | `TRAIN_INSTANCE_TYPE=...` |
-| HF 토큰, 역할 ARN, 리전 | 환경변수 / 셸 | 아래 참고 |
-
-`config.yaml`에는 각 기본값을 선택한 이유가 주석으로 적혀 있습니다. 반복해서 사용할 설정은 이 파일에서 변경하고, 한 번만 다른 값을 사용하려면 명령 앞에 환경변수를 지정합니다. 같은 설정이 여러 곳에 있으면 셸 환경변수, `.env`, `config.yaml`, 코드 기본값 순서로 적용됩니다.
-
-```bash
-MODEL_SIZE=31B python pipelines/run_extraction.py --stages train
-```
-
-시크릿은 어느 파일에도 넣지 마세요. `config.yaml`에 시크릿 키가 있으면 로더가 경고하고 무시합니다.
-
-```bash
-# HF 토큰: gated 모델(gemma-3/2 등)을 쓸 때만 필요. gemma-4 계열은 불필요
-hf auth login
-
-# SageMaker AI 실행 역할: 비워 두면 IAM에서 자동 탐지
-export SAGEMAKER_ROLE_ARN=arn:aws:iam::<ACCOUNT>:role/<SageMakerRole>
-
-# Bedrock 모델 ID (inference-profile prefix 필수). 기본값은 common/config.py 참고
-export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5
-
-export DRY_RUN=1     # 노트북에서 데이터와 평가 규모 축소
-```
-
-### 3) 실험 추적 (선택)
-
-한 번 실행하고 결과만 확인한다면 기본값인 `USE_MLFLOW=0`을 유지하면 됩니다. 설정을 바꾸며 여러 번 실행하거나 팀에서 결과를 비교하려면 MLflow를 켭니다.
-
-```bash
-# MLflow 없이 실행
-USE_MLFLOW=0 python pipelines/run_extraction.py --stages all
-
-# 로컬 SQLite에 기록
-USE_MLFLOW=1 MLFLOW_TRACKING_URI=local \
-  python pipelines/run_extraction.py --stages all
-
-# 같은 리전의 MLflow App을 이름으로 찾아 기록
-USE_MLFLOW=1 python pipelines/run_extraction.py --stages all
-```
-
-관리형 환경이 필요하면 `mlflow_setup.ipynb`에서 MLflow App을 준비합니다. App을 찾지 못하면 로컬 SQLite로 전환되며, 특정 App이나 기존 Tracking Server를 사용하려면 `MLFLOW_TRACKING_URI`에 ARN을 지정합니다.
-
-추적은 `pipelines/` 실행에만 적용됩니다. 코스 노트북은 반복 실행할 때 불필요한 run이 쌓이지 않도록 자동 기록하지 않습니다. 사용 시점, 오픈소스 MLflow와의 차이, 관리형 환경 설정은 [`docs/mlflow.md`](docs/mlflow.md)에서 확인할 수 있습니다.
 
 ## License
 

@@ -1,10 +1,8 @@
-# MLflow로 파인튜닝 실험 비교하기
+# MLflow로 파인튜닝 실험 비교
 
 파인튜닝을 한두 번 실행할 때는 터미널 로그와 결과 파일만으로도 충분하지만, 데이터셋, 기반 모델, LoRA 설정, 학습률, 에포크를 바꾸며 여러 번 실행하면 어떤 설정이 현재 점수를 만들었는지 추적하기 어려워집니다. MLflow는 각 실행의 설정, 지표, 결과 위치와 상태를 하나의 `run`으로 묶어 저장하고 비교할 수 있게 합니다.
 
-이 저장소에서 MLflow는 학습이나 배포를 수행하지 않습니다. 기존 파이프라인은 그대로 실행되며, MLflow는 실험 기록을 추가하는 선택 기능입니다. 필요하지 않으면 `USE_MLFLOW=0`으로 완전히 끌 수 있습니다.
-
-## 언제 유용한가
+## 활용 시점
 
 MLflow는 다음과 같은 경우에 특히 유용합니다.
 
@@ -16,7 +14,7 @@ MLflow는 다음과 같은 경우에 특히 유용합니다.
 
 반대로 튜토리얼을 한 번 실행하거나 마지막 결과만 확인하면 되는 경우에는 MLflow가 필수는 아닙니다. 이때는 `USE_MLFLOW=0`으로 두면 MLflow 서버 조회, 로컬 데이터베이스 생성, run 기록을 모두 건너뜁니다.
 
-## 왜 필요한가
+## MLflow가 필요한 이유
 
 MLflow가 없으면 실험 정보가 여러 위치에 나뉩니다. 파이프라인 상태 파일에는 최근 실행 상태가 남고, 학습 로그는 CloudWatch에 있으며, 평가 결과는 로컬 파일이나 S3에 저장되고, 모델은 별도 S3 경로에 생성됩니다. 실행 횟수가 늘어날수록 이 정보들을 다시 연결하는 작업이 어려워집니다.
 
@@ -34,7 +32,7 @@ MLflow가 기록하는 핵심 정보는 다음과 같습니다.
 
 모델 파일 자체는 MLflow에 중복 업로드하지 않습니다. SageMaker가 생성한 모델의 S3 URI만 기록하므로 기존 모델 저장 흐름과 비용 구조를 유지할 수 있습니다.
 
-## 오픈소스 MLflow와 무엇이 다른가
+## 오픈소스 MLflow와의 차이점
 
 MLflow 자체는 오픈소스 실험 추적 도구입니다. `mlflow.start_run()`, `mlflow.log_param()`, `mlflow.log_metric()` 같은 클라이언트 API와 MLflow UI는 직접 구축한 서버와 SageMaker 관리형 환경에서 동일하게 사용할 수 있습니다.
 
@@ -55,7 +53,7 @@ SageMaker Managed MLflow에서는 `sagemaker-mlflow` 플러그인이 ARN 형식�
 
 직접 운영하는 MLflow가 더 적합한 경우도 있습니다. AWS 외부 환경과 동일한 서버를 공유해야 하거나, 서버 플러그인과 데이터베이스를 세밀하게 제어해야 하거나, AWS가 지원하지 않는 MLflow 버전과 배포 구성이 필요하면 자체 서버가 더 적합할 수 있습니다.
 
-## MLflow App과 기존 Tracking Server
+## MLflow App과 Tracking Server 비교
 
 SageMaker에는 MLflow를 제공하는 두 관리형 리소스가 있습니다. 최신 방식은 MLflow App이며, 기존 방식은 MLflow Tracking Server입니다. AWS는 새로운 워크플로에는 MLflow App 사용을 권장합니다.
 
@@ -71,30 +69,21 @@ SageMaker에는 MLflow를 제공하는 두 관리형 리소스가 있습니다. 
 
 지원 리전, MLflow 버전, 비용과 서비스 제한은 변경될 수 있으므로 환경을 만들기 전에 AWS 공식 문서를 확인해야 합니다. 특히 MLflow App과 아티팩트 S3 버킷은 같은 리전에 있어야 합니다.
 
-## 이 저장소에서 기록되는 방식
+## 실험 기록 구조
 
 MLflow 기록은 `pipelines/` 아래의 엔드투엔드 파이프라인에 적용됩니다. 코스 노트북을 셀 단위로 실행하는 과정은 자동으로 기록하지 않으며, 루트의 `mlflow_setup.ipynb`는 관리형 MLflow 환경을 준비하는 설정 노트북입니다.
 
-파이프라인을 실행하면 전체 실행을 나타내는 상위 run이 만들어집니다. 상위 run에는 파이프라인 설정, 단계별 상태, 평가 결과, 모델 S3 URI와 엔드포인트 정보가 기록됩니다.
+관리형 MLflow에서는 파이프라인과 SageMaker 학습 작업이 `mlflow`와 `sagemaker-mlflow`를 통해 같은 MLflow App에 기록합니다. App은 실험 메타데이터와 UI를 제공하고, 평가 결과 같은 아티팩트는 사용자 계정의 S3 버킷에 저장합니다.
 
-SageMaker 관리형 학습 작업을 사용하면 학습 컨테이너가 별도의 하위 run을 만듭니다. 하위 run에는 학습 파라미터와 학습 중 수집한 지표가 기록되고, 상위 run ID를 태그로 남겨 두 실행을 연결합니다.
+![파이프라인과 SageMaker 학습 작업이 MLflow 클라이언트와 AWS 인증을 거쳐 MLflow App에 기록하고, 사용자가 UI와 관리형 메타데이터, S3 아티팩트를 조회하는 구성](images/managed-mlflow-architecture.svg)
+
+파이프라인을 실행하면 전체 실행을 나타내는 상위 run이 만들어집니다. 상위 run에는 파이프라인 설정, 단계별 상태, 평가 결과, 모델 S3 URI와 엔드포인트 정보가 기록됩니다. SageMaker 학습 컨테이너는 별도의 하위 run을 만들고 학습 파라미터, 손실, 처리량과 시스템 지표를 기록합니다. 하위 run에는 상위 run ID가 태그로 남으므로 두 기록을 함께 조회할 수 있습니다.
 
 실험 이름은 코스 키를 사용하고, run 이름은 코스 키와 실행 시각을 조합해 자동으로 만듭니다. 사용자가 `MLFLOW_EXPERIMENT_NAME`을 별도로 설정할 필요는 없습니다.
 
-```text
-파이프라인 상위 run
-├── 설정과 단계별 상태
-├── 평가 결과와 모델 S3 URI
-├── SageMaker 작업과 엔드포인트 정보
-└── 관리형 학습 하위 run
-    ├── 학습 파라미터
-    ├── 손실과 처리량
-    └── 시스템 지표
-```
-
 로컬 SQLite 모드에서는 파이프라인 프로세스가 만드는 상위 run만 기록됩니다. SageMaker 학습 컨테이너는 로컬 데이터베이스에 접근할 수 없으므로 학습 하위 run과 스텝별 지표까지 함께 보려면 MLflow App이나 Tracking Server를 사용해야 합니다.
 
-## 어떤 모드를 선택할까
+## 실행 모드 선택
 
 이 저장소는 비활성화, 로컬 SQLite, SageMaker 관리형 MLflow의 세 가지 사용 방식을 지원합니다.
 
@@ -114,9 +103,9 @@ SageMaker 관리형 학습 작업을 사용하면 학습 컨테이너가 별도�
 
 셸에 이미 설정된 환경변수는 `.env`보다 우선합니다. `.env`를 수정했는데 동작이 바뀌지 않으면 `env | grep MLFLOW`로 현재 셸 값을 확인하고, 필요하면 `unset USE_MLFLOW MLFLOW_TRACKING_URI MLFLOW_APP_NAME`을 실행한 뒤 다시 시도하십시오.
 
-## 가장 빠르게 사용하기
+## 빠른 시작
 
-### MLflow 없이 파이프라인 실행
+### MLflow 비활성화
 
 `.env`에서 다음 값을 설정합니다.
 
@@ -126,7 +115,7 @@ USE_MLFLOW=0
 
 이 상태에서는 MLflow 서버 조회, 로컬 SQLite 생성, run 생성과 학습 컨테이너의 MLflow 환경변수 전달을 모두 건너뜁니다. MLflow 기록 실패가 아니라 의도적인 비활성화이며, 나머지 파이프라인은 동일하게 실행됩니다.
 
-### 로컬 SQLite로 먼저 확인
+### 로컬 SQLite 사용
 
 관리형 환경을 만들기 전에 로컬 기록 흐름을 확인하려면 다음과 같이 실행합니다.
 
@@ -170,21 +159,21 @@ MLFLOW_TRACKING_URI=arn:aws:sagemaker:<region>:<account-id>:mlflow-app/app-XXXXX
 
 App ARN의 마지막 값은 사용자가 정한 App 이름이 아니라 AWS가 생성한 ID입니다. ARN을 직접 조립하지 말고 `mlflow_setup.ipynb`나 SageMaker 콘솔에서 조회한 값을 사용하십시오.
 
-## Managed MLflow 설정 순서
+## Managed MLflow 사용 순서
 
-### 1. 리전과 S3 버킷 확인
+Managed MLflow 사용은 최초 설정과 반복 실행으로 나뉩니다. MLflow App 준비와 연결 설정은 처음 한 번 수행하고, 이후 파이프라인을 실행할 때마다 상위 run, 학습 하위 run과 평가 결과가 순서대로 기록됩니다.
+
+![MLflow App을 준비하고 연결한 뒤 파이프라인 상위 실행, 학습 하위 실행, 평가 결과를 기록하고 UI에서 비교하는 흐름](images/managed-mlflow-workflow.svg)
+
+### 1. MLflow App 준비
 
 먼저 사용할 리전에서 MLflow App이 지원되는지 확인합니다. MLflow App과 아티팩트 S3 버킷은 같은 리전에 있어야 하며, 이 저장소의 자동 탐색은 현재 `AWS_REGION`에서 App을 찾습니다.
 
-### 2. 설정 노트북 실행
+저장소 루트의 `mlflow_setup.ipynb`를 실행하면 설정을 확인하고, 필요한 경우 MLflow App을 생성하며, 사용할 ARN과 UI 접속 명령을 출력합니다. 기본 App 이름은 `gemma-e2e`이며, 다른 이름을 사용하려면 `.env`의 `MLFLOW_APP_NAME`을 수정합니다.
 
-저장소 루트의 `mlflow_setup.ipynb`를 실행합니다. 이 노트북은 설정을 읽고, 필요한 경우 MLflow App을 생성하며, 사용할 ARN과 UI 접속 명령을 출력합니다.
+### 2. 연결 설정
 
-기본 App 이름은 `gemma-e2e`입니다. 다른 이름을 사용하려면 `.env`의 `MLFLOW_APP_NAME`을 수정합니다.
-
-### 3. IAM 권한 연결
-
-권한은 호출 주체, 학습 실행 역할, MLflow App 실행 역할로 나누어 확인해야 합니다.
+앞 절의 `USE_MLFLOW`, `MLFLOW_APP_NAME`, `MLFLOW_TRACKING_URI` 값을 `.env` 또는 현재 셸에 설정합니다. Tracking URI를 비워 두면 App 이름으로 자동 탐색하고, ARN을 지정하면 해당 App이나 기존 Tracking Server를 사용합니다. 권한은 호출 주체, 학습 실행 역할, MLflow App 실행 역할로 나누어 확인해야 합니다.
 
 | 역할 | 필요한 권한 | 이 저장소의 예시 |
 |---|---|---|
@@ -192,25 +181,35 @@ App ARN의 마지막 값은 사용자가 정한 App 이름이 아니라 AWS가 �
 | SageMaker 학습 실행 역할 | MLflow API 호출과 대상 App 또는 Tracking Server 접근 | `iam/mlflow-training-role-policy.json` |
 | MLflow App 실행 역할 | 아티팩트 S3 버킷 읽기와 쓰기 | 환경에 맞는 S3 정책 |
 
-파이프라인 상위 run은 만들어지는데 학습 하위 run이 없다면 대부분 학습 실행 역할의 권한이나 Tracking URI 전달을 먼저 확인해야 합니다.
+### 3. 상위 실행 시작
 
-### 4. 파이프라인 실행
-
-평소와 같은 명령으로 파이프라인을 실행합니다. MLflow를 위해 별도 실행 명령을 사용할 필요는 없습니다.
+평소와 같은 명령으로 파이프라인을 실행합니다.
 
 ```bash
 python pipelines/run_extraction.py --stages all
 ```
 
-활성화된 코스와 실행 모드에 따라 실제 진입점은 달라질 수 있습니다. 중요한 점은 파이프라인 실행 전에 `USE_MLFLOW=1`과 올바른 App 이름 또는 Tracking URI가 설정되어 있어야 한다는 것입니다.
+파이프라인이 시작되면 상위 run이 생성되고 설정과 단계 상태가 기록됩니다. 학습과 평가가 끝나면 같은 run에 SageMaker 작업 이름, 모델 S3 URI, 엔드포인트 이름과 평가 결과가 추가됩니다.
 
-### 5. UI에서 run 확인
+### 4. 학습 지표 기록
 
-MLflow App UI는 AWS가 발급한 사전 서명 URL로 접속합니다. 이 URL은 짧은 시간 안에 한 번만 사용할 수 있으므로 미리 저장해 두기보다 접속할 때 새로 발급해야 합니다. 로그인한 UI 세션은 URL 자체보다 오래 유지될 수 있습니다.
+SageMaker 학습 컨테이너는 별도의 하위 run을 만들고 Trainer가 수집한 지표를 기록합니다. `Model metrics` 탭에서는 `entropy`, `epoch`, `grad_norm`, `learning_rate`, `mean_token_accuracy`, `num_tokens` 같은 지표를 스텝별로 확인할 수 있습니다. GPU, CPU와 메모리 사용량은 `System metrics` 탭에서 확인합니다.
 
-`mlflow_setup.ipynb`가 출력한 AWS CLI 명령을 사용하거나 SageMaker 콘솔에서 App을 열 수 있습니다. 파이프라인 로그에도 run을 찾는 데 필요한 실험 이름과 run ID가 출력됩니다.
+[![MLflow App의 학습 하위 run에서 entropy, epoch, grad_norm, learning_rate, mean_token_accuracy와 num_tokens를 스텝별 차트로 확인하는 화면](images/mlflow-training-log.png){ width="720" }](images/mlflow-training-log.png)
 
-## run을 어떻게 비교할까
+상위 run은 생성됐지만 학습 하위 run이 없다면 학습 실행 역할의 MLflow 권한과 학습 작업에 전달된 Tracking URI를 먼저 확인합니다.
+
+### 5. 평가 결과 기록
+
+평가 단계가 끝나면 코스별 평가 점수가 상위 run의 지표로 기록되고, 상세 결과는 `eval_scores.json` 아티팩트로 저장됩니다. 학습까지만 실행한 경우에는 평가 지표와 아티팩트가 아직 나타나지 않습니다.
+
+### 6. UI에서 비교
+
+MLflow App UI는 AWS가 발급한 사전 서명 URL로 접속합니다. URL은 접속할 때 새로 발급하고, `mlflow_setup.ipynb`가 출력한 AWS CLI 명령이나 SageMaker 콘솔에서 App을 엽니다. 파이프라인 로그에는 실험 이름과 run ID도 출력됩니다.
+
+UI에서는 같은 코스와 평가 조건의 run을 먼저 모은 뒤 평가 점수, 학습 설정과 학습 지표를 비교합니다.
+
+## Run 비교 방법
 
 처음에는 모든 지표를 한꺼번에 보기보다 다음 순서로 비교하는 것이 효율적입니다.
 
@@ -230,7 +229,7 @@ MLflow는 파이프라인의 부가 기능이므로 일반적인 기록 실패�
 
 `USE_MLFLOW=0`에서는 no-op run 핸들을 사용합니다. 호출부는 같은 흐름을 유지하지만 실제 MLflow 클라이언트 초기화와 네트워크 요청은 수행하지 않습니다.
 
-## 자주 생기는 문제
+## 문제 해결
 
 ### App을 찾지 못하고 로컬 SQLite를 사용한다
 

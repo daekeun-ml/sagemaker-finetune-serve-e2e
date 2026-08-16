@@ -787,9 +787,9 @@ def stage_data(course: CourseSpec, cfg: PipelineConfig, state: StateStore,
         n_lines = sum(1 for _ in open(train_path, encoding="utf-8"))
         log.info(f"[data] 건너뜀: {train_path}에 {n_lines}건이 있습니다. 다시 만들려면 --force를 사용하세요.")
     else:
-        log.info(f"[data] {course.key}: 시드 {n_seed}건 + 합성 {n_synth}건")
+        log.info(f"[data] {course.key}: {n_seed} seed examples + {n_synth} synthetic examples")
         seeds = td.load_seed_examples(n_seed, token=_hf_token())
-        print(f"  파싱한 시드: {len(seeds)}건")
+        print(f"  Parsed seed examples: {len(seeds)}")
 
         synth_msgs: list[list[dict[str, str]]] = []
         if course.has_synth and n_synth > 0:
@@ -1589,8 +1589,8 @@ def _announce_billing(plan: list[str], cfg: PipelineConfig) -> None:
         return
     billable = [s for s in plan if s in ("train", "grpo", "deploy")]
     if billable:
-        print(_danger("이 실행에는 과금 단계가 포함됩니다") + f": {_bold(', '.join(billable))}.\n"
-              "   각 단계 직전에 만들 리소스와 대략 요금을 다시 알립니다.")
+        print(_danger("This run includes billable stages") + f": {_bold(', '.join(billable))}.\n"
+              "   Resources and estimated costs will be shown again before each stage.")
 
 
 # ---------------------------------------------------------------------------
