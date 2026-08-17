@@ -1,4 +1,4 @@
-# 04. SageMaker AI 추론: 선택부터 운영까지
+# 03. SageMaker AI 추론: 선택부터 운영까지
 
 !!! info "Scope"
     fine-tuning한 SLM(Gemma 4)의 serving 방법을 찾는 초심자와 중급자를 위한 문서입니다.
@@ -6,14 +6,14 @@
 
     - **선행 조건**: `02_train_sft_sagemaker`까지 실행해 `model_data`(S3 artifact)가 있는 상태.
       Training Job, Endpoint의 수명과 과금 차이가 낯설면
-      [SageMaker AI 기초](01_sagemaker_basics.md)부터
+      [SageMaker AI 기초](../concepts/01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: 추론 4옵션 선택, endpoint 구조와 호출,
       서빙 컨테이너/DLC 이미지, 비용과 정리
     - **여기서 다루지 않는 것**: 학습 하이퍼파라미터, 평가 지표, agentic 설계
 
 학습, agentic, 평가 가이드에서 endpoint 개념이 필요할 때 이 문서를 참조합니다.
 
-본문에 인용한 실측값은 이 프로젝트의 **코스** 5개에서 나왔습니다(코스가 무엇인지는 [전체 지도](00_overview.md)에 있습니다).
+본문에 인용한 실측값은 이 프로젝트의 **코스** 5개에서 나왔습니다(코스가 무엇인지는 [전체 지도](../concepts/00_overview.md)에 있습니다).
 
 저장소 디렉터리 이름은 초기 이름을 유지해 `tracks/`이고, `track_data`, `--track` 같은 코드 식별자도 그대로입니다. 본문의 "코스"와 코드의 `track`은 같은 대상을 가리킵니다.
 
@@ -60,7 +60,7 @@
 
 AWS는 이 네 가지를 [모델 배포 옵션 개요](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)에서 함께 문서화합니다. LLM/SLM은 GPU가 반드시 필요하고, 목적이 **대화형 실시간 응답**이라면 남는 답은 Real-time입니다.
 
-[![네 가지 배포 모드의 요청 흐름 비교: 실시간과 서버리스는 클라이언트가 endpoint에서 응답을 곧바로 되받지만, 비동기와 배치 변환은 결과가 S3로 떨어지고 별도의 알림 리스너가 완료를 통보한다](images/sm_inference_option.png)](images/sm_inference_option.png)
+[![네 가지 배포 모드의 요청 흐름 비교: 실시간과 서버리스는 클라이언트가 endpoint에서 응답을 곧바로 되받지만, 비동기와 배치 변환은 결과가 S3로 떨어지고 별도의 알림 리스너가 완료를 통보한다](../images/sm_inference_option.png)](../images/sm_inference_option.png)
 
 *네 옵션의 차이는 "무엇을 지원하는가"가 아니라 응답이 어느 경로로 돌아오는가입니다: 왼쪽 둘은 HTTP 왕복, 오른쪽 둘은 S3 + 알림. 패널 안의 작은 글씨는 그림을 클릭해 원본 크기로 보세요.*
 
@@ -139,13 +139,13 @@ cold-start 시간, 오토스케일 축소 최솟값, 리전별 동시성 한도 
     **EndpointConfig** = "그 Model을 + 어떤 인스턴스로 + 몇 대(variant)로 + 트래픽 비율은 어떻게" 담은 설계도.
     **Endpoint** = EndpointConfig에 따라 생성되어 요청을 받는 리소스. 생성 후 삭제할 때까지 인스턴스 비용이 발생.
 
-![배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정하고, 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정하며, 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다](images/deploy_three_steps.svg)
+![배포 3단계. S3의 model_data tar.gz(파인튜닝으로 머지된 가중치)와 ECR의 서빙 DLC 이미지가 함께 Model로 합쳐집니다. Model은 무엇을 어떤 컨테이너로 띄울지 정하고, 그 아래 EndpointConfig가 어떤 인스턴스를 몇 대 띄우고 variant 트래픽을 어떻게 나눌지 정하며, 그 아래 Endpoint가 상시 서버로 뜨고 여기서부터 과금이 시작됩니다. 마지막으로 클라이언트가 sagemaker-runtime의 invoke_endpoint로 호출합니다](../images/deploy_three_steps.svg)
 
 *Model과 EndpointConfig까지는 무료 API라, 배포 가능 여부를 과금 없이 미리 확인할 수 있습니다. 과금은 Endpoint가 뜨는 순간부터입니다.*
 
 세 리소스를 분리하면 **무중단 배포**(새 EndpointConfig로 교체), **A/B 테스트(production variant)**, **auto scaling**을 독립적으로 구성할 수 있습니다.
 
-다만 이런 배포 가드레일(blue/green, canary, rolling)은 SageMaker AI endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)).
+다만 이런 배포 가드레일(blue/green, canary, rolling)은 SageMaker AI endpoint의 기능이지 HyperPod의 기능이 아닙니다([티어를 헷갈리게 만드는 오해](../concepts/01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)).
 
 [SageMaker Python SDK](https://github.com/aws/sagemaker-python-sdk) v3에서는 이 3층을 `ModelBuilder`가 한 번에 만듭니다. v2의 `Model`/`HuggingFaceModel` 클래스는 제거되었습니다. 그래서 이 프로젝트의 `03_deploy_endpoint`는 `ModelBuilder(image_uri=..., s3_model_data_url=..., env_vars=...)` → `.build()` → `.deploy()` 경로를 씁니다.
 
@@ -159,7 +159,7 @@ Model, EndpointConfig, Endpoint가 리소스 구조를 나타낸다면, 배포 �
 
 이 분리의 실질적인 효과는 이 프로젝트가 `SERVING_ENGINE` env 하나로 vLLM ↔ SGLang ↔ LMI를 갈아 끼우면서도 호출 코드는 그대로 둔다는 점입니다.
 
-[![Amazon SageMaker 추론을 모델, 컨테이너, 인프라 세 레이어로 나눈 그림. 왼쪽의 사용자가 Invoke로 호출하고 스트리밍 또는 비스트리밍 응답을 받으며, 모델 레이어는 단일 모델 배포와 멀티 모델 배포와 오토스케일링, 컨테이너 레이어는 단일 컨테이너와 멀티 컨테이너와 vLLM, SGLang, ONNX, PyTorch, HuggingFace, 인프라 레이어는 Inferentia2, Trainium, GPU(P4/G5/G4dn), CPU 노드를 담고 있다](images/sm_inference_stack.png)](images/sm_inference_stack.png)
+[![Amazon SageMaker 추론을 모델, 컨테이너, 인프라 세 레이어로 나눈 그림. 왼쪽의 사용자가 Invoke로 호출하고 스트리밍 또는 비스트리밍 응답을 받으며, 모델 레이어는 단일 모델 배포와 멀티 모델 배포와 오토스케일링, 컨테이너 레이어는 단일 컨테이너와 멀티 컨테이너와 vLLM, SGLang, ONNX, PyTorch, HuggingFace, 인프라 레이어는 Inferentia2, Trainium, GPU(P4/G5/G4dn), CPU 노드를 담고 있다](../images/sm_inference_stack.png)](../images/sm_inference_stack.png)
 
 *설정은 레이어별로 나뉘지만 인프라와 컨테이너는 호환되어야 합니다(CUDA 빌드 ↔ Neuron 빌드). 이 프로젝트의 조합은 "단일 모델 배포 + 단일 컨테이너(vLLM DLC) + GPU 인스턴스"입니다.*
 
@@ -176,7 +176,7 @@ Model, EndpointConfig, Endpoint가 리소스 구조를 나타낸다면, 배포 �
 - **응답 채널(스트리밍 / 비스트리밍)은 호출 시점에 고르지만, 스트리밍은 컨테이너가 지원해야 합니다.** 같은 endpoint를 두 방식으로 부를 수 있는 것은 **연속 배칭 엔진(vLLM, SGLang, LMI)** 을 얹었을 때의 이야기입니다. AWS도 `InvokeEndpointWithResponseStream`에 "해당 모델의 컨테이너가 추론 스트리밍을 지원해야 한다"는 조건을 달아 둡니다.
 - **그림의 PyTorch, HuggingFace 칸(transformers 단건 서빙)에서는 스트리밍이 나오지 않습니다.** 응답을 완성본으로 버퍼링하기 때문입니다([응답 스트리밍](#응답-스트리밍-invoke_endpoint_with_response_stream)).
 
-컨테이너 레이어 안에서 다시 "엔진(vLLM) ≠ 컨테이너(vLLM DLC / LMI)"로 한 겹 더 나뉘는 이야기는 [왜 레이어가 다른가: 엔진 ≠ 서빙 컨테이너](05_serving_containers.md#왜-레이어가-다른가-엔진--서빙-컨테이너)에 있습니다.
+컨테이너 레이어 안에서 다시 "엔진(vLLM) ≠ 컨테이너(vLLM DLC / LMI)"로 한 겹 더 나뉘는 이야기는 [왜 레이어가 다른가: 엔진 ≠ 서빙 컨테이너](04_serving_containers.md#왜-레이어가-다른가-엔진--서빙-컨테이너)에 있습니다.
 
 ### invoke_endpoint 호출 스키마
 
@@ -249,7 +249,7 @@ Body=json.dumps({"inputs": prompt, "parameters": {"max_new_tokens": 512, ...}})
 
 "LMI를 쓰면 vLLM을 못 쓴다"가 흔한 오해입니다. LMI는 내부에서 vLLM 엔진을 감싸는 AWS 관리형 컨테이너이므로(`OPTION_ROLLING_BATCH=vllm`), vLLM DLC와 LMI는 **같은 엔진을 다른 포장으로** 쓰는 선택입니다.
 
-엔진과 컨테이너가 서로 다른 레이어라는 배경은 [왜 레이어가 다른가: 엔진 ≠ 서빙 컨테이너](05_serving_containers.md#왜-레이어가-다른가-엔진--서빙-컨테이너)에서 더 자세히 다룹니다.
+엔진과 컨테이너가 서로 다른 레이어라는 배경은 [왜 레이어가 다른가: 엔진 ≠ 서빙 컨테이너](04_serving_containers.md#왜-레이어가-다른가-엔진--서빙-컨테이너)에서 더 자세히 다룹니다.
 
 ### 서빙 엔진 3종 비교
 
@@ -294,7 +294,7 @@ Gemma를 서빙할 때 주의할 점은 다음과 같습니다(모두 **실행 �
 
 vLLM은 전 레이어에 `k_norm`을 등록하므로, 그 상태의 artifact는 `weights not initialized` ValueError로 엔진 초기화가 실패합니다([vLLM 이슈 #44788](https://github.com/vllm-project/vllm/issues/44788)).
 
-이 프로젝트의 `train.py`는 저장 직전 base에서 그 텐서를 복원합니다(연산에 쓰이지 않는 dead weight라 정확도에 무해). 실측 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 OK). 상세는 [E계열 KV-shared dead weight 복원](05_serving_containers.md#e계열-kv-shared-dead-weight-복원)에 있습니다.
+이 프로젝트의 `train.py`는 저장 직전 base에서 그 텐서를 복원합니다(연산에 쓰이지 않는 dead weight라 정확도에 무해). 실측 복원 전 665키(vLLM 실패) → 복원 후 719키(원본과 동일, vLLM 로드 OK). 상세는 [E계열 KV-shared dead weight 복원](04_serving_containers.md#e계열-kv-shared-dead-weight-복원)에 있습니다.
 
 ### DLC 이미지 URI 패턴
 
@@ -402,7 +402,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 - 그래서 `serving_env()`의 기본값이 `max_num_seqs=32`, `gpu_memory_utilization=0.90`입니다.
 - **증상이 원인을 가립니다.** 배포 실패가 `did not pass the ping health check`로만 보이고, 실제 `torch.OutOfMemoryError`는 **CloudWatch endpoint 로그에만** 남습니다. `Endpoint.get(name)`의 `failure_reason`부터 확인하고, 로그로 내려가세요.
 - 동시 처리량이 정말 필요하면 `max_num_seqs`를 올리되, 그때는 `ml.g6e.2xlarge`(L40S 45GB)처럼 큰 GPU를 쓰세요.
-- 엔진별 플래그명은 [대응: 엔진별 키는 serving_env가 관리](05_serving_containers.md#대응-엔진별-키는-serving_env가-관리)에, 메모리 예산 상세는 [메모리 예산: L4 22.9GB 실측](05_serving_containers.md#메모리-예산-l4-229gb-실측)에 있습니다.
+- 엔진별 플래그명은 [대응: 엔진별 키는 serving_env가 관리](04_serving_containers.md#대응-엔진별-키는-serving_env가-관리)에, 메모리 예산 상세는 [메모리 예산: L4 22.9GB 실측](04_serving_containers.md#메모리-예산-l4-229gb-실측)에 있습니다.
 
 ---
 
@@ -417,7 +417,7 @@ LMI는 `OPTION_*`를 vLLM `EngineArguments`로 pass-through 합니다. 현행 �
 
 ## 자주 나오는 오해
 
-앞 절에서 다루지 않은 배포 관련 오해를 정리합니다. 서비스별 기능 차이는 [티어를 헷갈리게 만드는 오해](01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)에서 다룹니다.
+앞 절에서 다루지 않은 배포 관련 오해를 정리합니다. 서비스별 기능 차이는 [티어를 헷갈리게 만드는 오해](../concepts/01_sagemaker_basics.md#티어를-헷갈리게-만드는-오해)에서 다룹니다.
 
 가장 자주 나오는 것은 스트리밍에 대한 기대치입니다.
 

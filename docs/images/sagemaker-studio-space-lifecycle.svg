@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">SageMaker Studio Space의 EC2와 EBS 수명주기</title>
+  <desc id="desc">Studio Space 실행 중에는 App 컴퓨팅과 EBS 저장 비용이 발생하고, App을 중지하면 컴퓨팅 비용만 멈추며, Space를 삭제하면 연결된 EBS도 삭제되는 흐름을 보여 줍니다.</desc>
+  <style>
+    :root {
+      --fg: #202124;
+      --muted: #5f6368;
+      --panel-fill: #f8f9fa;
+      --panel-stroke: #adb5bd;
+      --running-fill: #d3f9d8;
+      --running-stroke: #2f9e44;
+      --stopped-fill: #f1f3f5;
+      --stopped-stroke: #868e96;
+      --storage-fill: #e7f0ff;
+      --storage-stroke: #4c6ef5;
+      --deleted-fill: #fff0f0;
+      --deleted-stroke: #e03131;
+      --bill-fill: #fff4e6;
+      --bill-stroke: #e8590c;
+      --arrow: #4c6ef5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --muted: #a8b2c1;
+        --panel-fill: #172033;
+        --panel-stroke: #475569;
+        --running-fill: #0d3b30;
+        --running-stroke: #34d399;
+        --stopped-fill: #2b3035;
+        --stopped-stroke: #94a3b8;
+        --storage-fill: #1d2d5a;
+        --storage-stroke: #60a5fa;
+        --deleted-fill: #4a1d24;
+        --deleted-stroke: #fb7185;
+        --bill-fill: #4a2a15;
+        --bill-stroke: #fb923c;
+        --arrow: #60a5fa;
+      }
+    }
+    .text {
+      fill: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+                   Helvetica, Arial, sans-serif;
+    }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: var(--muted); }
+    .step { font-size: 21px; font-weight: 700; }
+    .box-title { font-size: 21px; font-weight: 700; }
+    .box-body { font-size: 16px; }
+    .box-note { font-size: 15px; fill: var(--muted); }
+    .badge { font-size: 14px; font-weight: 700; }
+    .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
+    .running { fill: var(--running-fill); stroke: var(--running-stroke); stroke-width: 2; }
+    .stopped { fill: var(--stopped-fill); stroke: var(--stopped-stroke); stroke-width: 2; }
+    .storage { fill: var(--storage-fill); stroke: var(--storage-stroke); stroke-width: 2; }
+    .deleted { fill: var(--deleted-fill); stroke: var(--deleted-stroke); stroke-width: 2; stroke-dasharray: 8 6; }
+    .bill { fill: var(--bill-fill); stroke: var(--bill-stroke); stroke-width: 1.5; }
+    .flow { fill: none; stroke: var(--arrow); stroke-width: 3; }
+    .arrow-head { fill: var(--arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path class="arrow-head" d="M0 0 L12 6 L0 12 Z"/>
+    </marker>
+  </defs>
+
+  <text class="text title" x="600" y="48" text-anchor="middle">Studio Space의 EC2와 EBS 수명주기</text>
+  <text class="text subtitle" x="600" y="78" text-anchor="middle">JupyterLab과 Code Editor App에 동일하게 적용됩니다</text>
+
+  <rect class="panel" x="40" y="125" width="330" height="385" rx="16"/>
+  <text class="text step" x="205" y="162" text-anchor="middle">1. Space 실행</text>
+
+  <rect class="running" x="60" y="190" width="290" height="120" rx="12"/>
+  <text class="text box-title" x="205" y="230" text-anchor="middle">App 인스턴스 실행</text>
+  <text class="text box-body" x="205" y="259" text-anchor="middle">SageMaker 관리형 EC2</text>
+  <text class="text box-note" x="205" y="284" text-anchor="middle">JupyterLab 또는 Code Editor</text>
+
+  <rect class="storage" x="60" y="330" width="290" height="100" rx="12"/>
+  <text class="text box-title" x="205" y="365" text-anchor="middle">Space 전용 EBS</text>
+  <text class="text box-body" x="205" y="394" text-anchor="middle">/home/sagemaker-user</text>
+  <text class="text box-note" x="205" y="417" text-anchor="middle">파일과 Python 환경 저장</text>
+
+  <rect class="bill" x="92" y="452" width="226" height="36" rx="18"/>
+  <text class="text badge" x="205" y="475" text-anchor="middle">컴퓨팅 과금 + 저장 과금</text>
+
+  <path class="flow" d="M370 318 H430" marker-end="url(#arrow)"/>
+
+  <rect class="panel" x="445" y="125" width="310" height="385" rx="16"/>
+  <text class="text step" x="600" y="162" text-anchor="middle">2. App 중지</text>
+
+  <rect class="stopped" x="465" y="190" width="270" height="120" rx="12"/>
+  <text class="text box-title" x="600" y="230" text-anchor="middle">컴퓨팅 중지</text>
+  <text class="text box-body" x="600" y="259" text-anchor="middle">App 인스턴스 비용 중지</text>
+  <text class="text box-note" x="600" y="278" text-anchor="middle">
+    <tspan x="600">브라우저만 닫아서는</tspan>
+    <tspan x="600" dy="20">중지되지 않음</tspan>
+  </text>
+
+  <rect class="storage" x="465" y="330" width="270" height="100" rx="12"/>
+  <text class="text box-title" x="600" y="365" text-anchor="middle">EBS 유지</text>
+  <text class="text box-body" x="600" y="394" text-anchor="middle">파일과 환경 유지</text>
+  <text class="text box-note" x="600" y="417" text-anchor="middle">프로비저닝한 GB만큼 과금</text>
+
+  <rect class="bill" x="496" y="452" width="208" height="36" rx="18"/>
+  <text class="text badge" x="600" y="475" text-anchor="middle">저장 과금 계속</text>
+
+  <path class="flow" d="M755 318 H815" marker-end="url(#arrow)"/>
+
+  <rect class="panel" x="830" y="125" width="330" height="385" rx="16"/>
+  <text class="text step" x="995" y="162" text-anchor="middle">3. Space 삭제</text>
+
+  <rect class="stopped" x="850" y="190" width="290" height="120" rx="12"/>
+  <text class="text box-title" x="995" y="230" text-anchor="middle">App 없음</text>
+  <text class="text box-body" x="995" y="259" text-anchor="middle">컴퓨팅 리소스 없음</text>
+  <text class="text box-note" x="995" y="284" text-anchor="middle">App을 먼저 삭제하거나 중지</text>
+
+  <rect class="deleted" x="850" y="330" width="290" height="100" rx="12"/>
+  <text class="text box-title" x="995" y="365" text-anchor="middle">연결된 EBS 삭제</text>
+  <text class="text box-body" x="995" y="394" text-anchor="middle">파일 복구 불가</text>
+  <text class="text box-note" x="995" y="417" text-anchor="middle">중요한 데이터는 먼저 백업</text>
+
+  <rect class="bill" x="882" y="452" width="226" height="36" rx="18"/>
+  <text class="text badge" x="995" y="475" text-anchor="middle">컴퓨팅과 저장 과금 종료</text>
+
+  <rect class="storage" x="135" y="555" width="930" height="58" rx="14"/>
+  <text class="text box-title" x="600" y="580" text-anchor="middle">EBS 기본 5GB, 일반 사용자 5~100GB, 관리자 설정 상한 최대 16,384GB</text>
+  <text class="text box-note" x="600" y="602" text-anchor="middle">EFS는 Space와 별도인 공유 파일 시스템이며 이 수명주기에 포함되지 않습니다</text>
+</svg>

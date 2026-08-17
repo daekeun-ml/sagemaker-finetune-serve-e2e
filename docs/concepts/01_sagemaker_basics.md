@@ -3,7 +3,22 @@
 !!! info "Scope"
     SageMaker AI를 처음 사용하는 ML 엔지니어를 위한 문서입니다. Training Job과 Endpoint의 실행 방식, 실행 역할, 컨테이너 경로, 수명과 과금 차이를 설명합니다.
 
-    파인튜닝 구현은 [파인튜닝](03_finetuning.md), 배포와 호출은 [SageMaker AI 추론](04_sagemaker_inference.md), 전체 실행 순서는 [E2E 실행 가이드](RUN_E2E.md)에서 다룹니다.
+    개발환경과 관리형 리소스의 차이는 [SageMaker AI와 Studio 이해하기](02_sagemaker_ai_vs_studio.md), VPC와 network isolation은 [SageMaker AI 보안과 네트워크](03_sagemaker_security_network.md), 파인튜닝 구현은 [파인튜닝](../guides/02_finetuning.md), 배포와 호출은 [SageMaker AI 추론](../guides/03_sagemaker_inference.md)에서 다룹니다.
+
+## SageMaker AI란 무엇인가
+
+!!! abstract "30초 설명"
+    SageMaker AI는 데이터 처리, 모델 학습, 대규모 클러스터, 추론과 MLOps를 제공하는 관리형 ML 서비스입니다. Processing Job, HyperPod와 Pipelines 등 여러 기능이 있지만, 이 에셋의 E2E 흐름을 이해하려면 먼저 Training Job과 Endpoint의 차이만 알아도 충분합니다.
+
+```text
+이 에셋에서 먼저 알아둘 최소 개념
+
+SageMaker AI
+├── Training Job: 학습을 실행하고 끝나면 컴퓨팅 리소스 해제
+└── Endpoint: 추론 요청을 받으며 삭제할 때까지 계속 실행
+```
+
+이 문서는 SageMaker AI 전체 기능을 설명하지 않고 이 저장소의 핵심 실행 경로인 **Training Job과 Real-time Endpoint**에 집중합니다. 사용자는 실행할 코드, 데이터, 인스턴스 유형과 IAM 역할을 정하고, SageMaker AI는 인스턴스 준비, 컨테이너 실행, S3 입력과 출력, CloudWatch 로그와 리소스 정리를 담당합니다.
 
 ## 핵심 개념
 
@@ -24,7 +39,7 @@ SageMaker AI에서 먼저 구분할 것은 Training Job과 Endpoint입니다.
 !!! abstract "Training Job의 수명"
     SageMaker AI는 Training Job을 시작할 때 컴퓨팅 리소스를 준비하고 작업이 끝나면 해제합니다. 컨테이너 안에 저장한 파일 중 지정된 출력만 S3에 남습니다.
 
-[![Training Job은 S3 입력을 임시 컴퓨팅 리소스에서 처리하고 결과를 S3로 저장합니다.](images/sm_job_anatomy.png)](images/sm_job_anatomy.png)
+[![Training Job은 S3 입력을 임시 컴퓨팅 리소스에서 처리하고 결과를 S3로 저장합니다.](../images/sm_job_anatomy.png)](../images/sm_job_anatomy.png)
 
 이 프로젝트에서 `ModelTrainer.train()`을 호출하면 SageMaker AI가 [`CreateTrainingJob`](https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateTrainingJob.html) 요청을 받아 학습 환경을 만듭니다. 학습 코드는 노트북 커널이 아니라 별도의 학습 컨테이너에서 실행됩니다.
 
@@ -53,7 +68,7 @@ Training Job은 다음 순서로 실행됩니다.
 
 [실행 역할](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html)은 사용자의 로그인 자격증명과 다릅니다. 사용자는 Training Job을 생성하고 역할을 전달하며, SageMaker AI는 해당 역할을 맡아 S3, ECR과 CloudWatch에 접근합니다.
 
-[![SageMaker AI가 실행 역할을 맡아 S3와 ECR에 접근하는 구조](images/sm_security.png)](images/sm_security.png)
+[![SageMaker AI가 실행 역할을 맡아 S3와 ECR에 접근하는 구조](../images/sm_security.png)](../images/sm_security.png)
 
 역할이 존재한다고 필요한 권한까지 보장되는 것은 아닙니다. S3 읽기와 쓰기, ECR 이미지 가져오기 또는 CloudWatch 로그 기록 권한이 부족하면 Job 제출 후 실제 리소스에 접근하는 단계에서 실패할 수 있습니다.
 
@@ -102,7 +117,7 @@ GPU 용량을 기다리는 `Pending` 시간은 `MaxPendingTimeInSeconds`로 별�
 
 제한 시간을 길게 잡는 것만으로 전체 시간이 과금되지는 않습니다. 작업이 정상 종료되면 그 시점에 컴퓨팅 리소스와 과금이 중단됩니다. 단, warm pool을 사용하면 설정한 유지 시간 동안 리소스가 남습니다.
 
-작업 상태가 `Stopped`이고 최대 실행 시간 근처에서 종료되었다면 CloudWatch 로그와 S3 아티팩트를 함께 확인하세요. 실제 사례와 대응은 [MaxRuntimeExceeded 문제](03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)에 정리되어 있습니다.
+작업 상태가 `Stopped`이고 최대 실행 시간 근처에서 종료되었다면 CloudWatch 로그와 S3 아티팩트를 함께 확인하세요. 실제 사례와 대응은 [MaxRuntimeExceeded 문제](../guides/02_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)에 정리되어 있습니다.
 
 ## Endpoint: 삭제할 때까지 실행됩니다 { #endpoint-삭제할-때까지-켜져-있는-서버 }
 
@@ -119,7 +134,7 @@ Endpoint 배포에는 세 가지 SageMaker AI 리소스가 사용됩니다.
 
 ### 배포 리소스와 순서 { #배포-3단계-무엇을-어떤-순서로-넘기는가 }
 
-[![모델 아티팩트와 컨테이너를 Endpoint로 배포하고 HTTP 요청을 처리하는 순서](images/sm_endpoint_01.png)](images/sm_endpoint_01.png)
+[![모델 아티팩트와 컨테이너를 Endpoint로 배포하고 HTTP 요청을 처리하는 순서](../images/sm_endpoint_01.png)](../images/sm_endpoint_01.png)
 
 이 프로젝트의 `03_deploy_endpoint.ipynb`는 다음 값을 사용합니다.
 
@@ -169,7 +184,7 @@ SageMaker AI는 요청 방식과 실행 시간에 따라 여러 추론 옵션을
 | Asynchronous Inference | 요청을 대기열에 넣고 비동기로 처리 | 처리 시간이 길거나 입력이 큰 경우 |
 | Batch Transform | Endpoint 없이 일괄 데이터 처리 | 온라인 응답이 필요 없는 대량 추론 |
 
-이 프로젝트는 모델 서버를 계속 실행하고 평가와 에이전트 요청을 동기로 처리하기 위해 Real-time Endpoint를 사용합니다. 상세 비교는 [SageMaker AI 추론](04_sagemaker_inference.md#왜-real-time인가-추론-4옵션-비교)에서 확인할 수 있습니다.
+이 프로젝트는 모델 서버를 계속 실행하고 평가와 에이전트 요청을 동기로 처리하기 위해 Real-time Endpoint를 사용합니다. 상세 비교는 [SageMaker AI 추론](../guides/03_sagemaker_inference.md#왜-real-time인가-추론-4옵션-비교)에서 확인할 수 있습니다.
 
 ## SageMaker AI vs HyperPod vs EC2 vs 온프레미스 { #sagemaker-ai-vs-hyperpod-vs-ec2-vs-on-prem }
 
@@ -240,4 +255,4 @@ SageMaker AI는 요청 방식과 실행 시간에 따라 여러 추론 옵션을
 | `common/dlc.py` | 학습 및 서빙 DLC 이미지 선택 |
 | `common/aws_utils.py` | S3 업로드, Endpoint 호출과 CloudWatch 링크 생성 |
 
-다음 단계는 [E2E 실행 가이드](RUN_E2E.md)입니다.
+다음 단계는 [노트북 실행법](../execution/run_notebook.md) 또는 [Python 스크립트 실행법](../execution/run_pipeline.md)입니다.

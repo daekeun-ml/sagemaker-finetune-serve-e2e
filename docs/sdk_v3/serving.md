@@ -3,7 +3,7 @@
 !!! info "Scope"
     V3에서 **모델을 endpoint에 올리고 호출하는 방법**을 다룹니다.
     V2와의 전체 차이는 [SDK V3 개요](index.md), 학습 Job 제출은 [SDK V3 학습](training.md),
-    서빙 엔진(vLLM/SGLang/LMI) 선택은 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
+    서빙 엔진(vLLM/SGLang/LMI) 선택은 [서빙 컨테이너](../guides/04_serving_containers.md)에 있습니다.
 
 ## ModelBuilder로 배포
 
@@ -49,7 +49,7 @@
     ```
 
 !!! warning "s3_model_data_url과 model_path를 섞지 마세요"
-    `ModelBuilder`에는 `model_path`도 있지만 그건 **로컬 경로**입니다. S3 URI는 `s3_model_data_url`에 넣어야 합니다([model_data 로드 경로](../04_sagemaker_inference.md#model_data-로드-경로)).
+    `ModelBuilder`에는 `model_path`도 있지만 그건 **로컬 경로**입니다. S3 URI는 `s3_model_data_url`에 넣어야 합니다([model_data 로드 경로](../guides/03_sagemaker_inference.md#model_data-로드-경로)).
     그리고 `Mode`는 **두 개가 따로 있습니다**. `sagemaker.serve.mode.function_pointers.Mode`는 `IN_PROCESS`/`LOCAL_CONTAINER`/`SAGEMAKER_ENDPOINT`(int 값, 서빙용)이고, `sagemaker.train.model_trainer.Mode`는 `LOCAL_CONTAINER`/`SAGEMAKER_TRAINING_JOB`(str 값, 학습용)입니다. 이름이 같은 `LOCAL_CONTAINER` 멤버가 양쪽에 있는데 값이 달라 서로 대입할 수 없습니다.
 
 ## 사라진 role과 image_uri: intelligence layer
@@ -61,7 +61,7 @@ V3 코드가 짧아진 것은 인자를 생략해도 되게 만든 계층이 있
 | `role` | `get_execution_role()`이 SageMaker 세션 → 노트북 인스턴스 메타데이터 → Studio 환경 순으로 찾습니다 | `role_arn`을 명시 |
 | `image_uri` | 모델 객체를 넘기면 클래스 계층을 보고 설치된 프레임워크 버전을 확인해 `image_uris.retrieve()`로 맞는 DLC를 찾습니다 | 커스텀 컨테이너면 `image_uri` 명시 |
 
-**이 프로젝트는 뒤쪽 경우입니다.** vLLM/SGLang/LMI DLC를 이미지로 지정해 넘기므로 자동 탐지가 개입하지 않습니다([서빙 컨테이너](../05_serving_containers.md)에 그 이미지들과 고정 태그가 있습니다).
+**이 프로젝트는 뒤쪽 경우입니다.** vLLM/SGLang/LMI DLC를 이미지로 지정해 넘기므로 자동 탐지가 개입하지 않습니다([서빙 컨테이너](../guides/04_serving_containers.md)에 그 이미지들과 고정 태그가 있습니다).
 
 ## build()와 deploy()가 갈라진 이유
 
@@ -96,7 +96,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
 | MMS (Multi-Model Server) | 경량, 다중 모델 호스팅 | MXNet/범용 DLC |
 | SMD | 커스텀 orchestrator | SageMaker AI 관리형 DLC |
 
-이 프로젝트는 표에 없는 조합을 사용합니다. vLLM과 SGLang의 **OpenAI 호환 server**를 실행하는 DLC이며, continuous batching과 streaming이 필요한 워크로드를 대상으로 합니다. 선택 근거는 [서빙 컨테이너](../05_serving_containers.md)에 있습니다.
+이 프로젝트는 표에 없는 조합을 사용합니다. vLLM과 SGLang의 **OpenAI 호환 server**를 실행하는 DLC이며, continuous batching과 streaming이 필요한 워크로드를 대상으로 합니다. 선택 근거는 [서빙 컨테이너](../guides/04_serving_containers.md)에 있습니다.
 
 ## 배포 3모드: 테스트에서 production까지
 
@@ -108,7 +108,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
 | **local container** | SageMaker AI에 배포하기 전 **전체 서빙 스택** 검증. 컨테이너 이미지, 모델 서버, 직렬화까지 확인 | 로컬 Docker 필요. GPU는 로컬 하드웨어 + nvidia-docker에 의존. 이미지를 내려받고 컨테이너를 시작하므로 in-process보다 느림 |
 | **SageMaker AI endpoint** | production과 부하 테스트. 전 추론 유형(real-time, serverless, async, batch), auto scaling, multi-model endpoint, A/B 테스트 | 인스턴스 시간당 과금 |
 
-**이 프로젝트는 local container를 preflight에 사용합니다.** 코스별 `02b_local_serve` 노트북에서 endpoint를 만들기 전에 image, engine, checkpoint 조합이 정상적으로 시작되는지 확인합니다([서빙 컨테이너](../05_serving_containers.md)에 절차가 있습니다).
+**이 프로젝트는 local container를 preflight에 사용합니다.** 코스별 `02b_local_serve` 노트북에서 endpoint를 만들기 전에 image, engine, checkpoint 조합이 정상적으로 시작되는지 확인합니다([서빙 컨테이너](../guides/04_serving_containers.md)에 절차가 있습니다).
 
 ## 추론 호출
 
@@ -142,7 +142,7 @@ V3는 이 둘을 분리해서 다룹니다. 이 프로젝트를 읽다 보면 "v
     out = p.predict({"messages": messages})
     ```
 
-V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps`/`json.loads`를 직접 하라는 것이 [공식 안내](https://sagemaker.readthedocs.io/en/stable/inference/index.html)이고, boto3 경로는 원래 그렇게 하고 있었으므로 이 축의 마이그레이션 비용이 0이 됩니다. SDK 객체로 부르고 싶다면 `Endpoint.get(name).invoke(body=..., content_type=...)`(스트리밍은 `invoke_with_response_stream`)도 있지만, boto3 쪽이 의존성이 얇아 이 프로젝트는 그대로 둡니다. 호출 스키마 자체는 [invoke_endpoint 호출 스키마](../04_sagemaker_inference.md#invoke_endpoint-호출-스키마)를 보세요.
+V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps`/`json.loads`를 직접 하라는 것이 [공식 안내](https://sagemaker.readthedocs.io/en/stable/inference/index.html)이고, boto3 경로는 원래 그렇게 하고 있었으므로 이 축의 마이그레이션 비용이 0이 됩니다. SDK 객체로 부르고 싶다면 `Endpoint.get(name).invoke(body=..., content_type=...)`(스트리밍은 `invoke_with_response_stream`)도 있지만, boto3 쪽이 의존성이 얇아 이 프로젝트는 그대로 둡니다. 호출 스키마 자체는 [invoke_endpoint 호출 스키마](../guides/03_sagemaker_inference.md#invoke_endpoint-호출-스키마)를 보세요.
 
 ## 리소스 조회와 정리
 
@@ -187,7 +187,7 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
 
 !!! tip "메서드가 어느 쪽에 붙어 있는지"
     `TrainingJob`은 클래스 메서드로 `create`/`get`/`get_all`, 인스턴스 메서드로 `wait`/`refresh`/`stop`/`update`/`delete`를 가집니다. `wait_for_status`는 **`TrainingJob`에는 없고 `Endpoint`에만** 있습니다(학습 Job은 `wait(logs=...)`로 기다립니다).
-    다만 endpoint를 완전히 정리하려면 endpoint → endpoint-config → model 순서가 필요하고, `ModelBuilder`가 붙인 model 이름은 prefix로 찾기 어렵습니다. 이 프로젝트의 `99_cleanup`이 boto3로 그 순서를 처리합니다([cleanup이 실제로 지우는 것](../04_sagemaker_inference.md#cleanup이-실제로-지우는-것)).
+    다만 endpoint를 완전히 정리하려면 endpoint → endpoint-config → model 순서가 필요하고, `ModelBuilder`가 붙인 model 이름은 prefix로 찾기 어렵습니다. 이 프로젝트의 `99_cleanup`이 boto3로 그 순서를 처리합니다([cleanup이 실제로 지우는 것](../guides/03_sagemaker_inference.md#cleanup이-실제로-지우는-것)).
 
 ---
 
@@ -195,4 +195,4 @@ V2의 serializer/deserializer 계층은 V3에서 제거됐습니다. `json.dumps
 
 - [SDK V3 개요](index.md): V2→V3 매핑표와 마이그레이션 함정
 - [SDK V3 학습](training.md): `ModelTrainer`로 학습 Job 제출
-- [SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 구조와 추론 옵션
+- [SageMaker AI 추론](../guides/03_sagemaker_inference.md): endpoint 구조와 추론 옵션

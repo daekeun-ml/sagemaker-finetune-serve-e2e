@@ -1,4 +1,4 @@
-# 05. 서빙 컨테이너 선택: DJL LMI vs 단독 vLLM vs HF TGI
+# 04. 서빙 컨테이너 선택: DJL LMI vs 단독 vLLM vs HF TGI
 
 !!! info "Scope"
     파인튜닝한 Gemma SLM/LLM을 real-time endpoint로 올리려는데 “컨테이너를 무엇으로 골라야 할지”
@@ -8,7 +8,7 @@
       S3에 있는 상태
     - **여기서 다루는 것**: 엔진과 컨테이너의 레이어 구분, 이미지 URI 해석,
       OOM, 절단, 스트리밍 실측 함정, speculative decoding, 비용과 정리
-    - **여기서 다루지 않는 것**: 학습 하이퍼파라미터는 [파인튜닝](03_finetuning.md),
+    - **여기서 다루지 않는 것**: 학습 하이퍼파라미터는 [파인튜닝](02_finetuning.md),
       평가 지표와 agentic 설계
 
 vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 등장하는지 헷갈리는 분에게 특히 도움이 됩니다.
@@ -70,7 +70,7 @@ vLLM은 들어봤지만 "LMI"가 무엇인지, 그리고 이 둘이 왜 따로 �
 AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-container-docs.html)로 문서화합니다.
 따라서 LMI를 사용하면서 내부 엔진으로 vLLM을 선택할 수 있습니다.
 
-[![DJL LMI 컨테이너의 내부 레이어 구조 다이어그램. 맨 위가 모델 서버 DJLServing이고, 그 아래 백엔드 층에는 HuggingFace Accelerate, TensorRT-LLM(윗줄), Transformers-NeuronX, vLLM(아랫줄)이 2x2 격자로 놓이고 그 오른쪽에 LMI-Dist(DeepSpeed) 박스가 두 줄을 통째로 걸치며 서 있다. 다시 그 아래로 PyTorch, 그리고 GPU(cuDNN, cuBLAS, NCCL, CUDA toolkit), AWS Inferentia(Neuron), CPU(mkl) 가속기 계층과 Base Image가 차례로 쌓인다. 오른쪽에는 low-code/no-code 설정 예시로 Engine=Python, option.model_id(hf 모델 id 또는 로컬 경로 또는 s3 url), option.tensor_parallel_degree=max, option.rolling_batch=vllm 네 줄의 serving.properties 스니펫이 있고, 그 아래에 사전 구축 소프트웨어 스택과 Inferentia/Trainium 통합과 s5cmd 빠른 모델 다운로드와 SageMaker 추론 옵션 백엔드 지원 등을 나열한 특징 목록이 이어진다](images/sm_lmi.png)](images/sm_lmi.png)
+[![DJL LMI 컨테이너의 내부 레이어 구조 다이어그램. 맨 위가 모델 서버 DJLServing이고, 그 아래 백엔드 층에는 HuggingFace Accelerate, TensorRT-LLM(윗줄), Transformers-NeuronX, vLLM(아랫줄)이 2x2 격자로 놓이고 그 오른쪽에 LMI-Dist(DeepSpeed) 박스가 두 줄을 통째로 걸치며 서 있다. 다시 그 아래로 PyTorch, 그리고 GPU(cuDNN, cuBLAS, NCCL, CUDA toolkit), AWS Inferentia(Neuron), CPU(mkl) 가속기 계층과 Base Image가 차례로 쌓인다. 오른쪽에는 low-code/no-code 설정 예시로 Engine=Python, option.model_id(hf 모델 id 또는 로컬 경로 또는 s3 url), option.tensor_parallel_degree=max, option.rolling_batch=vllm 네 줄의 serving.properties 스니펫이 있고, 그 아래에 사전 구축 소프트웨어 스택과 Inferentia/Trainium 통합과 s5cmd 빠른 모델 다운로드와 SageMaker 추론 옵션 백엔드 지원 등을 나열한 특징 목록이 이어진다](../images/sm_lmi.png)](../images/sm_lmi.png)
 
 *LMI에서 갈아 끼우는 것은 DJLServing 바로 아래의 백엔드 층뿐입니다(vLLM은 2x2 격자의 아랫줄 오른쪽 칸). 맨 위의 DJLServing과 아래의 PyTorch, 가속기 스택은 그대로 남습니다.*
 
@@ -117,7 +117,7 @@ AWS는 이를 [LMI(Large Model Inference) 컨테이너](https://docs.aws.amazon.
 
 컨테이너 안이 정리되면, 컨테이너 **바깥**의 그림은 다음과 같습니다. 위 스택 전체가 아래 그림의 `DJL LMI` 상자 하나에 들어갑니다.
 
-![서빙 스택의 세 레이어. 가장 바깥은 SageMaker AI real-time endpoint로 오토스케일, IAM, CloudWatch를 담당하는 인프라 레이어입니다. 그 안에 서빙 컨테이너 레이어가 있고 HTTP와 ping과 invocations 규약, 연속 배칭을 맡습니다. 컨테이너 자리에는 DJL LMI(AWS 관리), HF TGI(HF 관리), vLLM DLC 또는 BYOC 세 가지가 들어갈 수 있고, 각 컨테이너 안의 엔진 레이어에는 각각 vLLM 또는 TensorRT-LLM, 자체 백엔드, vLLM이 들어갑니다](images/serving_layers.svg)
+![서빙 스택의 세 레이어. 가장 바깥은 SageMaker AI real-time endpoint로 오토스케일, IAM, CloudWatch를 담당하는 인프라 레이어입니다. 그 안에 서빙 컨테이너 레이어가 있고 HTTP와 ping과 invocations 규약, 연속 배칭을 맡습니다. 컨테이너 자리에는 DJL LMI(AWS 관리), HF TGI(HF 관리), vLLM DLC 또는 BYOC 세 가지가 들어갈 수 있고, 각 컨테이너 안의 엔진 레이어에는 각각 vLLM 또는 TensorRT-LLM, 자체 백엔드, vLLM이 들어갑니다](../images/serving_layers.svg)
 
 *세 선택지 모두 바깥 두 레이어는 같습니다. 고르는 것은 가운데 칸(컨테이너)과 그 안(엔진)뿐이고, endpoint를 만드는 코드는 어느 쪽을 고르든 바뀌지 않습니다.*
 
@@ -165,7 +165,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 그 "규약"이 정확히 무엇인지는 [자체 추론 코드 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)에 값까지 명시돼 있습니다.
 컨테이너를 고르는 단계에서도 이 값들을 알아 두면, 나중에 `Failed`나 타임아웃을 만났을 때 원인 후보를 훨씬 빨리 좁힐 수 있습니다.
 
-[![SageMaker real-time 추론 컨테이너 규약 다이어그램. 클라이언트가 HTTPS로 endpoint를 호출하면 ML 컴퓨팅 인스턴스 안의 추론 컨테이너가 포트 8080에서 요청을 받고, S3의 model.tar.gz는 /opt/ml/model로 풀려 마운트되며, 컨테이너의 stdout/stderr는 CloudWatch Logs로 전송된다. 오른쪽에는 실행 명령 docker run [Image] serve, 예약 경로 /opt/ml/model, /ping 타임아웃 2초와 /invocations 타임아웃 60초가 정리되어 있다.](images/sm_endpoint_02.png)](images/sm_endpoint_02.png)
+[![SageMaker real-time 추론 컨테이너 규약 다이어그램. 클라이언트가 HTTPS로 endpoint를 호출하면 ML 컴퓨팅 인스턴스 안의 추론 컨테이너가 포트 8080에서 요청을 받고, S3의 model.tar.gz는 /opt/ml/model로 풀려 마운트되며, 컨테이너의 stdout/stderr는 CloudWatch Logs로 전송된다. 오른쪽에는 실행 명령 docker run [Image] serve, 예약 경로 /opt/ml/model, /ping 타임아웃 2초와 /invocations 타임아웃 60초가 정리되어 있다.](../images/sm_endpoint_02.png)](../images/sm_endpoint_02.png)
 
 *그림 왼쪽은 요청과 로그가 흐르는 경로이고, 오른쪽 사이드바가 규약값입니다(실행 명령 `docker run [Image] serve`, 예약 경로 `/opt/ml`→`/model`, `/ping:8080` 2초, `/invocations:8080` 60초).
 그중 컨테이너가 구현해야 하는 8080 포트의 두 endpoint를 DLC가 이미 제공합니다.*
@@ -188,7 +188,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 | 원인 | 대응 |
 |---|---|
 | 엔진이 **OOM으로 종료됨** | 시작 유예 시간을 늘려도 해결되지 않습니다. 엔진 설정(`max_num_seqs` 등)을 조정하세요: [24GB GPU CUDA OOM](#24gb-gpu-cuda-oom-max_num_seqs-기본값) |
-| **가중치 로드가 8분보다 오래 걸림** | `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`를 올립니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 함께: [배포 3단계](01_sagemaker_basics.md#컨테이너-규약-모델-artifact와-ping-health-check)) |
+| **가중치 로드가 8분보다 오래 걸림** | `ProductionVariant.ContainerStartupHealthCheckTimeoutInSeconds`를 올립니다(모델이 크면 `ModelDataDownloadTimeoutInSeconds`도 함께: [배포 3단계](../concepts/01_sagemaker_basics.md#컨테이너-규약-모델-artifact와-ping-health-check)) |
 
 어느 쪽인지는 CloudWatch 로그에서만 구분됩니다(위 그림의 stdout/stderr 경로).
 위 LMI 표의 `option.model_loading_timeout` 기본값 1,800초(30분)도 이 8분 안에는 애초에 들어가지 않는 값이라, LMI로 큰 모델을 올릴 때는 두 값을 함께 올려야 합니다.
@@ -222,7 +222,7 @@ HF TGI는 대조 대상으로만 다룹니다.
 위 세 컨테이너(LMI/vLLM/TGI)는 주로 **real-time**(및 async) 위에 올립니다. **Serverless는 GPU가 없어 SLM 서빙 대상이 아닙니다.**
 다만 이는 정책성 항목이라 언젠가 바뀔 수 있으니, 위 표를 근거로 설계를 확정하기 전에 문서에서 재확인하세요.
 
-4옵션의 상세 비교는 [SageMaker AI 추론 가이드](04_sagemaker_inference.md)에 있습니다.
+4옵션의 상세 비교는 [SageMaker AI 추론 가이드](03_sagemaker_inference.md)에 있습니다.
 
 ---
 
@@ -399,7 +399,7 @@ vLLM을 AWS DLC 없이 직접 쓰려면 다음 중 하나를 택합니다.
 
 **서비스 경계에 주의하세요.** SageMaker AI endpoint 호출은 `sagemaker-runtime`으로, Bedrock Claude 호출은 `bedrock-runtime`(Converse)으로 합니다.
 
-**별개 서비스이고 별개 클라이언트**이므로 "endpoint를 Bedrock API로 호출"하는 것은 잘못된 방법입니다([서비스 경계](04_sagemaker_inference.md#서비스-경계-endpoint--bedrock)).
+**별개 서비스이고 별개 클라이언트**이므로 "endpoint를 Bedrock API로 호출"하는 것은 잘못된 방법입니다([서비스 경계](03_sagemaker_inference.md#서비스-경계-endpoint--bedrock)).
 `common/llm_gateway.py`는 LiteLLM으로 두 백엔드를 하나의 인터페이스로 묶지만, 내부적으로는 각자의 클라이언트를 씁니다.
 
 ### 연결 노트북 00~06, 99

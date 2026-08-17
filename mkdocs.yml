@@ -70,26 +70,28 @@ nav:
   - 홈: index.md
   - 시작하기: getting_started.md
   - 개념부터 이해하기:
-      - 00 전체 지도: 00_overview.md
-      - 01 SageMaker AI 기초: 01_sagemaker_basics.md
+      - 00 전체 지도: concepts/00_overview.md
+      - 01 SageMaker AI 기초: concepts/01_sagemaker_basics.md
+      - 02 SageMaker AI와 Studio 이해하기: concepts/02_sagemaker_ai_vs_studio.md
+      - 03 [Advanced] SageMaker AI 보안과 네트워크: concepts/03_sagemaker_security_network.md
   - 파인튜닝, 서빙 가이드:
-      - 02 합성 데이터: 02_synthetic_data.md
-      - 03 파인튜닝: 03_finetuning.md
-      - 04 SageMaker AI 추론: 04_sagemaker_inference.md
-      - 05 서빙 컨테이너: 05_serving_containers.md
-      - 06 Agentic loop: 06_agentic.md
+      - 01 합성 데이터: guides/01_synthetic_data.md
+      - 02 파인튜닝: guides/02_finetuning.md
+      - 03 SageMaker AI 추론: guides/03_sagemaker_inference.md
+      - 04 서빙 컨테이너: guides/04_serving_containers.md
+      - 05 Agentic loop: guides/05_agentic.md
   - 유스케이스별 실습 코스:
       - 추출 → JSON: courses/extraction.md
       - 분류: courses/classification.md
       - 요약: courses/summarization.md
       - 도메인 QA: courses/domain_qa.md
       - 멀티모달 추출: courses/multimodal.md
-  - 직접 실행하기:
-      - 노트북으로 완주 (JupyterLab): RUN_E2E.md
-      - 스크립트로 실행 (Python): pipelines.md
+  - 노트북과 Python 파이프라인 실행:
+      - 노트북 실행법: execution/run_notebook.md
+      - Python 스크립트 실행법: execution/run_pipeline.md
   - 실험 관리와 측정:
-      - 실험 추적 (SageMaker Managed MLflow): mlflow.md
-      - 속도 측정 (TTFT, TPOT, ITL): benchmark.md
+      - 실험 추적 (SageMaker Managed MLflow): experiments/mlflow.md
+      - 속도 측정 (TTFT, TPOT, ITL): experiments/benchmark.md
   - SageMaker SDK V3:
       - V2에서 바뀐 것: sdk_v3/index.md
       - 학습: sdk_v3/training.md

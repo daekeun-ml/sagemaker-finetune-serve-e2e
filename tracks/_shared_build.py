@@ -1072,7 +1072,7 @@ def _c02_grpo(s: TrackSpec) -> list[dict]:
             "  (제약은 **생성 프롬프트에만** 넣습니다. critique에도 넣으면 seed와 다르다며 전부 기각합니다 — 실측 8/8 기각.)\n"
             "`04_evaluate`를 이미 돌렸다면 **`failures`가 가장 효과적**입니다. 실전에서는 여기에 "
             "**실제 트래픽 로그**가 가장 좋은 소스입니다.\n"
-            "> 상세 근거: [`docs/03_finetuning.md` 「SFT에서 GRPO로 — 데이터를 갈아야 하는 이유」](../../docs/03_finetuning.md#sft에서-grpo로--데이터를-갈아야-하는-이유), 구현: `common/grpo_data.py`"
+            "> 상세 근거: [`docs/guides/02_finetuning.md` 「SFT에서 GRPO로 — 데이터를 갈아야 하는 이유」](../../docs/guides/02_finetuning.md#sft에서-grpo로--데이터를-갈아야-하는-이유), 구현: `common/grpo_data.py`"
         ),
         code(
             "import os, importlib\n"
@@ -1258,7 +1258,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "그래서 로컬 검증은 앞서 실행한 **`02b_local_serve`**(로컬 GPU에 `vllm serve`)로 하고, 클라우드 배포는 "
             "아래 **1-A(vLLM/SGLang DLC)** 또는 **1-B(DJL LMI)** 로 진행합니다. "
             "각 모드를 실제로 돌려 확인한 근거와 예외 사례가 궁금하다면 "
-            "[`docs/05_serving_containers.md`의 「SDK v3 배포 모드와 로컬 검증」](../../docs/05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증)를 참고하세요."
+            "[`docs/guides/04_serving_containers.md`의 「SDK v3 배포 모드와 로컬 검증」](../../docs/guides/04_serving_containers.md#sdk-v3-배포-모드와-로컬-검증)를 참고하세요."
         ),
         md(
             "## 서빙 엔진 선택 — vLLM(기본) · SGLang · DJL LMI\n"
@@ -1277,7 +1277,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "**이 kit의 `train.py`가 저장 직전에 그 텐서를 복원**하므로(연산에 쓰이지 않는 dead weight라 정확도 무해) "
             "지금은 E4B도 vLLM으로 정상 서빙됩니다. 즉 #44788은 \"E계열은 vLLM 불가\"가 아니라 "
             "\"transformers가 저장한 체크포인트가 vLLM 불가\"입니다. 상세: "
-            "[`docs/05_serving_containers.md` 「E계열 KV-shared dead weight 복원」](../../docs/05_serving_containers.md#e계열-kv-shared-dead-weight-복원)"
+            "[`docs/guides/04_serving_containers.md` 「E계열 KV-shared dead weight 복원」](../../docs/guides/04_serving_containers.md#e계열-kv-shared-dead-weight-복원)"
         ),
         code(
             "from common import config, dlc\n"
@@ -1309,7 +1309,7 @@ def _c03(s: TrackSpec) -> list[dict]:
             "🔴 **gemma-4는 vLLM ≥ 0.19 필요** → 기본값이 이를 충족합니다. LMI를 쓸 땐 번들 vLLM이 이 조건을 넘는 "
             "최신 태그인지 확인하세요. 태그는 배포 직전 "
             "[available_images](https://aws.github.io/deep-learning-containers/reference/available_images/)에서 재확인하고, "
-            "배경은 [`docs/05_serving_containers.md`](../../docs/05_serving_containers.md)를 참고하세요.\n"
+            "배경은 [`docs/guides/04_serving_containers.md`](../../docs/guides/04_serving_containers.md)를 참고하세요.\n"
             "🔴 **endpoint는 삭제 전까지 시간당 과금됩니다** → 실습 후 `99_cleanup` 필수. **1-A/1-B 중 하나만 실행**하세요.\n\n"
             "> **텍스트 vs 멀티모달 서빙**: gemma-4/gemma-3-4b+ 는 멀티모달 base입니다. 학습에서 "
             "**텍스트 전용으로 re-export**(config `model_type=*_text`)했다면 그냥 텍스트로 서빙됩니다. re-export 안 한 "

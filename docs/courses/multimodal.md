@@ -6,11 +6,11 @@
     "영수증, 전표, 서식 사진을 주면 필드를 뽑아 JSON으로 돌려준다"가 목표라면 이 코스가 맞습니다.
 
     - **선행 조건**: AWS 자격증명과 Amazon SageMaker AI 실행 role (`00_setup`이 확인).
-      SageMaker AI가 처음이면 [SageMaker AI 기초](../01_sagemaker_basics.md)부터
+      SageMaker AI가 처음이면 [SageMaker AI 기초](../concepts/01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: task 정의, 시드 데이터셋, 성공 기준, 노트북 구성, 코스별 설정값
-    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../03_finetuning.md),
-      배포와 서빙은 [SageMaker AI 추론](../04_sagemaker_inference.md), 컨테이너 메모리 함정은
-      [서빙 컨테이너](../05_serving_containers.md)
+    - **여기서 다루지 않는 것**: 학습 방식은 [파인튜닝](../guides/02_finetuning.md),
+      배포와 서빙은 [SageMaker AI 추론](../guides/03_sagemaker_inference.md), 컨테이너 메모리 함정은
+      [서빙 컨테이너](../guides/04_serving_containers.md)
     - **이 코스에 없는 단계**: 합성 데이터와 agentic 단계. 그 두 단계는 텍스트 코스(01~04)에 있습니다
     - **다른 코스**: 텍스트에서 JSON을 뽑는 문제는 [추출](extraction.md)
 
@@ -53,7 +53,7 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 
 - **`gt_parse.menu`만 남깁니다.** `_simplify_gt()`가 `nm`/`cnt`/`price` → `name`/`count`/`price`로 이름을 바꾸고 `sub_total`, `total`은 버립니다("핵심 필드만, 학습 안정").
 - **값은 모두 문자열이며 빈 문자열도 자주 나옵니다.** 저장소에 포함된 정답을 보면 `{"name": "J.STB PROMO", "count": "", "price": "17500"}`처럼 `cnt`가 없는 항목은 `count: ""`가 됩니다. 가격도 `"17500"`과 `"13,000"`이 섞여 있어 정규화하지 않고 원본 표기를 학습합니다.
-- **지시문은 system role이 아니라 첫 user 턴 텍스트입니다.** Gemma chat template이 system role을 거부하므로 `INSTRUCTION`을 user 텍스트에 접어 넣습니다([chat template과 system fold](../03_finetuning.md#chat-template과-system-fold)).
+- **지시문은 system role이 아니라 첫 user 턴 텍스트입니다.** Gemma chat template이 system role을 거부하므로 `INSTRUCTION`을 user 텍스트에 접어 넣습니다([chat template과 system fold](../guides/02_finetuning.md#chat-template과-system-fold)).
 
 ??? question "오해: “이미지는 messages content 안에 넣는 거 아닌가요?”"
     추론에서는 그렇습니다(`{"type":"image_url", ...}` + `{"type":"text", ...}`). 하지만 **학습에서는 아닙니다.** TRL의 VLM collator는 이미지를 별도 `images` 컬럼으로 받고 `messages`에는 텍스트만 두며, 이미지 자리표시자를 collator가 직접 주입합니다. `messages` content에 `{"type":"image"}`를 직접 넣으면 이미지 개수와 자리표시자 개수가 어긋나 에러가 납니다(실측 확인). `to_example()`이 이 규약을 지키는 형태를 만들어 줍니다.
@@ -94,7 +94,7 @@ messages[1] role=assistant  : {"menu": [{"name": "Nasi Campur Bali", "count": "1
 
     자동 평가를 추가할 때는 `common/eval_utils.py`의 `eval_extraction()`을 그대로 사용할 수 없습니다. 이 함수는 gold를 `{"name", "arguments"}` 형태로 가정하므로 함수 호출 추출 코스 전용입니다. `{"menu": [...]}`를 평가하려면 `menu` 항목 집합에 대한 F1을 별도로 구현해야 합니다. `TrackSpec`의 `eval_kind="extraction"`은 이 코스 spec에도 있지만, 멀티모달 코스는 이 값을 읽는 `04_evaluate` 빌더를 호출하지 않습니다.
 
-held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](../02_synthetic_data.md#held-out-규율-합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
+held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 채점하지 마세요([held-out 규율](../guides/01_synthetic_data.md#held-out-규율-합성으로-평가-금지)). `samples/`가 `test` 스플릿에서 뽑힌 이유도 이것입니다.
 
 ---
 
@@ -123,7 +123,7 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 학습 데이터를 S3에 올리는 채널도 없습니다. `train_mm.py`가 컨테이너 안에서 `load_dataset(seed_dataset, split="train")`으로 이미지를 직접 받으므로, `02` 노트북은 `input_data` 채널 없이 하이퍼파라미터만 넘깁니다.
 
 !!! tip "먼저 dry-run으로 학습 흐름을 확인하세요"
-    `train_mm.py --dry_run`은 앞 16건을 1 epoch 학습해 코드 경로를 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북의 `MAX_TRAIN_SAMPLES` 기본값도 200으로 설정되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 사용됩니다. 더 많은 데이터를 쓰려면 숫자를 명시하세요. 단계별 핸드오프와 비용은 [E2E 실행 가이드](../RUN_E2E.md#멀티모달-코스-05-파이프라인)에 정리돼 있습니다.
+    `train_mm.py --dry_run`은 앞 16건을 1 epoch 학습해 코드 경로를 검증합니다. 멀티모달 학습은 텍스트보다 느리므로 `02` 노트북의 `MAX_TRAIN_SAMPLES` 기본값도 200으로 설정되어 있습니다. 이 값을 `None`으로 두면 하이퍼파라미터가 전달되지 않고 스크립트 기본값 **500건**이 사용됩니다. 더 많은 데이터를 쓰려면 숫자를 명시하세요. 노트북 순서는 [노트북 실행법](../execution/run_notebook.md#멀티모달-코스-05-파이프라인)에 정리돼 있습니다.
 
 ---
 
@@ -136,7 +136,7 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 | `max_seq_length` | 2048 | 정답 JSON이 메뉴 22개에서 592토큰까지 갑니다(실측 100건). 이미지 토큰까지 함께 들어가므로 512, 1024로는 부족합니다 |
 | `num_train_epochs` | **2** | 5개 코스 중 유일하게 3이 아닙니다(`TRACKS['mm_extraction']`). 이미지 forward가 비싸 1 epoch 비용이 텍스트 코스보다 큽니다 |
 | `multimodal` | `True` | "이 코스는 이미지 입력"이라는 **선언용 메타데이터**입니다(분기하는 코드는 없습니다: 아래 참고) |
-| LoRA target | `.*language_model\..*\.(q_proj\|k_proj\|v_proj\|o_proj\|gate_proj\|up_proj\|down_proj)$` | `all-linear`나 이름 리스트를 주면 vision/audio proj(`Gemma4ClippableLinear`)까지 매칭돼 `get_peft_model`이 크래시합니다: 상세는 [LoRA target](../03_finetuning.md#lora-target-멀티모달은-language_model만) |
+| LoRA target | `.*language_model\..*\.(q_proj\|k_proj\|v_proj\|o_proj\|gate_proj\|up_proj\|down_proj)$` | `all-linear`나 이름 리스트를 주면 vision/audio proj(`Gemma4ClippableLinear`)까지 매칭돼 `get_peft_model`이 크래시합니다: 상세는 [LoRA target](../guides/02_finetuning.md#lora-target-멀티모달은-language_model만) |
 | `freeze_vision` | `True` (기본) | vision/audio 파라미터를 `requires_grad=False`로 두고 language LoRA만 학습합니다 |
 | `use_qlora`, `merge_adapter` | 둘 다 `True` | 4bit nf4로 학습하고, 머지는 base(bf16)를 CPU에 다시 올려 수행합니다. 멀티모달 full 모델은 vision+audio를 포함해 특히 커서 호스트 RAM 여유가 필요합니다 |
 
@@ -148,32 +148,32 @@ held-out 원칙은 텍스트 코스와 같습니다. 학습에 쓴 이미지로 
 
 ### 서빙: 멀티모달 그대로
 
-**이 코스는 텍스트 re-export를 하지 않습니다.** 텍스트 코스는 merge 후 `language_model` submodule만 `*ForCausalLM`으로 다시 저장하지만(생략하면 serving container가 image processor를 찾다가 종료됩니다: [텍스트 전용 re-export](../03_finetuning.md#텍스트-전용-re-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 코스와 동일하며, key prefix만 `model.language_model.*`로 다릅니다.
+**이 코스는 텍스트 re-export를 하지 않습니다.** 텍스트 코스는 merge 후 `language_model` submodule만 `*ForCausalLM`으로 다시 저장하지만(생략하면 serving container가 image processor를 찾다가 종료됩니다: [텍스트 전용 re-export](../guides/02_finetuning.md#텍스트-전용-re-export와-kv-shared-복원)), 여기서는 vision tower를 **유지한 채** 저장해 vLLM이 이미지 입력을 받도록 합니다. 저장 직전 KV-shared dead weight 복원은 텍스트 코스와 동일하며, key prefix만 `model.language_model.*`로 다릅니다.
 
 배포 셀의 값과 근거입니다.
 
 | 값 | 설정 | 근거 |
 |---|---|---|
 | `mm_limit={"image": 1}` | 이미지 입력 허용 | 텍스트 코스의 배포 셀은 이 인자를 주지 않습니다(re-export로 이미 텍스트 전용이라 불필요: re-export하지 않은 멀티모달 artifact를 텍스트로만 쓸 때 `{"image": 0, "audio": 0}`으로 막는 주석이 남아 있습니다). 여기서 `image=0`을 쓰면 이미지가 거부됩니다 |
-| `max_model_len=2048` | 서빙 컨텍스트 | 이 코스는 학습 길이와 같은 값을 씁니다(공용 빌더의 `serve_max_model_len` 경로를 타지 않고 노트북이 직접 지정). 입력이 짧은 지시문 + 이미지라 요약, QA 코스처럼 프롬프트가 컨텍스트를 잡아먹지 않습니다([학습 길이와 서빙 길이](../00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
+| `max_model_len=2048` | 서빙 컨텍스트 | 이 코스는 학습 길이와 같은 값을 씁니다(공용 빌더의 `serve_max_model_len` 경로를 타지 않고 노트북이 직접 지정). 입력이 짧은 지시문 + 이미지라 요약, QA 코스처럼 프롬프트가 컨텍스트를 잡아먹지 않습니다([학습 길이와 서빙 길이](../concepts/00_overview.md#학습-길이와-서빙-길이는-다른-값입니다)) |
 | `max_tokens=768` | 생성 상한 | 공용 기본값 256이 아닙니다. 정답 JSON 최대 **592토큰**(실측 100건)이라 512로는 잘립니다. L4에서 768 생성에 **21.3초** 실측: `/invocations` 60초 한도의 3분의 1입니다 |
 | `max_num_seqs=32`, `gpu_memory_utilization=0.90` | 24GB GPU OOM 회피 | 아래 참고 |
 
 !!! danger "기본값으로 배포하면 24GB GPU에서 endpoint가 Failed합니다"
     멀티모달 artifact는 vision tower를 포함해 가중치가 **15.18 GiB**입니다(텍스트 코스 14.23 GiB). `ml.g6.2xlarge`(L4 22.9GB) 예산 20.21 GiB에서 vLLM이 KV에 4.69 GiB를 할당하면 여유가 0.34 GiB뿐입니다. 추가로 필요한 1.12 GiB를 확보하지 못해 **0.78 GiB 부족**으로 CUDA OOM이 발생합니다. endpoint에는 `did not pass the ping health check`만 표시될 수 있으므로 자세한 원인은 CloudWatch 로그에서 확인해야 합니다.
-    원인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다. sampler logits buffer가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](../05_serving_containers.md#메모리-예산-l4-229gb-실측)에 있습니다.
+    원인은 모델 크기가 아니라 `max_num_seqs`의 vLLM 기본값 256입니다. sampler logits buffer가 `256 × vocab 262,144 × 4B = 정확히 256 MiB`입니다. GPU를 바꿀 필요는 없습니다. 전체 예산 표와 L40S 재현 실측은 [메모리 예산](../guides/04_serving_containers.md#메모리-예산-l4-229gb-실측)에 있습니다.
 
-호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이며, 이미지는 base64 data URL로 전달합니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일). 여러 이미지를 한 요청에 포함하면 real-time endpoint의 요청 payload 한도인 6 MB에 도달할 수 있습니다([SageMaker AI 추론](../04_sagemaker_inference.md)).
+호출 스키마는 텍스트 코스와 같은 OpenAI 호환 chat이며, 이미지는 base64 data URL로 전달합니다. `03` 노트북은 PNG 대신 **JPEG로 인코딩**합니다(payload가 1/8, 추론 시간은 동일). 여러 이미지를 한 요청에 포함하면 real-time endpoint의 요청 payload 한도인 6 MB에 도달할 수 있습니다([SageMaker AI 추론](../guides/03_sagemaker_inference.md)).
 
 ---
 
 ## 이어서 볼 문서
 
-- [00 전체 지도](../00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](../00_overview.md#멀티모달-코스-05의-별도-파이프라인))
-- [03 파인튜닝](../03_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
-- [04 SageMaker AI 추론](../04_sagemaker_inference.md): endpoint 3층 구조, 호출 스키마, payload, timeout 한도
-- [05 서빙 컨테이너](../05_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
-- [E2E 실행 가이드](../RUN_E2E.md#멀티모달-코스-05-파이프라인): 단계별 실행 순서, 비용 안내, 완료 기준
+- [00 전체 지도](../concepts/00_overview.md#5개-독립-코스와-공통-레이어): 5개 코스 비교표와 이 코스의 위치(단계 도해는 [멀티모달 코스 05의 별도 파이프라인](../concepts/00_overview.md#멀티모달-코스-05의-별도-파이프라인))
+- [02 파인튜닝](../guides/02_finetuning.md): LoRA/QLoRA, Gemma 관용구, 머지와 KV-shared 복원
+- [03 SageMaker AI 추론](../guides/03_sagemaker_inference.md): endpoint 3층 구조, 호출 스키마, payload, timeout 한도
+- [04 서빙 컨테이너](../guides/04_serving_containers.md): 엔진 선택, OOM, 절단 실측 함정
+- [노트북 실행법](../execution/run_notebook.md#멀티모달-코스-05-파이프라인): 멀티모달 노트북 실행 순서
 
 !!! danger "비용과 cleanup"
     학습 Job은 실행 시간만큼 과금되고 **endpoint는 호출하지 않아도 삭제할 때까지 시간당 계속 과금**됩니다. 코스를 마쳤으면 `99_cleanup`을 반드시 실행해 endpoint, endpoint-config, model을 모두 지우세요.

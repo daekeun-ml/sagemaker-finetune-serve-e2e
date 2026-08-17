@@ -5,9 +5,11 @@ Gemma 4를 Amazon SageMaker AI에서 **합성 데이터 → 파인튜닝 → 서
 
 !!! tip "어디서부터 읽을까"
     - **설치부터 첫 학습까지** → [시작하기](getting_started.md)
-    - **SageMaker AI가 처음이라면** → [SageMaker AI 기초](01_sagemaker_basics.md)를 먼저 읽으세요. Training Job과 Endpoint의 수명과 과금 차이를 알아 두면 나머지 가이드를 이해하기 쉽습니다.
-    - **전체 과정을 실행한다면** → [E2E 실행 가이드](RUN_E2E.md)에 단계별 핸드오프와 비용이 있습니다.
-    - **구조부터 보고 싶다면** → [전체 지도](00_overview.md)에 문서와 노트북 매핑이 있습니다.
+    - **SageMaker AI가 처음이라면** → [SageMaker AI 기초](concepts/01_sagemaker_basics.md)를 먼저 읽으세요. Training Job과 Endpoint의 수명과 과금 차이를 알아 두면 나머지 가이드를 이해하기 쉽습니다.
+    - **Studio와 SageMaker AI가 헷갈린다면** → [SageMaker AI와 Studio 이해하기](concepts/02_sagemaker_ai_vs_studio.md)에서 서비스와 개발환경의 역할을 확인하세요.
+    - **VPC와 network isolation이 헷갈린다면** → [[Advanced] SageMaker AI 보안과 네트워크](concepts/03_sagemaker_security_network.md)에서 control plane과 데이터 경로를 구분해 보세요.
+    - **노트북으로 실행한다면** → [노트북 실행법](execution/run_notebook.md)에서 순서와 단계별 결과를 확인하세요.
+    - **구조부터 보고 싶다면** → [전체 지도](concepts/00_overview.md)에 문서와 노트북 매핑이 있습니다.
     - **어떤 유스케이스를 실행할지 정해야 한다면** → 아래 [유스케이스별 실습](#5가지-유스케이스별-실습) 표에서 고르세요.
     - **특정 주제만** 필요하면 아래 가이드에서 골라 보세요.
 
@@ -27,10 +29,10 @@ SageMaker AI에는 JumpStart, Model Customization, HyperPod Recipes와 커스텀
 ??? info "커스텀 경로에서 직접 처리할 문제"
     이 에셋을 구현하고 검증하면서 다음 문제를 코드와 설정에서 직접 처리했습니다.
 
-    - **[모델 저장](05_serving_containers.md):** Gemma 4 E2B/E4B를 `save_pretrained`로 저장할 때 KV-sharing 텐서가 누락되면 vLLM, SGLang과 DJL LMI가 모델을 불러오지 못합니다.
-    - **[작업 제한 시간](03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정):** SDK의 기본 1시간에는 학습, 모델 병합과 S3 업로드가 모두 포함됩니다. `StoppingCondition`을 충분히 길게 지정해야 합니다.
-    - **[GPU 메모리](05_serving_containers.md):** vLLM의 기본 `max_num_seqs=256`은 24GB GPU에서 CUDA OOM을 일으킬 수 있습니다. 인스턴스에 맞게 값을 낮춰야 합니다.
-    - **[응답 잘림](04_sagemaker_inference.md):** HTTP 200이 반환되어도 출력이 길이 제한에 걸릴 수 있습니다. `finish_reason`을 확인해야 합니다.
+    - **[모델 저장](guides/04_serving_containers.md):** Gemma 4 E2B/E4B를 `save_pretrained`로 저장할 때 KV-sharing 텐서가 누락되면 vLLM, SGLang과 DJL LMI가 모델을 불러오지 못합니다.
+    - **[작업 제한 시간](guides/02_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정):** SDK의 기본 1시간에는 학습, 모델 병합과 S3 업로드가 모두 포함됩니다. `StoppingCondition`을 충분히 길게 지정해야 합니다.
+    - **[GPU 메모리](guides/04_serving_containers.md):** vLLM의 기본 `max_num_seqs=256`은 24GB GPU에서 CUDA OOM을 일으킬 수 있습니다. 인스턴스에 맞게 값을 낮춰야 합니다.
+    - **[응답 잘림](guides/03_sagemaker_inference.md):** HTTP 200이 반환되어도 출력이 길이 제한에 걸릴 수 있습니다. `finish_reason`을 확인해야 합니다.
 
 !!! note "지원 범위 확인"
     지원 모델, 학습 방식과 리전은 변경될 수 있습니다. 실행 전에 각 경로의 공식 문서와 모델 카드를 확인하세요.
@@ -42,15 +44,15 @@ SageMaker AI에는 JumpStart, Model Customization, HyperPod Recipes와 커스텀
 | 구분 | 가이드 | 내용 |
 |---|---|---|
 | 시작 | [시작하기](getting_started.md) | 설치, 설정과 첫 실행 |
-| 기본 개념 | [00 전체 지도](00_overview.md), [01 SageMaker AI 기초](01_sagemaker_basics.md) | 저장소 구조, Training Job과 Endpoint |
-| 모델 구축 | [02 합성 데이터](02_synthetic_data.md), [03 파인튜닝](03_finetuning.md) | 학습 데이터 준비와 모델 파인튜닝 |
-| 모델 배포 | [04 SageMaker AI 추론](04_sagemaker_inference.md), [05 서빙 컨테이너](05_serving_containers.md) | Endpoint 배포, 호출과 서빙 엔진 선택 |
-| 활용 | [06 Agentic loop](06_agentic.md) | 파인튜닝 모델과 Bedrock을 연결한 에이전트 구성 |
-| 직접 실행 | [노트북 E2E](RUN_E2E.md), [Python 파이프라인](pipelines.md) | 단계별 실습 또는 무인 실행 |
-| 실험 관리 | [SageMaker Managed MLflow](mlflow.md), [속도 측정](benchmark.md) | 실험 기록 비교와 TTFT, TPOT, ITL 측정 |
+| 기본 개념 | [00 전체 지도](concepts/00_overview.md), [01 SageMaker AI 기초](concepts/01_sagemaker_basics.md), [02 SageMaker AI와 Studio 이해하기](concepts/02_sagemaker_ai_vs_studio.md), [03 [Advanced] SageMaker AI 보안과 네트워크](concepts/03_sagemaker_security_network.md) | 저장소 구조, 관리형 리소스, 개발환경과 네트워크 |
+| 모델 구축 | [01 합성 데이터](guides/01_synthetic_data.md), [02 파인튜닝](guides/02_finetuning.md) | 학습 데이터 준비와 모델 파인튜닝 |
+| 모델 배포 | [03 SageMaker AI 추론](guides/03_sagemaker_inference.md), [04 서빙 컨테이너](guides/04_serving_containers.md) | Endpoint 배포, 호출과 서빙 엔진 선택 |
+| 활용 | [05 Agentic loop](guides/05_agentic.md) | 파인튜닝 모델과 Bedrock을 연결한 에이전트 구성 |
+| 실행 | [노트북 실행법](execution/run_notebook.md), [Python 스크립트 실행법](execution/run_pipeline.md) | 단계별 실습 또는 자동 실행 |
+| 실험 관리 | [SageMaker Managed MLflow](experiments/mlflow.md), [속도 측정](experiments/benchmark.md) | 실험 기록 비교와 TTFT, TPOT, ITL 측정 |
 | SDK 참조 | [SDK V3 개요](sdk_v3/index.md), [학습](sdk_v3/training.md), [배포](sdk_v3/serving.md) | V2와의 차이와 V3 API 사용법 |
 
-문서와 노트북, 참조 코드의 대응 관계는 [상세 문서 지도](00_overview.md#상세-문서-지도)에서 확인할 수 있습니다.
+문서와 노트북, 참조 코드의 대응 관계는 [상세 문서 지도](concepts/00_overview.md#상세-문서-지도)에서 확인할 수 있습니다.
 
 ## 5가지 유스케이스별 실습
 
@@ -66,7 +68,7 @@ SageMaker AI에는 JumpStart, Model Customization, HyperPod Recipes와 커스텀
 
 실습 코스 이름을 누르면 해당 유스케이스의 문제 정의, 데이터 변환 전후, 성공 기준, 노트북 순서와 설정값을 확인할 수 있습니다.
 
-노트북과 학습 스크립트는 [GitHub 저장소](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치와 실행 방법은 [시작하기](getting_started.md)와 [E2E 실행 가이드](RUN_E2E.md)에 있습니다.
+노트북과 학습 스크립트는 [GitHub 저장소](https://github.com/daekeun-ml/sagemaker-finetune-serve-e2e)에 있습니다. 설치 후 [노트북 실행법](execution/run_notebook.md) 또는 [Python 스크립트 실행법](execution/run_pipeline.md)을 선택하세요.
 
 !!! warning "비용"
     real-time endpoint는 **삭제할 때까지 시간당 과금**됩니다. 실습을 마치면 각 코스의 `99_cleanup.ipynb`를 반드시 실행하세요.

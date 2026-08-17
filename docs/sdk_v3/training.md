@@ -4,7 +4,7 @@
     V3에서 **학습 Job을 제출하는 방법**만 다룹니다.
     V2와의 전체 차이와 마이그레이션 함정은 [SDK V3 개요](index.md),
     배포는 [SDK V3 배포](serving.md), LoRA 설계와 하이퍼파라미터 같은 학습 내용 자체는
-    [파인튜닝](../03_finetuning.md)에 있습니다.
+    [파인튜닝](../guides/02_finetuning.md)에 있습니다.
 
 ## ModelTrainer로 학습 Job 제출
 
@@ -73,7 +73,7 @@
     print(estimator.latest_training_job.name)
     ```
 
-`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 parsing에 실패합니다. 이 프로젝트의 `str2bool` 처리 이유는 [파인튜닝](../03_finetuning.md#trainpy-로컬-dry-run과-sagemaker-ai-학습-job)에 있습니다.
+`ModelTrainer`에는 `hyperparameters`가 `--key value` CLI 인자로 직렬화돼 `train.py`에 들어갑니다. `--use_qlora True` 형태이므로 `argparse`에서 `action="store_true"`를 쓰면 parsing에 실패합니다. 이 프로젝트의 `str2bool` 처리 이유는 [파인튜닝](../guides/02_finetuning.md#trainpy-로컬-dry-run과-sagemaker-ai-학습-job)에 있습니다.
 
 ## ModelTrainer 하나로 합쳐진 estimator들
 
@@ -89,7 +89,7 @@
 | 성격 | 범용 compute orchestrator | 정해진 모델, 기법, 파라미터만 받는 고수준 워크플로 |
 | 내가 주는 것 | 이미지, 스크립트, 하이퍼파라미터 | 모델과 데이터 |
 
-이 프로젝트는 **`ModelTrainer` 쪽**입니다. TRL `SFTTrainer`와 PEFT를 직접 조합하고 최신 Gemma를 바로 쓰기 위해 `train.py`를 들고 가기 때문입니다([파인튜닝](../03_finetuning.md#왜-커스텀-trainpy-경로인가)에 그 선택 근거가 있습니다).
+이 프로젝트는 **`ModelTrainer` 쪽**입니다. TRL `SFTTrainer`와 PEFT를 직접 조합하고 최신 Gemma를 바로 쓰기 위해 `train.py`를 들고 가기 때문입니다([파인튜닝](../guides/02_finetuning.md#왜-커스텀-trainpy-경로인가)에 그 선택 근거가 있습니다).
 
 특화 trainer는 `sagemaker.train`에서 바로 import됩니다(3.16.0 확인).
 
@@ -148,4 +148,4 @@ from sagemaker.train.aws_batch.training_queue import TrainingQueue
 
 - [SDK V3 개요](index.md): V2→V3 매핑표와 마이그레이션 함정
 - [SDK V3 배포](serving.md): `ModelBuilder`로 학습 결과를 endpoint에 올리기
-- [파인튜닝](../03_finetuning.md): 이 프로젝트가 학습 스크립트를 직접 쓰는 이유
+- [파인튜닝](../guides/02_finetuning.md): 이 프로젝트가 학습 스크립트를 직접 쓰는 이유

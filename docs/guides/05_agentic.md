@@ -1,4 +1,4 @@
-# 06. Agentic Loop: 파인튜닝 SLM(tool) + Bedrock Claude(reasoning)
+# 05. Agentic Loop: 파인튜닝 SLM(tool) + Bedrock Claude(reasoning)
 
 !!! info "Scope"
     파인튜닝한 Gemma SLM을 tool로 쓰고 reasoning은 Bedrock Claude에 맡기는
@@ -8,9 +8,9 @@
       **real-time endpoint를 이미 가진 상태**. Strands/AgentCore는 처음이어도 괜찮습니다
     - **여기서 다루는 것**: SLM endpoint를 tool로 노출하는 방법, Bedrock Claude를
       reasoning으로 붙이는 방법, AgentCore Runtime 배포 규약
-    - **여기서 다루지 않는 것**: 학습은 [파인튜닝](03_finetuning.md), 데이터 합성은
-      [합성 데이터](02_synthetic_data.md), 컨테이너 선택은
-      [서빙 컨테이너](05_serving_containers.md)
+    - **여기서 다루지 않는 것**: 학습은 [파인튜닝](02_finetuning.md), 데이터 합성은
+      [합성 데이터](01_synthetic_data.md), 컨테이너 선택은
+      [서빙 컨테이너](04_serving_containers.md)
 
 이 문서는 노트북 `05_agentic_strands`와 `06_agentcore_deploy`, 그리고 `agentcore/` 디렉터리의 스크립트를 설명합니다.
 
@@ -115,7 +115,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 
 ### tool-use 왕복 흐름
 
-![Agentic loop의 왕복 흐름. 사용자 입력이 Bedrock Claude(reasoning)로 들어가고, Claude는 bedrock-runtime의 converse로 호출됩니다. Claude가 추출 작업이라 판단하면 tool-use 요청을 내고, 그 요청이 extract_structured_json 도구로 갑니다. 이 도구는 sagemaker-runtime의 invoke_endpoint로 파인튜닝된 Gemma SLM endpoint를 호출합니다. 결과 JSON이 Claude로 돌아가고 Claude가 검증과 설명을 붙여 최종 응답을 만듭니다](images/agentic_loop.svg)
+![Agentic loop의 왕복 흐름. 사용자 입력이 Bedrock Claude(reasoning)로 들어가고, Claude는 bedrock-runtime의 converse로 호출됩니다. Claude가 추출 작업이라 판단하면 tool-use 요청을 내고, 그 요청이 extract_structured_json 도구로 갑니다. 이 도구는 sagemaker-runtime의 invoke_endpoint로 파인튜닝된 Gemma SLM endpoint를 호출합니다. 결과 JSON이 Claude로 돌아가고 Claude가 검증과 설명을 붙여 최종 응답을 만듭니다](../images/agentic_loop.svg)
 
 *왼쪽으로 돌아가는 점선이 이 구조의 핵심입니다. SLM은 한 번 불려 값을 돌려줄 뿐이고, 그 결과를 판단하는 것은 다시 Claude입니다.*
 
@@ -126,7 +126,7 @@ Bedrock Claude 호출       = boto3 "bedrock-runtime" 클라이언트, converse(
 - **스트리밍**이 필요하면 `invoke_endpoint_with_response_stream`을 감싼 `stream_sagemaker_chat()`을 사용하세요. 체감 지연만 줄고 총 시간은 그대로입니다.
     - 요약 코스 endpoint 실측(vLLM 0.26.0, 입력 5,996자): 첫 응답 0.42초 vs 완성 대기 16.16초 → **체감 38배**.
     - 다만 완료 시각은 15.9초 vs 16.2초로 사실상 같아 **전체 생성 시간과 동시 처리량은 그대로**입니다.
-    - 자세한 실측은 [응답 스트리밍](04_sagemaker_inference.md#응답-스트리밍-invoke_endpoint_with_response_stream)에 있습니다.
+    - 자세한 실측은 [응답 스트리밍](03_sagemaker_inference.md#응답-스트리밍-invoke_endpoint_with_response_stream)에 있습니다.
 - **Bedrock 쪽**은 `converse()`(또는 스트리밍 `converse_stream()`)를 쓰며, 구현은 `common/aws_utils.py`의 `bedrock_converse()`입니다.
     - 메시지와 `inferenceConfig` 스키마는 [Converse API 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)가 규정합니다.
     - 호출 예시는 [amazon-bedrock-samples](https://github.com/aws-samples/amazon-bedrock-samples)에도 있습니다.
@@ -148,7 +148,7 @@ SLM을 어디에 배포할지에도 선택지가 있습니다. `03_deploy_endpoi
 
 ??? info "더 읽을 거리"
     - 네 옵션의 정의는 [SageMaker 배포 옵션 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html)를 따릅니다.
-    - 축별 상세 비교는 [추론 4옵션 비교](04_sagemaker_inference.md#추론-4옵션-비교)에 있습니다.
+    - 축별 상세 비교는 [추론 4옵션 비교](03_sagemaker_inference.md#추론-4옵션-비교)에 있습니다.
 
 | 옵션 | 특징 | LLM/SLM 적합성 |
 |---|---|---|
@@ -212,7 +212,7 @@ SLM에 넣는 system 프롬프트는 **학습 때 쓴 것과 동일**해야 합�
 
 !!! warning "`max_tokens`는 코스마다 다릅니다: 256을 그대로 복사하지 마세요"
     위 스니펫의 `256`은 **추출과 분류 코스 값**입니다(`agentcore/app.py`가 정보추출 전용 scaffold이므로). 요약과 도메인 QA 노트북은 **512**를 씁니다.
-    도메인 QA에서 256을 쓰면 정답 13건(8.7%)이 잘려 지표가 과소 측정됩니다. 배포, 평가, 에이전트 셀이 **모두 같은 값**을 쓰도록 코스별 `gen_max_tokens`가 정해져 있습니다. 전체 표는 [max_tokens 절단과 finish_reason](05_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
+    도메인 QA에서 256을 쓰면 정답 13건(8.7%)이 잘려 지표가 과소 측정됩니다. 배포, 평가, 에이전트 셀이 **모두 같은 값**을 쓰도록 코스별 `gen_max_tokens`가 정해져 있습니다. 전체 표는 [max_tokens 절단과 finish_reason](04_serving_containers.md#max_tokens-절단과-finish_reason)에 있습니다.
 
 ### provider 선택: BedrockModel과 LiteLLMModel
 

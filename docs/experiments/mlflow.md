@@ -78,7 +78,7 @@ MLflow 기록은 `pipelines/` 아래의 엔드투엔드 파이프라인에 적�
 
 관리형 MLflow에서는 파이프라인과 SageMaker 학습 작업이 `mlflow`와 `sagemaker-mlflow`를 통해 같은 MLflow App에 기록합니다. App은 실험 메타데이터와 UI를 제공하고, 평가 결과 같은 아티팩트는 사용자 계정의 S3 버킷에 저장합니다.
 
-![파이프라인과 SageMaker 학습 작업이 MLflow 클라이언트와 AWS 인증을 거쳐 MLflow App에 기록하고, 사용자가 UI와 관리형 메타데이터, S3 아티팩트를 조회하는 구성](images/managed-mlflow-architecture.svg)
+![파이프라인과 SageMaker 학습 작업이 MLflow 클라이언트와 AWS 인증을 거쳐 MLflow App에 기록하고, 사용자가 UI와 관리형 메타데이터, S3 아티팩트를 조회하는 구성](../images/managed-mlflow-architecture.svg)
 
 파이프라인을 실행하면 전체 실행을 나타내는 상위 run이 만들어집니다. 상위 run에는 파이프라인 설정, 단계별 상태, 평가 결과, 모델 S3 URI와 엔드포인트 정보가 기록됩니다. SageMaker 학습 컨테이너는 별도의 하위 run을 만들고 학습 파라미터, 손실, 처리량과 시스템 지표를 기록합니다. 하위 run에는 상위 run ID가 태그로 남으므로 두 기록을 함께 조회할 수 있습니다.
 
@@ -166,7 +166,7 @@ App ARN의 마지막 값은 사용자가 정한 App 이름이 아니라 AWS가 �
 
 SageMaker Managed MLflow 사용은 최초 설정과 반복 실행으로 나뉩니다. MLflow App 준비와 연결 설정은 처음 한 번 수행하고, 이후 파이프라인을 실행할 때마다 상위 run, 학습 하위 run과 평가 결과가 순서대로 기록됩니다.
 
-![MLflow App을 준비하고 연결한 뒤 파이프라인 상위 실행, 학습 하위 실행, 평가 결과를 기록하고 UI에서 비교하는 흐름](images/managed-mlflow-workflow.svg)
+![MLflow App을 준비하고 연결한 뒤 파이프라인 상위 실행, 학습 하위 실행, 평가 결과를 기록하고 UI에서 비교하는 흐름](../images/managed-mlflow-workflow.svg)
 
 ### 1. MLflow App 준비
 
@@ -198,7 +198,7 @@ python pipelines/run_extraction.py --stages all
 
 SageMaker 학습 컨테이너는 별도의 하위 run을 만들고 Trainer가 수집한 지표를 기록합니다. `Model metrics` 탭에서는 `entropy`, `epoch`, `grad_norm`, `learning_rate`, `mean_token_accuracy`, `num_tokens` 같은 지표를 스텝별로 확인할 수 있습니다. GPU, CPU와 메모리 사용량은 `System metrics` 탭에서 확인합니다.
 
-[![MLflow App의 학습 하위 run에서 entropy, epoch, grad_norm, learning_rate, mean_token_accuracy와 num_tokens를 스텝별 차트로 확인하는 화면](images/mlflow-training-log.png){ width="720" }](images/mlflow-training-log.png)
+[![MLflow App의 학습 하위 run에서 entropy, epoch, grad_norm, learning_rate, mean_token_accuracy와 num_tokens를 스텝별 차트로 확인하는 화면](../images/mlflow-training-log.png){ width="720" }](../images/mlflow-training-log.png)
 
 상위 run은 생성됐지만 학습 하위 run이 없다면 학습 실행 역할의 MLflow 권한과 학습 작업에 전달된 Tracking URI를 먼저 확인합니다.
 

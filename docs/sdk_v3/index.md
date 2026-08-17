@@ -10,8 +10,8 @@
       두 레이어(`sagemaker.core` vs `sagemaker.train`/`sagemaker.serve`) 구조,
       학습, 배포, 호출, 정리 4가지 대표 용법, V2 코드를 옮길 때 걸리는 함정
     - **여기서 다루지 않는 것**: 학습 하이퍼파라미터와 LoRA 설계는
-      [파인튜닝](../03_finetuning.md), endpoint 구조와 서빙 엔진은
-      [SageMaker AI 추론](../04_sagemaker_inference.md), [서빙 컨테이너](../05_serving_containers.md),
+      [파인튜닝](../guides/02_finetuning.md), endpoint 구조와 서빙 엔진은
+      [SageMaker AI 추론](../guides/03_sagemaker_inference.md), [서빙 컨테이너](../guides/04_serving_containers.md),
       Processing/Pipelines/Feature Store 마이그레이션(이 프로젝트가 쓰지 않습니다)
 
 이 문서의 동작은 모두 **SDK 3.16.0 설치본에서 실측**한 것이고, 이름과 의도는 [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md)와 [V3 문서](https://sagemaker.readthedocs.io/en/stable/)를 기준으로 적었습니다. 둘이 어긋나는 지점은 그 자리에서 따로 표시했습니다.
@@ -131,7 +131,7 @@ MXNet, Chainer, `RLEstimator`, Training Compiler는 **대체 없이 삭제**됐�
 
 비용과 결과에 직접 영향을 주는 기본값입니다. `sagemaker/train/defaults.py`의 `DEFAULT_MAX_RUNTIME_IN_SECONDS = 3600`이 `ModelTrainer` 생성 시점(`model_post_init`)에 자동으로 주입되고, 그대로 `TrainingJob.create`로 넘어갑니다. Job 로그의 `StoppingCondition not provided. Using default` 한 줄이 유일한 신호입니다(V2의 `max_run` 기본값과 같은지는 V2를 설치하지 않아 확인하지 않았습니다. 어느 쪽이든 3600은 LLM fine-tuning에 짧습니다).
 
-이 프로젝트에서도 학습은 100% 끝났지만 adapter merge 중 Job이 종료되어 배포할 수 없는 artifact가 남았습니다. 증상, 타임라인, 대응은 [MaxRuntimeExceeded: 학습 뒤 머지에서 잘리는 함정](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)에 정리했습니다.
+이 프로젝트에서도 학습은 100% 끝났지만 adapter merge 중 Job이 종료되어 배포할 수 없는 artifact가 남았습니다. 증상, 타임라인, 대응은 [MaxRuntimeExceeded: 학습 뒤 머지에서 잘리는 함정](../guides/02_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정)에 정리했습니다.
 
 같은 파일에 조용한 기본값이 더 있습니다. `DEFAULT_INSTANCE_TYPE = "ml.m5.xlarge"`는 **CPU 인스턴스**입니다. `compute=`를 빼먹은 GPU 학습은 에러 없이 CPU에서 돌기 시작합니다(`DEFAULT_INSTANCE_COUNT=1`, `DEFAULT_VOLUME_SIZE=30`도 같은 방식). 결론은 하나입니다. `compute`와 `stopping_condition`은 항상 명시하세요.
 
@@ -178,9 +178,9 @@ except ModuleNotFoundError:
 | endpoint 호출 | (SDK 아님) boto3 `sagemaker-runtime` | `common/aws_utils.py` |
 | 삭제, 정리 | (SDK 아님) boto3 `sagemaker` client | `99_cleanup` |
 
-세부는 [파인튜닝](../03_finetuning.md)과 [SageMaker AI 추론](../04_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../05_serving_containers.md#이미지-해석-우선순위-commondlcpy)에 있습니다.
+세부는 [파인튜닝](../guides/02_finetuning.md)과 [SageMaker AI 추론](../guides/03_sagemaker_inference.md)에 있고, 이미지 해석 우선순위는 [서빙 컨테이너](../guides/04_serving_containers.md#이미지-해석-우선순위-commondlcpy)에 있습니다.
 
-**왜 framework estimator 대신 custom `train.py`를 사용하는가.** V3에는 `HuggingFace` estimator가 없습니다. AWS가 문서화한 방식은 `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 선택하고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 학습 script를 전달하는 것입니다. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 "Hugging Face SageMaker AI ModelTrainer"를 안내합니다. 이 프로젝트의 "PyTorch DLC + custom `train.py`"도 이 경로를 따릅니다. 컨테이너 안에서는 `requirements.txt`로 `transformers`와 `trl` 버전을 지정할 수 있습니다([JumpStart vs 자체 train.py](../03_finetuning.md#jumpstart-vs-자체-trainpy)).
+**왜 framework estimator 대신 custom `train.py`를 사용하는가.** V3에는 `HuggingFace` estimator가 없습니다. AWS가 문서화한 방식은 `image_uris.retrieve(framework="pytorch", image_scope="training")`로 DLC를 선택하고 `ModelTrainer(training_image=..., source_code=SourceCode(...))`에 학습 script를 전달하는 것입니다. AWS Developer Guide의 [Hugging Face 페이지](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)도 "Hugging Face SageMaker AI ModelTrainer"를 안내합니다. 이 프로젝트의 "PyTorch DLC + custom `train.py`"도 이 경로를 따릅니다. 컨테이너 안에서는 `requirements.txt`로 `transformers`와 `trl` 버전을 지정할 수 있습니다([JumpStart vs 자체 train.py](../guides/02_finetuning.md#jumpstart-vs-자체-trainpy)).
 
 ---
 
@@ -204,9 +204,9 @@ except ModuleNotFoundError:
 
 ## 이어서 볼 문서
 
-- [01 SageMaker AI 기초](../01_sagemaker_basics.md#training-job-끝나면-컴퓨팅-리소스까지-사라집니다): `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
-- [03 파인튜닝](../03_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정): `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
-- [04 SageMaker AI 추론](../04_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조, 호출 스키마, cleanup 순서
-- [05 서빙 컨테이너](../05_serving_containers.md#sdk-v3-배포-모드와-로컬-검증): `ModelBuilder`의 `Mode` 3단계와 로컬 검증
-- [E2E 실행 가이드](../RUN_E2E.md#단계별-실행과-데이터-핸드오프): 단계별 실행 순서와 비용 안내
+- [01 SageMaker AI 기초](../concepts/01_sagemaker_basics.md#training-job-끝나면-컴퓨팅-리소스까지-사라집니다): `ModelTrainer`가 감싸는 `CreateTrainingJob`의 실체와 경로 규약
+- [02 파인튜닝](../guides/02_finetuning.md#maxruntimeexceeded-학습-뒤-머지에서-잘리는-함정): `stopping_condition` 함정 전체 진단 기록과 학습 경로 선택
+- [03 SageMaker AI 추론](../guides/03_sagemaker_inference.md#endpoint-3층-구조와-호출): endpoint 3층 구조, 호출 스키마, cleanup 순서
+- [04 서빙 컨테이너](../guides/04_serving_containers.md#sdk-v3-배포-모드와-로컬-검증): `ModelBuilder`의 `Mode` 3단계와 로컬 검증
+- [노트북 실행법](../execution/run_notebook.md#단계별-실행과-데이터-핸드오프): 노트북 순서와 단계별 결과 전달
 - [공식 마이그레이션 가이드](https://github.com/aws/sagemaker-python-sdk/blob/master/migration.md), [Version Lifecycle](https://sagemaker.readthedocs.io/en/stable/lifecycle.html): V2 지원 종료 일정과 매핑 표

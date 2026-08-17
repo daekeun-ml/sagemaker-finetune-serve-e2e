@@ -36,7 +36,7 @@ def cells() -> list[dict]:
             "지표를 함께 보려는 경우에만 MLflow App을 만듭니다.\n\n"
             "한 번 실행하고 결과만 확인한다면 MLflow가 필요하지 않습니다. 이 경우 `.env`의 "
             "`USE_MLFLOW=0`을 유지하십시오. 사용 시점과 구성 방식은 "
-            "[MLflow로 파인튜닝 실험 비교하기](docs/mlflow.md)에서 확인할 수 있습니다."
+            "[MLflow로 파인튜닝 실험 비교하기](docs/experiments/mlflow.md)에서 확인할 수 있습니다."
         ),
         md(
             "## 0. 진행 순서\n\n"
@@ -217,7 +217,7 @@ def cells() -> list[dict]:
         ),
         md(
             "## 더 읽기\n\n"
-            "- `docs/mlflow.md`: MLflow가 필요한 경우, 구성 방식과 파이프라인 기록 범위\n"
+            "- `docs/experiments/mlflow.md`: MLflow가 필요한 경우, 구성 방식과 파이프라인 기록 범위\n"
             "- `common/mlflow_utils.py`: 기록 대상 선택, App 관리와 권한 처리 구현\n"
             "- [AWS Managed MLflow 공식 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/mlflow.html): "
             "지원 리전, 버전과 서비스 제한"

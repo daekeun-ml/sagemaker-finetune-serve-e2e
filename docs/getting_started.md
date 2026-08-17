@@ -4,8 +4,8 @@
 "노트북은 어디에 있나?", "dry-run은 어떻게 하나?", "Amazon SageMaker AI에서는 어떻게 실행하나?"에 순서대로 답합니다.
 
 !!! info "이 문서의 범위"
-    설치부터 첫 학습까지를 다룹니다. 프로젝트 전체 구조는 [전체 지도](00_overview.md),
-    전체 실행 절차는 [E2E 실행 가이드](RUN_E2E.md)를 보세요.
+    설치부터 첫 학습까지를 다룹니다. 프로젝트 전체 구조는 [전체 지도](concepts/00_overview.md),
+    노트북 순서는 [노트북 실행법](execution/run_notebook.md), 자동 실행은 [Python 스크립트 실행법](execution/run_pipeline.md)을 보세요.
 
 ---
 
@@ -20,7 +20,7 @@
 **처음 실행할 때 권장하는 순서: A → B → C**
 
 !!! tip "전체 과정을 실행한다면"
-    단계별 핸드오프, 비용, 체크리스트, 문제 해결은 [E2E 실행 가이드](RUN_E2E.md)에 정리돼 있습니다.
+    단계별 노트북 순서는 [노트북 실행법](execution/run_notebook.md), 상태 파일과 재개는 [Python 스크립트 실행법](execution/run_pipeline.md)에 정리돼 있습니다.
 
 ---
 
@@ -150,7 +150,7 @@ export BEDROCK_CLAUDE_MODEL_ID=global.anthropic.claude-sonnet-5   # 정확한 ID
 # export HF_TOKEN=hf_...          # gemma-3 등 gated 모델 쓸 때만
 export DRY_RUN=1                  # 데이터 준비와 평가 규모를 줄여 먼저 검증
 ```
-`DRY_RUN=1`은 데이터 준비, 평가, 로컬 dry-run 규모를 줄입니다. SageMaker AI Training Job의 `MAX_TRAIN_SAMPLES`와 `EPOCHS`, endpoint 비용은 자동으로 줄이지 않습니다. 자세한 범위는 [두 가지 검증 모드 구분](RUN_E2E.md#두-가지-검증-모드-구분)을 확인하세요.
+`DRY_RUN=1`은 데이터 준비, 평가, 로컬 dry-run 규모를 줄입니다. SageMaker AI Training Job의 `MAX_TRAIN_SAMPLES`와 `EPOCHS`, endpoint 비용은 자동으로 줄이지 않습니다. 자세한 범위는 [두 가지 검증 모드 구분](execution/run_notebook.md#두-가지-검증-모드-구분)을 확인하세요.
 
 ??? tip "HF 토큰을 한 번만 저장하기 (gated 모델을 쓸 때)"
     `config.get_hf_token()`은 **env(`HF_TOKEN`) → `hf auth login` 저장 토큰** 순으로 조회하므로
@@ -174,7 +174,7 @@ export DRY_RUN=1                  # 데이터 준비와 평가 규모를 줄여 
 
 ### 비용 주의
 - real-time endpoint는 **삭제 전까지 시간당 과금**됩니다 → 실습 후 반드시 **`99_cleanup.ipynb`** 실행.
-- Bedrock 호출과 AgentCore도 과금 → 자세한 내용은 각 노트북 상단 경고와 [`docs/04_sagemaker_inference.md`](04_sagemaker_inference.md) 참고.
+- Bedrock 호출과 AgentCore도 과금 → 자세한 내용은 각 노트북 상단 경고와 [SageMaker AI 추론](guides/03_sagemaker_inference.md) 참고.
 
 ---
 
@@ -182,14 +182,17 @@ export DRY_RUN=1                  # 데이터 준비와 평가 규모를 줄여 
 
 문서는 파일명 번호가 곧 읽는 순서입니다. 처음이라면 00부터 차례로, 특정 단계만 필요하면 해당 항목으로 가세요.
 
-- [전체 지도](00_overview.md): 전체 지도. 노트북과 문서 매핑
-- [SageMaker AI 기초](01_sagemaker_basics.md): 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금 (방식 C 전에 읽기 권장)
-- [합성 데이터](02_synthetic_data.md): 데이터 준비. grounded 합성과 critique/refine
-- [파인튜닝](03_finetuning.md): 학습. PyTorch DLC + TRL LoRA/QLoRA
-- [SageMaker AI 추론](04_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
-- [서빙 컨테이너](05_serving_containers.md): 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
-- [Agentic loop](06_agentic.md): 활용. Strands + Bedrock Claude, AgentCore 배포
-- [E2E 실행 가이드](RUN_E2E.md): 단계별 핸드오프, 비용, 완료 조건
+- [전체 지도](concepts/00_overview.md): 전체 지도. 노트북과 문서 매핑
+- [SageMaker AI 기초](concepts/01_sagemaker_basics.md): 개념. Training Job vs Endpoint, 경로 규약, 수명과 과금
+- [SageMaker AI와 Studio 이해하기](concepts/02_sagemaker_ai_vs_studio.md): 서비스와 개발환경의 역할 구분
+- [[Advanced] SageMaker AI 보안과 네트워크](concepts/03_sagemaker_security_network.md): control plane, VPC와 network isolation
+- [합성 데이터](guides/01_synthetic_data.md): 데이터 준비. grounded 합성과 critique/refine
+- [파인튜닝](guides/02_finetuning.md): 학습. PyTorch DLC + TRL LoRA/QLoRA
+- [SageMaker AI 추론](guides/03_sagemaker_inference.md): 배포. 추론 4옵션과 endpoint 선택 기준
+- [서빙 컨테이너](guides/04_serving_containers.md): 배포. vLLM vs SGLang vs DJL LMI 엔진 선택
+- [Agentic loop](guides/05_agentic.md): 활용. Strands + Bedrock Claude, AgentCore 배포
+- [노트북 실행법](execution/run_notebook.md): 노트북 순서와 단계별 결과 전달
+- [Python 스크립트 실행법](execution/run_pipeline.md): 자동 실행, 재개와 cleanup
 
 ---
 

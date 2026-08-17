@@ -65,7 +65,7 @@ python pipelines/run_benchmark.py --course classification --print-command
 
 ## 측정 지표
 
-[![스트리밍 응답의 네 가지 지연 지표를 요청 처리 파이프라인 위에 표시한 다이어그램. 위쪽에 네 지표의 정의가 나열된다: Time to First Token(TTFT)은 요청을 보낸 후 첫 토큰을 생성하는 데 걸리는 시간, Inter-Token Latency(ITL)는 연속된 두 토큰 사이의 실제 시간 간격, Time per Output Token(TPOT)은 각 후속 토큰을 생성하는 평균 시간 간격, End-to-End Latency(E2EL)는 요청을 보낸 시점부터 최종 토큰을 받을 때까지의 시간이다. 가운데에는 입력 프롬프트, 토큰화, Prefill, Decode, 디토큰화, 최종 출력 순서가 표시되고 아래쪽에는 여러 요청의 지연 구간이 겹친 타임라인이 있다](images/latency.png)](images/latency.png)
+[![스트리밍 응답의 네 가지 지연 지표를 요청 처리 파이프라인 위에 표시한 다이어그램. 위쪽에 네 지표의 정의가 나열된다: Time to First Token(TTFT)은 요청을 보낸 후 첫 토큰을 생성하는 데 걸리는 시간, Inter-Token Latency(ITL)는 연속된 두 토큰 사이의 실제 시간 간격, Time per Output Token(TPOT)은 각 후속 토큰을 생성하는 평균 시간 간격, End-to-End Latency(E2EL)는 요청을 보낸 시점부터 최종 토큰을 받을 때까지의 시간이다. 가운데에는 입력 프롬프트, 토큰화, Prefill, Decode, 디토큰화, 최종 출력 순서가 표시되고 아래쪽에는 여러 요청의 지연 구간이 겹친 타임라인이 있다](../images/latency.png)](../images/latency.png)
 
 | Metric | Definition | What it tells you |
 |---|---|---|

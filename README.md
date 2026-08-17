@@ -56,7 +56,7 @@ AWS 리소스를 만들거나 Bedrock을 호출하지 않고 실행 흐름만 �
 
 **노트북 (JupyterLab)**: 처음 배울 때, 중간 산출물을 눈으로 볼 때
 
-`tracks/01_extraction_to_json/`을 열어 `00_setup.ipynb`부터 번호 순서대로 실행합니다. 단계별 핸드오프와 비용 가드는 [`docs/RUN_E2E.md`](docs/RUN_E2E.md)에 있습니다.
+`tracks/01_extraction_to_json/`을 열어 `00_setup.ipynb`부터 번호 순서대로 실행합니다. 단계별 순서는 [노트북 실행법](docs/execution/run_notebook.md)에서 확인할 수 있습니다.
 
 **스크립트 (Python)**: 검증된 코스를 다시 돌릴 때
 
@@ -70,7 +70,7 @@ python pipelines/run_extraction.py --stages deploy,eval   # 나중에 배포
 python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
 ```
 
-코스별 지원 단계, 중단 후 재개, 상태 파일과 `--force` 사용법은 [`pipelines/README.md`](pipelines/README.md)에서 확인할 수 있습니다.
+코스별 지원 단계, 중단 후 재개, 상태 파일과 `--force` 사용법은 [Python 스크립트 실행법](docs/execution/run_pipeline.md)에서 확인할 수 있습니다.
 
 > [!WARNING]
 > **실시간 엔드포인트는 삭제할 때까지 시간당 과금됩니다.** 요청이 없어도 인스턴스 비용이 발생합니다.
@@ -80,7 +80,7 @@ python pipelines/run_extraction.py --stages cleanup   # 끝나면 반드시
 
 - **처음이라면:** [`docs/getting_started.md`](docs/getting_started.md)에서 설치, 스모크 테스트, 로컬 dry-run, 노트북 실행 순서를 확인하세요.
 - **설정을 바꾸려면:** [`config.yaml`](config.yaml)에서 모델 크기, 인스턴스, 서빙 엔진을 변경하세요.
-- **실험 추적이 필요하면:** [`docs/mlflow.md`](docs/mlflow.md)에서 로컬 SQLite와 SageMaker Managed MLflow 설정을 확인하세요.
+- **실험 추적이 필요하면:** [`docs/experiments/mlflow.md`](docs/experiments/mlflow.md)에서 로컬 SQLite와 SageMaker Managed MLflow 설정을 확인하세요.
 - **SDK v2에서 옮겨 왔다면:** [SageMaker Python SDK V3](https://daekeun-ml.github.io/sagemaker-finetune-serve-e2e/sdk_v3/)에서 차이를 확인하세요.
 
 ---
@@ -115,7 +115,7 @@ AWS 관리형 방식은 간단하지만 지원 모델, 학습 기법과 리전�
 
 커스텀 경로에서는 LoRA 대상, 채팅 템플릿, 보상 함수, 컨테이너와 서빙 엔진을 직접 바꿀 수 있습니다. 대신 모델 저장과 서빙 엔진의 호환성, GPU 메모리와 작업 제한도 직접 관리해야 합니다.
 
-Gemma 4 KV-sharing 가중치 복원, 24GB GPU OOM과 응답 절단 대응은 코드와 [`서빙 컨테이너 가이드`](docs/05_serving_containers.md)에 반영돼 있습니다. 관리형 방식이 원하는 조합을 지원한다면 해당 방식을 사용하는 편이 단순합니다.
+Gemma 4 KV-sharing 가중치 복원, 24GB GPU OOM과 응답 절단 대응은 코드와 [`서빙 컨테이너 가이드`](docs/guides/04_serving_containers.md)에 반영돼 있습니다. 관리형 방식이 원하는 조합을 지원한다면 해당 방식을 사용하는 편이 단순합니다.
 
 ## What it does
 
@@ -142,7 +142,7 @@ Gemma 4 KV-sharing 가중치 복원, 24GB GPU OOM과 응답 절단 대응은 코
 | `04_domain_qa` | 도메인 QA / instruction | `databricks/databricks-dolly-15k` (cc-by-sa-3.0) |
 | `05_multimodal_extraction` | 영수증 이미지에서 구조화 JSON 추출 | `naver-clova-ix/cord-v2` (cc-by-4.0) |
 
-추출과 분류 코스는 GRPO 추가 학습을 선택할 수 있고, 멀티모달 코스는 합성 데이터와 에이전트 단계가 없습니다. 전체 노트북 순서와 선택 단계는 [`docs/RUN_E2E.md`](docs/RUN_E2E.md)에서 확인할 수 있습니다.
+추출과 분류 코스는 GRPO 추가 학습을 선택할 수 있고, 멀티모달 코스는 합성 데이터와 에이전트 단계가 없습니다. 전체 노트북 순서와 선택 단계는 [노트북 실행법](docs/execution/run_notebook.md)에서 확인할 수 있습니다.
 
 ## 노트북 vs 스크립트
 

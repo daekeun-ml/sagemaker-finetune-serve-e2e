@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">SageMaker Studio와 SageMaker AI의 실행 경계</title>
+  <desc id="desc">랩탑, EC2, CI 또는 SageMaker Studio Space에서 SDK로 SageMaker AI API를 호출하면 별도의 Training Job과 Endpoint가 실행되는 구조를 보여 줍니다.</desc>
+  <style>
+    :root {
+      --fg: #202124;
+      --muted: #5f6368;
+      --panel-fill: #f8f9fa;
+      --panel-stroke: #adb5bd;
+      --dev-fill: #e7f0ff;
+      --dev-stroke: #4c6ef5;
+      --studio-fill: #f3e8ff;
+      --studio-stroke: #7c3aed;
+      --api-fill: #fff3bf;
+      --api-stroke: #f59f00;
+      --run-fill: #d3f9d8;
+      --run-stroke: #2f9e44;
+      --note-fill: #fff4e6;
+      --note-stroke: #e8590c;
+      --arrow: #4c6ef5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --muted: #a8b2c1;
+        --panel-fill: #172033;
+        --panel-stroke: #475569;
+        --dev-fill: #1d2d5a;
+        --dev-stroke: #60a5fa;
+        --studio-fill: #352154;
+        --studio-stroke: #a78bfa;
+        --api-fill: #5c4813;
+        --api-stroke: #fbbf24;
+        --run-fill: #0d3b30;
+        --run-stroke: #34d399;
+        --note-fill: #4a2a15;
+        --note-stroke: #fb923c;
+        --arrow: #60a5fa;
+      }
+    }
+    .text {
+      fill: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+                   Helvetica, Arial, sans-serif;
+    }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: var(--muted); }
+    .section { font-size: 20px; font-weight: 700; fill: var(--muted); }
+    .box-title { font-size: 22px; font-weight: 700; }
+    .compact { font-size: 20px; }
+    .box-body { font-size: 17px; }
+    .box-note { font-size: 15px; fill: var(--muted); }
+    .badge { font-size: 14px; font-weight: 700; }
+    .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
+    .dev { fill: var(--dev-fill); stroke: var(--dev-stroke); stroke-width: 2; }
+    .studio { fill: var(--studio-fill); stroke: var(--studio-stroke); stroke-width: 2; }
+    .api { fill: var(--api-fill); stroke: var(--api-stroke); stroke-width: 2; }
+    .run { fill: var(--run-fill); stroke: var(--run-stroke); stroke-width: 2; }
+    .note { fill: var(--note-fill); stroke: var(--note-stroke); stroke-width: 2; }
+    .flow { fill: none; stroke: var(--arrow); stroke-width: 3; }
+    .arrow-head { fill: var(--arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path class="arrow-head" d="M0 0 L12 6 L0 12 Z"/>
+    </marker>
+  </defs>
+
+  <text class="text title" x="600" y="48" text-anchor="middle">Studio는 개발환경, SageMaker AI는 실행 서비스</text>
+  <text class="text subtitle" x="600" y="78" text-anchor="middle">어디에서 API를 호출해도 Training Job과 Endpoint는 별도의 관리형 리소스로 실행됩니다</text>
+
+  <rect class="panel" x="45" y="115" width="325" height="420" rx="16"/>
+  <text class="text section" x="72" y="150">개발환경 중 하나를 선택</text>
+
+  <rect class="dev" x="65" y="180" width="285" height="115" rx="12"/>
+  <text class="text box-title" x="208" y="216" text-anchor="middle">랩탑, EC2 또는 CI</text>
+  <text class="text box-body" x="208" y="246" text-anchor="middle">직접 준비한 Python 환경</text>
+  <text class="text box-note" x="208" y="272" text-anchor="middle">AWS 자격증명과 IAM 권한 필요</text>
+
+  <text class="text badge" x="208" y="329" text-anchor="middle">또는</text>
+
+  <rect class="studio" x="65" y="355" width="285" height="145" rx="12"/>
+  <text class="text box-title compact" x="208" y="392" text-anchor="middle">SageMaker Studio Space</text>
+  <text class="text box-body" x="208" y="423" text-anchor="middle">SageMaker 관리형 App EC2</text>
+  <text class="text box-body" x="208" y="451" text-anchor="middle">Space 전용 EBS</text>
+  <text class="text box-note" x="208" y="479" text-anchor="middle">Studio 사용은 선택 사항</text>
+
+  <path class="flow" d="M370 325 H435" marker-end="url(#arrow)"/>
+
+  <rect class="panel" x="450" y="170" width="300" height="310" rx="16"/>
+  <text class="text section" x="477" y="205">요청과 상태 관리</text>
+
+  <rect class="api" x="470" y="235" width="260" height="85" rx="12"/>
+  <text class="text box-title compact" x="600" y="270" text-anchor="middle">boto3 / SageMaker SDK</text>
+  <text class="text box-note" x="600" y="298" text-anchor="middle">노트북 또는 Python 스크립트</text>
+
+  <path class="flow" d="M600 320 V355" marker-end="url(#arrow)"/>
+
+  <rect class="api" x="470" y="370" width="260" height="80" rx="12"/>
+  <text class="text box-title" x="600" y="402" text-anchor="middle">SageMaker AI API</text>
+  <text class="text box-note" x="600" y="430" text-anchor="middle">Control plane</text>
+
+  <path class="flow" d="M750 325 H815" marker-end="url(#arrow)"/>
+
+  <rect class="panel" x="830" y="115" width="325" height="420" rx="16"/>
+  <text class="text section" x="857" y="150">SageMaker AI 관리형 리소스</text>
+
+  <rect class="run" x="850" y="185" width="285" height="125" rx="12"/>
+  <text class="text box-title" x="993" y="222" text-anchor="middle">Training Job</text>
+  <text class="text box-body" x="993" y="252" text-anchor="middle">학습 코드와 GPU 인스턴스</text>
+  <text class="text box-note" x="993" y="280" text-anchor="middle">학습이 끝나면 종료</text>
+
+  <rect class="run" x="850" y="350" width="285" height="125" rx="12"/>
+  <text class="text box-title" x="993" y="387" text-anchor="middle">Endpoint</text>
+  <text class="text box-body" x="993" y="417" text-anchor="middle">모델 서버와 추론 인스턴스</text>
+  <text class="text box-note" x="993" y="445" text-anchor="middle">삭제할 때까지 실행</text>
+
+  <rect class="note" x="145" y="580" width="910" height="80" rx="14"/>
+  <text class="text box-title" x="600" y="614" text-anchor="middle">Studio App을 중지해도 이미 생성된 Training Job과 Endpoint는 계속 실행됩니다</text>
+  <text class="text box-note" x="600" y="642" text-anchor="middle">Studio 컴퓨팅, Training Job과 Endpoint는 서로 다른 리소스이며 각각 과금됩니다</text>
+</svg>

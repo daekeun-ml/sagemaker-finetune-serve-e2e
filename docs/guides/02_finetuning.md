@@ -1,4 +1,4 @@
-# 03. 파인튜닝 접근법: DLC + 커스텀 train.py(TRL SFTTrainer, PEFT LoRA/QLoRA)
+# 02. 파인튜닝 접근법: DLC + 커스텀 train.py(TRL SFTTrainer, PEFT LoRA/QLoRA)
 
 !!! info "Scope"
     Amazon SageMaker AI에서 Gemma를 처음 파인튜닝해 보는 엔지니어를 위한 문서입니다.
@@ -8,11 +8,11 @@
     - **선행 조건**: 각 코스의 `01_data_and_synthetic.ipynb`까지 실행해
       `data/train.jsonl`(conversational `messages`)을 만들어 둔 상태.
       Training Job이 무엇이고 `/opt/ml/*` 경로 규약이 왜 있는지가 낯설면
-      [SageMaker AI 기초](01_sagemaker_basics.md)부터
+      [SageMaker AI 기초](../concepts/01_sagemaker_basics.md)부터
     - **여기서 다루는 것**: 학습 경로 선택, Gemma 관용구, LoRA/QLoRA, 머지/re-export,
       `MaxRuntimeExceeded` 함정, SFT→GRPO 데이터 규율
-    - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker AI 추론](04_sagemaker_inference.md),
-      합성 데이터는 [Grounded 합성 데이터](02_synthetic_data.md)
+    - **여기서 다루지 않는 것**: endpoint 배포는 [SageMaker AI 추론](03_sagemaker_inference.md),
+      합성 데이터는 [Grounded 합성 데이터](01_synthetic_data.md)
 
 이 문서와 관련된 파일:
 
@@ -90,12 +90,12 @@ SageMaker AI에서 Gemma를 처음 파인튜닝할 때는 다음 문제를 확�
 지금까지 나온 이름(`JumpStartEstimator`, `ModelTrainer`, `ModelBuilder`, 제거된 `Estimator`)은 전부 **SageMaker Python SDK라는 한 계층 안의 클래스**입니다.
 이 클래스들이 AWS API와 어떤 관계인지 보면 각 선택의 범위를 이해할 수 있습니다.
 
-[![Training Job을 만드는 세 가지 호출 계층 다이어그램. 왼쪽에는 호출 주체로 Dev desktops, App Servers, Amazon EC2, SageMaker Notebooks, Amazon EMR이 세로로 놓이고 각각에서 가운데의 세 계층으로 화살표가 들어간다. 위쪽 AWS SDKs 박스는 CreateTrainingJob()과 CreateModel()을 노출하며 Java, Node, PHP, .NET, Ruby, Python, Go, C++를 지원하고, 가운데 SageMaker Python SDK 박스는 ModelTrainer.train()과 ModelBuilder.deploy()를, 아래쪽 SageMaker Spark Library 박스는 org.apache.spark.ml.Estimator interface를 노출한다. 세 박스에서 나온 화살표는 모두 오른쪽의 같은 대상인 SageMaker AI Training Job으로 모인다](images/sm_sdks.png)](images/sm_sdks.png)
+[![Training Job을 만드는 세 가지 호출 계층 다이어그램. 왼쪽에는 호출 주체로 Dev desktops, App Servers, Amazon EC2, SageMaker Notebooks, Amazon EMR이 세로로 놓이고 각각에서 가운데의 세 계층으로 화살표가 들어간다. 위쪽 AWS SDKs 박스는 CreateTrainingJob()과 CreateModel()을 노출하며 Java, Node, PHP, .NET, Ruby, Python, Go, C++를 지원하고, 가운데 SageMaker Python SDK 박스는 ModelTrainer.train()과 ModelBuilder.deploy()를, 아래쪽 SageMaker Spark Library 박스는 org.apache.spark.ml.Estimator interface를 노출한다. 세 박스에서 나온 화살표는 모두 오른쪽의 같은 대상인 SageMaker AI Training Job으로 모인다](../images/sm_sdks.png)](../images/sm_sdks.png)
 
 *호출 방식은 달라도 AWS에 생성되는 리소스는 같은 Training Job입니다.*
 
 **이 절의 선택은 계층을 갈아타는 결정이 아니라, 같은 계층 안에서 어느 래퍼를 쓸지의 결정입니다.** 위 표의 대안인 JumpStart도 `JumpStartEstimator`라는 같은 계층의 클래스입니다.
-어느 쪽을 골라도 AWS 쪽에 도착하는 것은 `CreateTrainingJob` 하나입니다. 그래서 Job 상태와 시간 제한과 [경로 규약](01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로) 같은 규칙은 경로 선택과 무관하게 똑같이 적용됩니다.
+어느 쪽을 골라도 AWS 쪽에 도착하는 것은 `CreateTrainingJob` 하나입니다. 그래서 Job 상태와 시간 제한과 [경로 규약](../concepts/01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로) 같은 규칙은 경로 선택과 무관하게 똑같이 적용됩니다.
 
 가운데 줄에 적힌 두 API가 그대로 이 프로젝트의 두 노트북입니다.
 
@@ -227,13 +227,13 @@ def _str2bool(v) -> bool:
 
 **파일 하나가 두 무대에서 똑같이 공연합니다.** 리허설(로컬 GPU 소량)과 본공연(SageMaker AI 학습 Job)이 같은 대본을 씁니다.
 
-![같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고 epochs 1, 시퀀스 512 이하, 앞 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고 source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다](images/local_vs_sagemaker.svg)
+![같은 train.py를 두 곳에서 돌리는 방식 비교. 왼쪽 로컬 개발 GPU에서는 python train.py에 --dry_run과 --train_file, --output_dir를 직접 넘기고 epochs 1, 시퀀스 512 이하, 앞 32행만 써서 파이프라인만 검증합니다. 오른쪽 SageMaker AI 학습 Job에서는 trainer.train에 input_data_config를 넘기고 source_dir의 scripts 폴더가 train.py와 requirements.txt째 업로드되며, hyperparameters가 --key value로 변환되고 경로는 SM_CHANNEL_TRAIN과 SM_MODEL_DIR 환경변수로 주입됩니다](../images/local_vs_sagemaker.svg)
 
 *두 환경은 같은 파일을 사용하고 인자 전달 방식만 다릅니다. 로컬에서는 CLI로 넘기고, SageMaker AI에서는 `hyperparameters`와 `SM_*` 환경변수로 주입합니다.*
 
 오른쪽 열의 `trainer.train(...)` 한 줄이 실제로 무엇을 세우는지는, 그 호출이 만들어 내는 인프라를 보면 분명해집니다.
 
-[![ModelTrainer 코드와 그 코드가 세우는 인프라의 대응 다이어그램. 왼쪽은 35줄짜리 ModelTrainer 스니펫이고, 점선 화살표 두 개가 오른쪽으로 나갑니다. 위쪽 점선은 `image_uris.retrieve(...)` 블록에서 Amazon ECR의 PyTorch Training Container Image로, 아래쪽 점선은 `estimator.train(input_data_config=[...])` 줄에서 Amazon SageMaker Managed Cluster로 이어집니다. 클러스터 안에는 Instance 1(Training container + EBS Volume)과 인스턴스 두 개가 더 있고, 오른쪽 실선은 `os.env('SM_MODEL_DIR')`이 s3://bucket/path/to/model로 나가는 방향, `os.env('SM_CHANNEL_TRAINING')`과 `SM_CHANNEL_TESTING`이 S3에서 EBS Volume으로 들어오는 방향을 나타냅니다.](images/sm_training.png)](images/sm_training.png)
+[![ModelTrainer 코드와 그 코드가 세우는 인프라의 대응 다이어그램. 왼쪽은 35줄짜리 ModelTrainer 스니펫이고, 점선 화살표 두 개가 오른쪽으로 나갑니다. 위쪽 점선은 `image_uris.retrieve(...)` 블록에서 Amazon ECR의 PyTorch Training Container Image로, 아래쪽 점선은 `estimator.train(input_data_config=[...])` 줄에서 Amazon SageMaker Managed Cluster로 이어집니다. 클러스터 안에는 Instance 1(Training container + EBS Volume)과 인스턴스 두 개가 더 있고, 오른쪽 실선은 `os.env('SM_MODEL_DIR')`이 s3://bucket/path/to/model로 나가는 방향, `os.env('SM_CHANNEL_TRAINING')`과 `SM_CHANNEL_TESTING`이 S3에서 EBS Volume으로 들어오는 방향을 나타냅니다.](../images/sm_training.png)](../images/sm_training.png)
 
 *코드 한 줄이 어떤 인프라를 세우는지가 화살표로 드러납니다. 점선 둘은 `image_uris.retrieve()`가 ECR 이미지를, `estimator.train()`이 클러스터를 지정하는 방향이고, 오른쪽 실선은 컨테이너와 S3가 `SM_*` 환경변수로 주고받는 방향입니다.*
 
@@ -249,7 +249,7 @@ def _str2bool(v) -> bool:
 그림은 채널이 둘(`training`, `testing`)이라 `SM_CHANNEL_TRAINING`/`SM_CHANNEL_TESTING`입니다. 이 프로젝트는 `InputData(channel_name='train', ...)` 하나만 넘기므로 컨테이너에 심기는 이름은 `SM_CHANNEL_TRAIN` 하나입니다.
 평가 채널이 필요하면 `InputData`를 하나 더 넣고 `train.py`에서 그 이름의 env를 읽으면 됩니다.
 
-인스턴스 박스 안에 **EBS Volume**이 함께 그려진 것이 [경로 규약](01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로)의 물리적 근거입니다.
+인스턴스 박스 안에 **EBS Volume**이 함께 그려진 것이 [경로 규약](../concepts/01_sagemaker_basics.md#경로-규약-컨테이너-안의-정해진-경로)의 물리적 근거입니다.
 `/opt/ml/*`은 그 볼륨 위에 있고, 볼륨은 클러스터와 함께 사라집니다(`trainer.train()`이 부르는 `CreateTrainingJob`이 클러스터를 만들고, Job이 끝나면 회수합니다).
 그림에서 볼륨 밖으로 연결되는 경로가 `SM_MODEL_DIR` 하나뿐이므로 다음 두 규칙을 지켜야 합니다.
 
@@ -261,7 +261,7 @@ def _str2bool(v) -> bool:
 - **학습 이미지**: 이 프로젝트는 `.env`의 `DLC_IMAGE_URI`(리전 포함 완전 URI)를 그대로 씁니다. 기본값은 순수 PyTorch 학습 DLC(`pytorch-training`)이고, `requirements.txt`가 컨테이너 안에서 transformers/trl/peft를 최신으로 올립니다.
 
 베이스에 transformers가 baked-in된 HF DLC(`huggingface-pytorch-training`)도 같은 방식으로 지정할 수 있습니다(AWS의 [SageMaker + HuggingFace 공식 가이드](https://docs.aws.amazon.com/sagemaker/latest/dg/hugging-face.html)).
-자세한 URI 규칙은 [DLC 이미지 URI 패턴](04_sagemaker_inference.md#dlc-이미지-uri-패턴)을 참고하세요.
+자세한 URI 규칙은 [DLC 이미지 URI 패턴](03_sagemaker_inference.md#dlc-이미지-uri-패턴)을 참고하세요.
 
 ??? info "더 읽을 거리: requirements.txt의 핀"
     `scripts/requirements.txt`가 설치하는 것은 `transformers==5.14.1` / `trl>=1.8.0` / `peft>=0.19.1` / `datasets>=5.0.0` / `accelerate>=1.0.0` / `bitsandbytes>=0.44.0`입니다.
@@ -275,7 +275,7 @@ def _str2bool(v) -> bool:
 2. **KV-shared dead weight 복원**: gemma-4 E계열(`num_kv_shared_layers>0`)은 뒤쪽 레이어가 앞 레이어의 KV를 재사용하므로, transformers가 그 레이어에 `k_norm`/`k_proj`/`v_proj` 모듈을 **아예 만들지 않습니다**. `save_pretrained`를 거치면 원본에 있던 텐서가 소실됩니다. 반면 vLLM `Gemma4Attention`은 `k_norm`을 전 레이어에 등록하므로 `weights were not initialized ... k_norm`으로 엔진 초기화가 실패합니다. `_revive_kv_shared_from_base`가 base checkpoint에서 그 텐서만 골라 읽어 되살립니다.
 
 이 텐서는 forward에서 사용되지 않는 dead weight이고 LoRA 타깃에도 없으므로, base 값을 되살리는 것은 정확도에 무해합니다.
-12B/26B-A4B는 `num_kv_shared_layers=0`이라 이 복원이 필요 없습니다. 서빙 쪽 관점은 [서빙 컨테이너 선택](05_serving_containers.md)에 정리돼 있습니다.
+12B/26B-A4B는 `num_kv_shared_layers=0`이라 이 복원이 필요 없습니다. 서빙 쪽 관점은 [서빙 컨테이너 선택](04_serving_containers.md)에 정리돼 있습니다.
 
 ??? info "더 읽을 거리: 두 단계의 실측 근거"
     **re-export**: 재키잉은 `model.language_model.*` → `model.*` + `lm_head`이고 실측 키 100% 매칭(E4B/12B/26B)입니다. 빈 뼈대를 `init_empty_weights`로 만들고 `load_state_dict(assign=True)`로 텐서를 이식해 사본을 만들지 않습니다(호스트 RAM 절약).
@@ -485,7 +485,7 @@ def _to_grpo(example):
     제약을 걸면 **인자 없음 0건 / 평균 인자 2.1개**가 되고, 값을 간접 표현("the day after tomorrow")하는 입력이 나옵니다.
 
 production 환경에서는 **실제 트래픽 로그**도 평가 데이터 후보입니다. 실제 요청 분포를 반영하지만 공개 데이터로 재현할 수 없어 이 프로젝트에는 포함하지 않았습니다.
-held-out 분리 규율은 [held-out 규율](02_synthetic_data.md#held-out-규율-합성으로-평가-금지)을 참고하세요.
+held-out 분리 규율은 [held-out 규율](01_synthetic_data.md#held-out-규율-합성으로-평가-금지)을 참고하세요.
 
 ### 왜 추출과 분류 코스에만 GRPO가 있나
 
@@ -537,7 +537,7 @@ GRPO에는 **프로그램적으로 채점 가능한 reward**가 필요합니다.
 
 ??? question "오해: “학습이 곧 배포 아닌가요?”"
     아닙니다. `02_train_sft_sagemaker`(학습)와 `03_deploy_endpoint`(추론 endpoint)는 별개의 단계입니다.
-    SageMaker AI 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 프로젝트는 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](04_sagemaker_inference.md#왜-real-time인가-추론-4옵션-비교)를 보세요.
+    SageMaker AI 추론에는 Real-time / Serverless / Asynchronous / Batch Transform 네 옵션이 있고 **Serverless는 GPU가 없어 LLM에 부적합**합니다. 이 프로젝트는 real-time endpoint를 씁니다. 자세히는 [왜 Real-time인가](03_sagemaker_inference.md#왜-real-time인가-추론-4옵션-비교)를 보세요.
 
 ---
 

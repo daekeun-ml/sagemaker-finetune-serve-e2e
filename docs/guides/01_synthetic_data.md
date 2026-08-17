@@ -1,4 +1,4 @@
-# 02. Grounded 합성 데이터: seed에 근거하고 critique로 걸러내기
+# 01. Grounded 합성 데이터: seed에 근거하고 critique로 걸러내기
 
 !!! info "Scope"
     파인튜닝용 라벨 데이터가 부족해 합성으로 보강하려는 개발자를 위한 문서입니다.
@@ -7,7 +7,7 @@
     - **선행 조건**: 없습니다. 이 문서에 대응하는 노트북이 각 코스의 첫 단계
       (`01_data_and_synthetic.ipynb`)입니다
     - **여기서 다루는 것**: grounded 생성, critique 게이트, held-out 규율, 라이브러리 대안
-    - **여기서 다루지 않는 것**: 학습 자체는 [파인튜닝](03_finetuning.md)
+    - **여기서 다루지 않는 것**: 학습 자체는 [파인튜닝](02_finetuning.md)
 
 이 문서와 관련된 파일:
 
@@ -255,7 +255,7 @@ seed 전체
     아닙니다. 합성 대량 생성은 Bedrock API를 반복 호출하는 작업입니다.
     [SageMaker 추론 4옵션](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html)(Real-time / Serverless / Asynchronous / Batch Transform)은 **학습된 모델을 서빙**하는 이야기입니다. 특히 **Serverless는 GPU가 없어 LLM/SLM 서빙에 부적합**합니다(합성 생성과는 무관합니다).
     GPU가 기능 제외 목록에 있다는 근거는 [Serverless Inference 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html)입니다. 정책성 항목이라 바뀔 수 있으니 설계 확정 전에 그 페이지에서 현행 스펙을 다시 보세요.
-    자세한 비교는 [SageMaker AI 추론](04_sagemaker_inference.md)을 참고하세요.
+    자세한 비교는 [SageMaker AI 추론](03_sagemaker_inference.md)을 참고하세요.
 
 서비스 경계를 정리했다면, 다음은 grounded라는 말 자체에 대한 오해입니다.
 
