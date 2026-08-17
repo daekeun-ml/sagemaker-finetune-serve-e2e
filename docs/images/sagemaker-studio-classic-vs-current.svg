@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">SageMaker Studio Classic과 현재 Studio의 Jupyter 구조 비교</title>
+  <desc id="desc">Studio Classic은 JupyterServer App과 KernelGateway App을 분리하고 Domain EFS를 공유합니다. 현재 Studio는 Space별 관리형 EC2에서 JupyterLab Server와 Python Kernel을 함께 실행하고 EBS를 연결합니다.</desc>
+  <style>
+    :root {
+      --fg: #202124;
+      --muted: #5f6368;
+      --panel-fill: #f8f9fa;
+      --panel-stroke: #adb5bd;
+      --classic-fill: #f3e8ff;
+      --classic-stroke: #7c3aed;
+      --current-fill: #d3f9d8;
+      --current-stroke: #2f9e44;
+      --compute-fill: #e7f0ff;
+      --compute-stroke: #4c6ef5;
+      --storage-fill: #fff3bf;
+      --storage-stroke: #f59f00;
+      --neutral-fill: #f1f3f5;
+      --neutral-stroke: #868e96;
+      --arrow: #4c6ef5;
+      --dash: #7c3aed;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --muted: #a8b2c1;
+        --panel-fill: #172033;
+        --panel-stroke: #475569;
+        --classic-fill: #352154;
+        --classic-stroke: #a78bfa;
+        --current-fill: #0d3b30;
+        --current-stroke: #34d399;
+        --compute-fill: #1d2d5a;
+        --compute-stroke: #60a5fa;
+        --storage-fill: #5c4813;
+        --storage-stroke: #fbbf24;
+        --neutral-fill: #2b3035;
+        --neutral-stroke: #94a3b8;
+        --arrow: #60a5fa;
+        --dash: #a78bfa;
+      }
+    }
+    .text {
+      fill: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+                   Helvetica, Arial, sans-serif;
+    }
+    .title { font-size: 32px; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: var(--muted); }
+    .column-title { font-size: 25px; font-weight: 700; }
+    .section-title { font-size: 21px; font-weight: 700; }
+    .box-title { font-size: 20px; font-weight: 700; }
+    .body { font-size: 16px; }
+    .note { font-size: 15px; fill: var(--muted); }
+    .panel { fill: var(--panel-fill); stroke: var(--panel-stroke); stroke-width: 2; }
+    .classic { fill: var(--classic-fill); stroke: var(--classic-stroke); stroke-width: 2; }
+    .current { fill: var(--current-fill); stroke: var(--current-stroke); stroke-width: 2; }
+    .compute { fill: var(--compute-fill); stroke: var(--compute-stroke); stroke-width: 2; }
+    .storage { fill: var(--storage-fill); stroke: var(--storage-stroke); stroke-width: 2; }
+    .optional { stroke-dasharray: 7 5; }
+    .neutral { fill: var(--neutral-fill); stroke: var(--neutral-stroke); stroke-width: 2; }
+    .flow { fill: none; stroke: var(--arrow); stroke-width: 3; }
+    .mount { fill: none; stroke: var(--dash); stroke-width: 2.5; stroke-dasharray: 7 6; }
+    .arrow-head { fill: var(--arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path class="arrow-head" d="M0 0 L12 6 L0 12 Z"/>
+    </marker>
+  </defs>
+
+  <text class="text title" x="600" y="46" text-anchor="middle">Studio Classic과 현재 Studio의 Jupyter 구조</text>
+  <text class="text subtitle" x="600" y="78" text-anchor="middle">차이는 화면, 코드 실행 환경과 저장소를 묶는 방식입니다</text>
+
+  <rect class="panel" x="35" y="115" width="545" height="625" rx="18"/>
+  <text class="text column-title" x="308" y="155" text-anchor="middle">Studio Classic</text>
+  <text class="text subtitle" x="308" y="181" text-anchor="middle">화면과 코드 실행 환경 분리</text>
+
+  <rect class="classic" x="70" y="210" width="475" height="62" rx="12"/>
+  <text class="text section-title" x="308" y="248" text-anchor="middle">Domain · User Profile</text>
+
+  <rect class="compute" x="105" y="305" width="405" height="105" rx="12"/>
+  <text class="text box-title" x="308" y="341" text-anchor="middle">JupyterServer App</text>
+  <text class="text body" x="308" y="371" text-anchor="middle">JupyterLab 화면과 노트북 세션 관리</text>
+  <text class="text note" x="308" y="396" text-anchor="middle">코드 셀은 여기서 실행하지 않음</text>
+
+  <path class="flow" d="M308 410 V451" marker-end="url(#arrow)"/>
+  <text class="text note" x="325" y="438">HTTPS / WebSocket</text>
+
+  <rect class="compute" x="105" y="465" width="405" height="115" rx="12"/>
+  <text class="text box-title" x="308" y="501" text-anchor="middle">KernelGateway App</text>
+  <text class="text body" x="308" y="531" text-anchor="middle">Python Kernel과 CPU·GPU 컴퓨팅</text>
+  <text class="text note" x="308" y="557" text-anchor="middle">노트북 셀의 코드를 원격으로 실행</text>
+
+  <rect class="storage" x="105" y="625" width="405" height="78" rx="12"/>
+  <text class="text box-title" x="308" y="657" text-anchor="middle">Domain EFS</text>
+  <text class="text body" x="308" y="685" text-anchor="middle">홈 디렉터리와 노트북 파일</text>
+
+  <path class="mount" d="M150 410 V600 H220 V625"/>
+  <path class="mount" d="M465 580 V600 H395 V625"/>
+  <text class="text note" x="308" y="617" text-anchor="middle">두 App이 같은 EFS를 마운트</text>
+
+  <rect class="panel" x="620" y="115" width="545" height="625" rx="18"/>
+  <text class="text column-title" x="893" y="155" text-anchor="middle">현재 SageMaker Studio</text>
+  <text class="text subtitle" x="893" y="181" text-anchor="middle">Space 안에 화면과 코드 실행 환경 통합</text>
+
+  <rect class="current" x="655" y="210" width="475" height="62" rx="12"/>
+  <text class="text section-title" x="893" y="248" text-anchor="middle">Domain · User Profile · Space</text>
+
+  <rect class="current" x="680" y="305" width="425" height="278" rx="15"/>
+  <text class="text section-title" x="893" y="340" text-anchor="middle">Space의 App 인스턴스</text>
+
+  <rect class="compute" x="710" y="370" width="365" height="78" rx="12"/>
+  <text class="text box-title" x="893" y="402" text-anchor="middle">JupyterLab Server</text>
+  <text class="text body" x="893" y="429" text-anchor="middle">화면, 파일 탐색기와 노트북 세션</text>
+
+  <rect class="compute" x="710" y="470" width="365" height="78" rx="12"/>
+  <text class="text box-title" x="893" y="502" text-anchor="middle">Python Kernel과 터미널</text>
+  <text class="text body" x="893" y="529" text-anchor="middle">같은 관리형 EC2에서 코드 실행</text>
+
+  <path class="flow" d="M893 583 V610 H770 V625" marker-end="url(#arrow)"/>
+  <path class="mount" d="M893 610 H1015 V625"/>
+
+  <rect class="storage" x="650" y="630" width="240" height="73" rx="12"/>
+  <text class="text box-title" x="770" y="660" text-anchor="middle">Space 전용 EBS</text>
+  <text class="text body" x="770" y="687" text-anchor="middle">기본 작업 저장소</text>
+
+  <rect class="storage optional" x="895" y="630" width="240" height="73" rx="12"/>
+  <text class="text box-title" x="1015" y="660" text-anchor="middle">EFS 연결 (선택)</text>
+  <text class="text body" x="1015" y="687" text-anchor="middle">여러 Space의 공유 파일</text>
+</svg>

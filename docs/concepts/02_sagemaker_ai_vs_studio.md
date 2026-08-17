@@ -133,27 +133,18 @@ Space를 여러 개 실행하면 각 Space의 App 인스턴스가 따로 과금�
 
 Studio Classic은 Jupyter Server와 커널 실행 환경이 분리된 구조였습니다.
 
-```text
-Studio Classic Domain
-  |
-User Profile
-  |
-JupyterServer App
-  |
-HTTPS 또는 WebSocket
-  |
-KernelGateway App
-  |
-Python kernel
-
-노트북 파일: Domain의 EFS
-```
-
 Jupyter Server는 화면과 노트북 파일을 관리하고, 코드 셀은 별도의 KernelGateway 인스턴스로 전달해 실행했습니다. 노트북 파일은 Domain의 EFS에 저장됐기 때문에 여러 Classic 애플리케이션에서 같은 홈 디렉터리를 볼 수 있었습니다.
 
 이 구조에서는 UI를 담당하는 JupyterServer App과 코드를 실행하는 KernelGateway App에 서로 다른 수명주기 설정과 이미지 구성이 적용됐습니다.
 
 ## 현재 Studio와 Studio Classic 비교
+
+!!! info "구조 변화 요약"
+    Studio Classic은 JupyterServer와 KernelGateway를 분리해 Kernel 컴퓨팅을 독립적으로 선택하고 중지할 수 있었지만 두 App을 따로 관리해야 했습니다. 현재 Studio는 JupyterLab Server와 Kernel을 Space의 App 인스턴스에 묶어 시작과 운영을 단순화했지만, App이 실행되는 동안 UI만 사용해도 해당 인스턴스의 컴퓨팅 비용이 발생합니다. 구조 차이는 [Studio Classic 마이그레이션 가이드](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-updated-migrate-lcc.html)와 [JupyterLab 관리자 가이드](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-updated-jl-admin-guide.html)에서 확인할 수 있습니다.
+
+![Studio Classic의 JupyterServer와 KernelGateway 분리 구조, 현재 Studio의 Space 단위 통합 구조 비교](../images/sagemaker-studio-classic-vs-current.svg)
+
+왼쪽의 Studio Classic은 JupyterLab 화면과 Python Kernel을 서로 다른 App에서 실행하고 Domain EFS를 공유합니다. 오른쪽의 현재 Studio는 JupyterLab Server, Kernel과 터미널을 하나의 Space App 인스턴스에서 실행합니다. 기본 작업 파일은 Space 전용 EBS에 저장하며, 필요하면 관리자가 제공한 EFS를 추가로 마운트해 여러 Space에서 공유할 수 있습니다.
 
 | 구분 | 현재 SageMaker Studio | Studio Classic |
 |---|---|---|
@@ -165,8 +156,6 @@ Jupyter Server는 화면과 노트북 파일을 관리하고, 코드 셀은 별�
 | 공유 파일 | Shared Space 또는 별도 EFS 연결 | Domain EFS |
 | 인스턴스 선택 | Space의 App 인스턴스 선택 | KernelGateway App 인스턴스 선택 |
 | 새 환경 권장 | 사용 | 사용하지 않음 |
-
-현재 Studio는 하나의 Space 안에 Jupyter Server, 커널과 EBS를 함께 두므로 개발환경의 소유권과 수명이 명확합니다. Studio Classic은 노트북 파일과 커널 인스턴스가 분리돼 있어 EFS, KernelGateway와 JupyterServer의 관계를 함께 이해해야 했습니다.
 
 ## 노트북 코드는 어디에서 실행되는가
 
@@ -229,7 +218,7 @@ Training Job 또는 Endpoint
 
 ## SageMaker Unified Studio와의 차이
 
-SageMaker Unified Studio는 현재 SageMaker 플랫폼에서 데이터, 분석, ML과 생성형 AI 도구를 통합하는 별도 개발환경입니다. SageMaker Studio의 `v2`나 단순한 후속 버전이 아닙니다.
+SageMaker Unified Studio는 현재 SageMaker 플랫폼에서 데이터, 분석, ML과 생성형 AI 도구를 통합하는 별도 개발환경입니다. SageMaker AI용 웹 개발환경인 SageMaker Studio와는 목적과 리소스 구조가 다릅니다. 기능과 프로젝트 구조는 [SageMaker Unified Studio 사용자 가이드](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/what-is-sagemaker-unified-studio.html)에서 확인할 수 있습니다.
 
 이 저장소는 SageMaker AI API를 직접 사용하므로 SageMaker Studio와 Unified Studio 모두 필수는 아닙니다. Unified Studio에서 같은 API와 권한을 사용할 수 있는 개발환경을 구성했다면 실행할 수 있지만, 이 문서의 Domain, User Profile과 Space 설명은 SageMaker AI의 Studio를 기준으로 합니다.
 
