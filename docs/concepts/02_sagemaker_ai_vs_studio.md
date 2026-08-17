@@ -56,6 +56,13 @@ Studio의 인스턴스 유형과 Training Job의 인스턴스 유형은 서로 �
 3. JupyterLab App, Jupyter Server, 커널과 터미널은 같은 EC2 인스턴스에서 실행됩니다.
 4. 각 Space의 EBS는 서로 분리되며, 여러 Space가 같은 파일을 사용해야 한다면 별도의 EFS를 연결할 수 있습니다.
 
+!!! note "현재 Studio에는 별도의 KernelGateway App이 없습니다"
+    Python Kernel은 여전히 노트북 셀을 실행하지만 JupyterLab Server와 같은 Space의 EC2 인스턴스에서 동작합니다. Studio Classic처럼 JupyterServer App이 원격 KernelGateway App으로 코드를 전달하지 않으며, AWS는 현재 구조를 [local runtime model](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-updated-migrate-lcc.html)이라고 설명합니다.
+
+    한 Space에서 여러 노트북과 Kernel을 실행할 수 있으며, AWS는 Space당 Kernel 개수의 고정 상한을 별도로 명시하지 않습니다. 모든 Kernel이 같은 EC2의 CPU, 메모리와 GPU를 공유하므로 실제 실행 가능 개수는 인스턴스 용량과 각 Kernel의 사용량에 따라 달라집니다.
+
+    [SageMaker AI Service Quotas](https://docs.aws.amazon.com/general/latest/gr/sagemaker.html)는 한 Space 안의 Kernel 수가 아니라 리전과 인스턴스 유형별로 실행할 수 있는 JupyterLab App 수를 제한합니다. 서로 다른 인스턴스 유형을 동시에 사용하려면 CPU용 Space와 GPU용 Space처럼 [JupyterLab Space](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-updated-jl-user-guide.html)를 각각 실행합니다.
+
 ### Domain
 
 Domain은 Studio 조직의 관리 경계입니다. 인증 방식, VPC, 기본 실행 역할, 사용자, Space와 공통 설정을 묶습니다.
